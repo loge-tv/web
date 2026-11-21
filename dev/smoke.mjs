@@ -153,6 +153,7 @@ await step('BIF thumbnail while hovering the seek bar', async () => {
   await page.mouse.move(bar.x + bar.width * 0.5, bar.y + bar.height / 2)
   await page.locator('.scrub-preview img').waitFor({ timeout: 5000 })
   assert.ok(pms('/library/parts/1120/indexes/sd').length > 0)
+  await page.waitForTimeout(500) // controls and preview fade in over 0.3 s
   await shot('player-scrub')
   await page.mouse.move(700, 300)
 })

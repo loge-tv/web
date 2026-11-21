@@ -212,8 +212,16 @@ export class PlexServerAPI {
       ['subtitles', o.burnSubtitles ? 'burn' : 'none'],
       ['session', o.session],
       ['X-Plex-Session-Identifier', o.session],
+      ['X-Plex-Client-Profile-Extra', PlexServerAPI.hlsProfileExtra],
     ]
   }
+
+  /**
+   * What a browser plays through hls.js / Safari: H.264 + AAC in MPEG-TS. H.264 sources
+   * are copied (direct stream), everything else is converted.
+   */
+  static readonly hlsProfileExtra =
+    'add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264&audioCodec=aac,mp3&replace=true)'
 
   async stopTranscode(session: string) {
     await fetchChecked(this.fetchFn, this.url('/video/:/transcode/universal/stop', { session }), { ...jsonInit, keepalive: true })

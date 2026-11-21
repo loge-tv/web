@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useApp } from '../app/hooks'
 import { APP_NAME } from '../config'
 import { sectionKind } from '../core/plexModels'
+import { SettingsIcon } from './icons'
 
 /** Top navigation and the page below it. */
 export function Layout() {
@@ -36,8 +37,10 @@ export function Layout() {
               {section.title}
             </NavLink>
           ))}
-          <NavLink to="/settings">Настройки</NavLink>
         </nav>
+        <NavLink to="/settings" className="settings-link" aria-label="Настройки" title="Настройки">
+          <SettingsIcon size={22} />
+        </NavLink>
       </header>
       <main className="page">
         <Outlet />

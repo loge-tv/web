@@ -240,6 +240,27 @@ await step('seeking back before the transcode offset restarts the transcode ther
   }, { timeout: 15000, message: 'playing from ~0:2x' })
 })
 
+await step('another dub: transcode restarts with it, remembered for the show on the detector', async () => {
+  const startsBefore = pms('/video/:/transcode/universal/start.m3u8').length
+  await page.mouse.move(700, 400)
+  await page.getByRole('button', { name: 'Дорожки и разметка' }).click()
+  await page.locator('.tracks-panel .panel-row', { hasText: 'Английский' }).click()
+  const put = await until(() => pms('/library/parts/1130', (r) => r.method === 'PUT' && r.query.audioStreamID === '11301')[0], {
+    message: 'PUT streams with the English track',
+  })
+  assert.ok(put)
+  await until(() => pms('/video/:/transcode/universal/start.m3u8').length > startsBefore, { message: 'transcode restart' })
+  const saved = await until(() => fake.state.preferences.get('100')?.audio, { timeout: 5000, message: 'audio preference on the detector' })
+  assert.equal(saved.language, 'eng')
+  assert.equal(saved.indexInLanguage, 0)
+  await until(async () => {
+    const v = await video()
+    return v && !v.paused && (await shownTime()) >= 20
+  }, { timeout: 15000, message: 'playing again after the switch' })
+  await page.keyboard.press('Escape') // closes the panel
+  await page.locator('.tracks-panel').waitFor({ state: 'detached' })
+})
+
 await step('Esc closes the player: stopped timeline, transcode stopped, back to the show', async () => {
   await page.keyboard.press('Escape')
   await page.waitForURL(/#\/show\/100/, { timeout: 5000 })
@@ -291,7 +312,7 @@ await step('movie: resume dialog, mark watched, library filters', async () => {
 })
 
 await step('settings: detector reachable, skip mode switch persists', async () => {
-  await page.getByRole('navigation').getByRole('link', { name: 'Настройки' }).click()
+  await page.getByRole('link', { name: 'Настройки' }).click()
   await page.getByText('Детектор отвечает').waitFor({ timeout: 8000 })
   await page.getByRole('radio', { name: 'Кнопкой' }).click().catch(async () => {
     // Title of the button mode may differ; pick the third option.
@@ -300,7 +321,26 @@ await step('settings: detector reachable, skip mode switch persists', async () =
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('settings') ?? '{}'))
   assert.notEqual(stored.skipMode, 'auto')
   await shot('settings')
-  await page.locator('[role=radiogroup]').first().locator('[role=radio]').first().click()
+})
+
+await step('countdown mode: «Не пропускать» keeps the intro, then a skip button inside it', async () => {
+  await page.getByRole('radio', { name: 'С отсчётом' }).click()
+  await page.goto(`${app}/#/play/112?t=1`)
+  await page.locator('.skip-countdown').waitFor({ timeout: 10000 })
+  await shot('player-countdown')
+  await page.getByRole('button', { name: 'Не пропускать' }).click()
+  await page.locator('.skip-countdown').waitFor({ state: 'detached' })
+  // Inside the intro (6–15 s with the +1 s correction): a button instead of a skip.
+  const skip = page.locator('.skip-button')
+  await skip.waitFor({ timeout: 10000 })
+  const before = (await video()).time
+  assert.ok(before >= 5.5 && before < 15, `in the intro: ${before}`)
+  await skip.click()
+  await until(async () => ((await video())?.time ?? 0) >= 14.5, { timeout: 5000, message: 'skipped by the button' })
+  await page.keyboard.press('Escape')
+  await page.waitForURL((u) => !u.hash.startsWith('#/play'), { timeout: 5000 })
+  await page.goto(`${app}/#/settings`)
+  await page.getByRole('radiogroup', { name: 'Пропуск' }).getByRole('radio', { name: 'Автоматически' }).click()
 })
 
 await step('detector down: the episode still plays, without segments', async () => {

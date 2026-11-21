@@ -350,8 +350,24 @@ await step('detector down: the episode still plays, without segments', async () 
   await page.getByRole('button', { name: 'Дорожки и разметка' }).click()
   await page.getByText('В этой серии детектор ничего не нашёл').waitFor()
   await page.keyboard.press('Escape')
-  await page.keyboard.press('Escape')
   fake.state.detectorDown = false
+})
+
+await step('keyboard: Space pauses (paused timeline) and resumes, F toggles fullscreen', async () => {
+  await page.keyboard.press('Space')
+  await until(async () => (await video())?.paused, { timeout: 3000, message: 'paused' })
+  await until(() => pms('/:/timeline', (r) => r.query.ratingKey === '112' && r.query.state === 'paused').length > 0, {
+    timeout: 3000,
+    message: 'paused timeline',
+  })
+  await page.keyboard.press('Space')
+  await until(async () => (await video())?.paused === false, { timeout: 3000, message: 'playing again' })
+  await page.keyboard.press('KeyF')
+  await until(() => page.evaluate(() => !!document.fullscreenElement), { timeout: 3000, message: 'fullscreen' })
+  await page.keyboard.press('KeyF')
+  await until(() => page.evaluate(() => !document.fullscreenElement), { timeout: 3000, message: 'fullscreen off' })
+  await page.keyboard.press('Escape')
+  await page.waitForURL((u) => !u.hash.startsWith('#/play'), { timeout: 5000 })
 })
 
 await step('phone layout: no horizontal scrolling on home, show and player', async () => {

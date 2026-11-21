@@ -105,11 +105,15 @@ await step('home: continue watching order, recently added collapsed to seasons',
     })),
   )
   assert.equal(shelves[0].title, 'Продолжить просмотр')
-  assert.equal(shelves[0].cards.length, 3)
-  // In progress by last viewed (episode 3, then the movie), then next up (episode 2).
+  assert.equal(shelves[0].cards.length, 5)
+  // In progress by last viewed (episode 3, then the movie), then next up by when the show was
+  // last watched (the test show, then two others that Plex listed first).
   assert.match(shelves[0].cards[0], /Финал/)
   assert.match(shelves[0].cards[1], /Тестовый фильм/)
   assert.match(shelves[0].cards[2], /Продолжение/)
+  assert.match(shelves[0].cards[3], /Третий сериал/)
+  assert.match(shelves[0].cards[4], /Второй сериал/)
+  assert.ok(pms('/library/metadata/300,400,100').length > 0, 'shows looked up in one request')
   const shows = shelves.find((s) => s.title === 'Недавно добавлено · Сериалы')
   assert.ok(shows, JSON.stringify(shelves))
   assert.equal(shows.cards.length, 1, 'three new episodes → one season card')

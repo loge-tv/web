@@ -5,6 +5,7 @@ import {
   displaySubtitle,
   displayTitle,
   orderContinueWatching,
+  showsToLookUp,
   progress,
   type PlexItem,
   type PlexLibrarySection,
@@ -40,7 +41,11 @@ export function Home() {
         })),
       ),
     ])
-    return { onDeck: orderContinueWatching(deck), recent }
+    // Next-up episodes are ordered by when their show was last watched; on error, Plex order.
+    const shows = await api.itemsByKeys(showsToLookUp(deck)).catch(() => [])
+    const showLastViewed: Record<string, number> = {}
+    for (const show of shows) if (show.lastViewedAt) showLastViewed[show.ratingKey] = show.lastViewedAt
+    return { onDeck: orderContinueWatching(deck, showLastViewed), recent }
   }, [api, sections])
 
   if (!data && loading) return <Spinner />

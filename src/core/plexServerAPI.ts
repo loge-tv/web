@@ -92,6 +92,12 @@ export class PlexServerAPI {
     })
   }
 
+  /** Several items in one request (`/library/metadata/1,2,3`). */
+  async itemsByKeys(ratingKeys: string[], signal?: AbortSignal): Promise<PlexItem[]> {
+    if (ratingKeys.length === 0) return []
+    return this.metadata(`/library/metadata/${ratingKeys.map(encodeURIComponent).join(',')}`, {}, signal)
+  }
+
   /** Full item with media parts and streams. */
   async item(ratingKey: string, signal?: AbortSignal): Promise<PlexItem | undefined> {
     return (await this.metadata(`/library/metadata/${ratingKey}`, {}, signal))[0]

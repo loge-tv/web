@@ -235,6 +235,31 @@ export function makeLibrary() {
   return { show, season, episodes, movie }
 }
 
+// Next-up episodes of two other shows that the smoke never opens. Plex lists them before the
+// test show's next episode; the app looks the shows up (/library/metadata/300,400,100) and puts
+// the most recently watched show first: test show, then «Третий сериал», then «Второй сериал».
+function otherShows(t) {
+  const next = (show, title, episodeTitle) => ({
+    ratingKey: `${show}1`,
+    key: `/library/metadata/${show}1`,
+    type: 'episode',
+    title: episodeTitle,
+    index: 1,
+    parentIndex: 1,
+    parentRatingKey: `${show}0`,
+    grandparentRatingKey: show,
+    grandparentTitle: title,
+    duration: 90000,
+  })
+  return {
+    deck: [next('300', 'Второй сериал', 'Пилот'), next('400', 'Третий сериал', 'Начало')],
+    shows: {
+      300: { ratingKey: '300', type: 'show', title: 'Второй сериал', lastViewedAt: t - 900000 },
+      400: { ratingKey: '400', type: 'show', title: 'Третий сериал', lastViewedAt: t - 600000 },
+    },
+  }
+}
+
 const defaultSegments = {
   112: [
     { type: 'intro', start: 5, end: 15 },
@@ -343,6 +368,7 @@ export async function startFake(options = {}) {
   mkdirSync(hlsRoot, { recursive: true })
 
   const library = makeLibrary()
+  const others = otherShows(now())
   const segments = { ...defaultSegments, ...(options.segments ?? {}) }
   const preferences = new Map()
   const pins = new Map()
@@ -483,9 +509,18 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
       if (p === '/library/onDeck') {
         const next = episodes.find((e) => !(e.viewCount > 0) && !e.viewOffset)
         const inProgress = [movie, ...episodes].filter((i) => i.viewOffset > 0)
-        return json(res, container([...(next ? [next] : []), ...inProgress]))
+        return json(res, container([...others.deck, ...(next ? [next] : []), ...inProgress]))
       }
-      let m = /^\/library\/metadata\/(\w+)$/.exec(p)
+      let m = /^\/library\/metadata\/(\w+(?:,\w+)+)$/.exec(p)
+      if (m) {
+        // Several items at once; like PMS, a show's lastViewedAt is its latest watched episode.
+        const lastViewed = Math.max(0, ...library.episodes.map((e) => e.lastViewedAt ?? 0))
+        const found = m[1].split(',').map((key) =>
+          key === library.show.ratingKey ? { ...library.show, lastViewedAt: lastViewed || undefined } : others.shows[key] ?? findItem(key),
+        )
+        return json(res, container(found.filter(Boolean)))
+      }
+      m = /^\/library\/metadata\/(\w+)$/.exec(p)
       if (m) {
         const item = findItem(m[1])
         return item ? json(res, container([item])) : json(res, { error: 'not found' }, 404)

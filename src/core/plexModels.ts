@@ -329,18 +329,36 @@ export function dynamicRangeBadge(media: PlexMedia): string | undefined {
 
 // MARK: Home
 
+const inProgress = (item: PlexItem) => (item.viewOffset ?? 0) > 0
+
 /**
- * "Continue watching": first the items in progress, most recently watched first,
- * then the next-up episodes of started shows in Plex order.
+ * "Continue watching" (port of SkipTVKit HomeOrdering): first the items in progress, most
+ * recently watched first, then the next-up episodes of started shows, most recently watched
+ * show first. `showLastViewed` holds the shows' `lastViewedAt` (the next episode itself was
+ * never played); without it an item's own `lastViewedAt`, then the server's order, decide.
  */
-export function orderContinueWatching(items: PlexItem[]): PlexItem[] {
-  const started = items
-    .map((item, offset) => ({ item, offset }))
-    .filter(({ item }) => (item.viewOffset ?? 0) > 0)
-    .sort((a, b) => (b.item.lastViewedAt ?? 0) - (a.item.lastViewedAt ?? 0) || a.offset - b.offset)
-    .map(({ item }) => item)
-  const next = items.filter((item) => !((item.viewOffset ?? 0) > 0))
-  return [...started, ...next]
+export function orderContinueWatching(items: PlexItem[], showLastViewed: Record<string, number> = {}): PlexItem[] {
+  const byRecency = (time: (item: PlexItem) => number | undefined) =>
+    (a: { item: PlexItem; offset: number }, b: { item: PlexItem; offset: number }) => {
+      const ta = time(a.item) ?? -Infinity
+      const tb = time(b.item) ?? -Infinity
+      return ta !== tb ? tb - ta : a.offset - b.offset
+    }
+  const indexed = items.map((item, offset) => ({ item, offset }))
+  const started = indexed.filter(({ item }) => inProgress(item)).sort(byRecency((item) => item.lastViewedAt))
+  const next = indexed
+    .filter(({ item }) => !inProgress(item))
+    .sort(byRecency((item) => (item.grandparentRatingKey && showLastViewed[item.grandparentRatingKey]) || item.lastViewedAt))
+  return [...started, ...next].map(({ item }) => item)
+}
+
+/** Shows whose `lastViewedAt` is needed to order the next-up episodes. */
+export function showsToLookUp(items: PlexItem[]): string[] {
+  const shows = new Set<string>()
+  for (const item of items) {
+    if (!inProgress(item) && item.type === 'episode' && item.grandparentRatingKey) shows.add(item.grandparentRatingKey)
+  }
+  return [...shows]
 }
 
 /** Recently added TV episodes become one card per show season. */

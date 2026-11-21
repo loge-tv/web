@@ -11,6 +11,7 @@ import {
   landscapePath,
   makeItem,
   orderContinueWatching,
+  showsToLookUp,
   parseMetadata,
   parseSections,
   posterPath,
@@ -240,6 +241,17 @@ describe('Plex server API', () => {
   })
 })
 
+describe('items by keys', () => {
+  it('one request with comma-separated keys, none when empty', async () => {
+    const mock = new MockFetch()
+    mock.stub('/library/metadata/20,30', JSON.stringify({ MediaContainer: { Metadata: [{ ratingKey: '20', type: 'show', title: 'A', lastViewedAt: 5 }] } }))
+    const api = new PlexServerAPI('http://server.test:32400', 'tok', testClient, mock.fetch)
+    expect((await api.itemsByKeys(['20', '30'])).map((i) => i.lastViewedAt)).toEqual([5])
+    expect(await api.itemsByKeys([])).toEqual([])
+    expect(mock.requests.length).toBe(1)
+  })
+})
+
 describe('home', () => {
   it('continue watching: in progress by last viewed, then next-up in Plex order', () => {
     const items = [
@@ -250,6 +262,32 @@ describe('home', () => {
       makeItem({ ratingKey: 'middle', type: 'episode', viewOffset: 5000, lastViewedAt: 200 }),
     ]
     expect(orderContinueWatching(items).map((i) => i.ratingKey)).toEqual(['recent', 'middle', 'old', 'next1', 'next2'])
+  })
+
+  it('continue watching: next-up by when the show was last watched', () => {
+    const next = (key: string, show: string, lastViewedAt?: number) =>
+      makeItem({ ratingKey: key, type: 'episode', grandparentRatingKey: show, lastViewedAt })
+    const items = [
+      next('a', 'show-a'),
+      makeItem({ ratingKey: 'started', type: 'episode', viewOffset: 1000, lastViewedAt: 50, grandparentRatingKey: 'show-a' }),
+      next('b', 'show-b'),
+      next('c', 'show-c', 250),
+      next('d', 'show-d'),
+    ]
+    const showLastViewed = { 'show-a': 100, 'show-b': 300 }
+    // c has no show entry and falls back to its own lastViewedAt; d has nothing and stays last.
+    expect(orderContinueWatching(items, showLastViewed).map((i) => i.ratingKey)).toEqual(['started', 'b', 'c', 'a', 'd'])
+  })
+
+  it('shows to look up: next-up episodes only, once per show', () => {
+    const items = [
+      makeItem({ ratingKey: '1', type: 'episode', grandparentRatingKey: 's1' }),
+      makeItem({ ratingKey: '2', type: 'episode', grandparentRatingKey: 's1' }),
+      makeItem({ ratingKey: '3', type: 'episode', grandparentRatingKey: 's2', viewOffset: 10 }),
+      makeItem({ ratingKey: '4', type: 'movie' }),
+      makeItem({ ratingKey: '5', type: 'episode', grandparentRatingKey: 's3' }),
+    ]
+    expect(showsToLookUp(items)).toEqual(['s1', 's3'])
   })
 
   it('recently added episodes collapse to one card per season', () => {

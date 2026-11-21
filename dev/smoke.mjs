@@ -370,6 +370,23 @@ await step('keyboard: Space pauses (paused timeline) and resumes, F toggles full
   await page.waitForURL((u) => !u.hash.startsWith('#/play'), { timeout: 5000 })
 })
 
+await step('leaving the player while it still loads starts no media and no transcode', async () => {
+  fake.state.detectorDelayMs = 1500
+  await page.goto(`${app}/#/play/113`)
+  await page.waitForTimeout(300)
+  await page.keyboard.press('Escape')
+  const left = Date.now()
+  await page.waitForURL((u) => !u.hash.startsWith('#/play'), { timeout: 5000 })
+  await page.waitForTimeout(2500)
+  fake.state.detectorDelayMs = 0
+  const late = find((r) => r.server === 'pms' && r.at > left && (r.path.includes('/transcode/universal/') || (r.path.startsWith('/library/parts/') && r.method === 'PUT')))
+  const stops = new Set(pms('/video/:/transcode/universal/stop').map((r) => r.query.session))
+  const orphans = late.filter((r) => r.path.endsWith('start.m3u8') && !stops.has(r.query.session))
+  assert.deepEqual(late.map((r) => `${r.method} ${r.path}`), [], 'nothing started after leaving')
+  assert.deepEqual(orphans, [])
+  assert.equal(await page.evaluate(() => document.querySelectorAll('video').length), 0)
+})
+
 await step('phone layout: no horizontal scrolling on home, show and player', async () => {
   const phone = await browser.newContext({
     viewport: { width: 390, height: 844 },

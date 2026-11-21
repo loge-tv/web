@@ -219,6 +219,9 @@ export class PlayerSession {
   /** Stops playback, reports the final position. */
   close() {
     if (this.snapshot.finished) return
+    // Anything still loading (item, segments, transcode start) must not start the media.
+    this.loadToken++
+    clearInterval(this.countdownTimer)
     this.reportStopped(true)
     this.teardownMedia()
     this.set({ finished: true })
@@ -237,6 +240,7 @@ export class PlayerSession {
   }
 
   private async load(requested: PlexItem, startAt?: number) {
+    if (this.snapshot.finished) return
     const token = ++this.loadToken
     clearInterval(this.countdownTimer)
     this.teardownMedia()
@@ -346,7 +350,7 @@ export class PlayerSession {
   private async startMedia(fileTime: number, autoplay: boolean) {
     const video = this.video
     const part = primaryPart(this.snapshot.item)
-    if (!video || !part) return
+    if (!video || !part || this.snapshot.finished) return
     const token = this.loadToken
     const plan = this.currentPlan()
     this.set({ plan, loading: true, buffering: true, error: undefined })
@@ -356,7 +360,7 @@ export class PlayerSession {
     void this.loadSubtitles(plan)
 
     const ready = () => {
-      if (token !== this.loadToken) return
+      if (token !== this.loadToken || this.snapshot.finished) return
       this.onMetadata(fileTime)
       if (autoplay || !this.snapshot.paused) this.play()
       this.set({ loading: false })

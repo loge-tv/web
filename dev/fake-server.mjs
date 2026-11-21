@@ -347,7 +347,7 @@ export async function startFake(options = {}) {
   const preferences = new Map()
   const pins = new Map()
   const requests = []
-  const state = { detectorDown: !!options.detectorDown, preferences, pins, library }
+  const state = { detectorDown: !!options.detectorDown, detectorDelayMs: 0, preferences, pins, library }
 
   const log = (server, req, url, body, res) => {
     const entry = {
@@ -581,6 +581,8 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
     const body = req.method === 'PUT' ? await readBody(req) : undefined
     log('detector', req, url, body, res)
     if (state.detectorDown) return text(res, 'down', 503)
+    // A slow detector (smoke test: leaving the player while it still loads).
+    if (state.detectorDelayMs && url.pathname !== '/healthz') await new Promise((r) => setTimeout(r, state.detectorDelayMs))
     const p = decodeURIComponent(url.pathname)
     if (p === '/healthz') return text(res, 'ok')
     if (req.headers['x-plex-token'] !== SERVER_TOKEN) return json(res, { error: 'unauthorized' }, 401)

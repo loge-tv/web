@@ -34,18 +34,20 @@ export class PlexServerAPI {
     fetchFn: FetchFn = (input, init) => fetch(input, init),
     timeoutMs = 4000,
   ): Promise<string | undefined> {
-    const results = await Promise.all(
-      candidates.map(async (url) => {
-        try {
-          const response = await fetchWithTimeout(fetchFn, joinURL(url, '/identity', plexParams(client, token)), jsonInit, timeoutMs)
-          return response.ok
-        } catch {
-          return false
-        }
-      }),
-    )
-    const index = results.findIndex(Boolean)
-    return index >= 0 ? candidates[index] : undefined
+    const probes = candidates.map(async (url) => {
+      try {
+        const response = await fetchWithTimeout(fetchFn, joinURL(url, '/identity', plexParams(client, token)), jsonInit, timeoutMs)
+        return response.ok
+      } catch {
+        return false
+      }
+    })
+    // In order of preference: answers as soon as the best reachable one is known,
+    // without waiting for slower, less preferred addresses to time out.
+    for (let i = 0; i < probes.length; i++) {
+      if (await probes[i]) return candidates[i]
+    }
+    return undefined
   }
 
   /** Full URL of a server path with client params and the token. */

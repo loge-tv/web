@@ -395,7 +395,7 @@ p {
   overflow: hidden;
 }
 
-.hero-art,
+.hero .hero-art,
 .detail-backdrop .img {
   position: absolute;
   inset: 0;
@@ -508,6 +508,8 @@ p {
 .shelf-row {
   display: grid;
   grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  justify-content: start;
   gap: 16px;
   overflow-x: auto;
   scroll-snap-type: x proximity;
@@ -930,6 +932,7 @@ p {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: clamp(240px, 24vw, 340px);
+  justify-content: start;
   gap: 16px;
   overflow-x: auto;
   padding: 20px var(--gutter) 8px;

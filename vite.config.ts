@@ -2,21 +2,36 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+/**
+ * `--mode fake`: plex.tv, the sign-in page and the detector are the fakes of
+ * dev/fake-server.mjs (never the real Plex). Environment variables still win.
+ */
+const fakeEnv: Record<string, string> = {
+  VITE_PLEX_TV_URL: `http://127.0.0.1:${process.env.FAKE_PLEXTV_PORT ?? 5181}`,
+  VITE_PLEX_AUTH_URL: `http://127.0.0.1:${process.env.FAKE_PLEXTV_PORT ?? 5181}/auth`,
+  VITE_DETECTOR_URL: `http://127.0.0.1:${process.env.FAKE_DETECTOR_PORT ?? 5183}`,
+}
+
 // Relative base + HashRouter: the build works from any static host and any sub-path.
-export default defineConfig({
-  base: './',
-  plugins: [react()],
-  build: {
-    target: 'es2020',
-    sourcemap: true,
-    // hls.js alone is ~600 kB; it is loaded only when a transcode starts.
-    chunkSizeWarningLimit: 700,
-  },
-  server: {
-    host: true,
-  },
-  test: {
-    include: ['src/**/*.test.ts'],
-    environment: 'node',
-  },
+export default defineConfig(({ mode }) => {
+  if (mode === 'fake') {
+    for (const [key, value] of Object.entries(fakeEnv)) process.env[key] ??= value
+  }
+  return {
+    base: './',
+    plugins: [react()],
+    build: {
+      target: 'es2020',
+      sourcemap: true,
+      // hls.js alone is ~600 kB; it is loaded only when a transcode starts.
+      chunkSizeWarningLimit: 700,
+    },
+    server: {
+      host: true,
+    },
+    test: {
+      include: ['src/**/*.test.ts'],
+      environment: 'node',
+    },
+  }
 })

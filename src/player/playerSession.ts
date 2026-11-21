@@ -77,6 +77,23 @@ export interface PlayerDeps {
 
 type MediaMode = 'direct' | 'transcode'
 
+function withQuery(url: string, name: string, value: string): string {
+  return `${url}${url.includes('?') ? '&' : '?'}${encodeURIComponent(name)}=${encodeURIComponent(value)}`
+}
+
+async function fetchText(url: string): Promise<string> {
+  const response = await fetch(url)
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.text()
+}
+
+/** Sum of `#EXTINF` durations of a media playlist. */
+export function playlistDuration(playlist: string): number {
+  let total = 0
+  for (const match of playlist.matchAll(/#EXTINF:\s*([\d.]+)/g)) total += Number(match[1]) || 0
+  return total
+}
+
 let hlsModule: Promise<typeof Hls | undefined> | undefined
 function loadHls(): Promise<typeof Hls | undefined> {
   hlsModule ??= import('hls.js').then(
@@ -389,29 +406,25 @@ export class PlayerSession {
       video.src = url
       video.load()
     } else {
-      const { baseURL, token: plexToken } = this.deps.api
+      // Read the media playlist first: its length tells whether the stream's times start
+      // at the offset or at 0, so hls.js loads the right segment straight away.
+      const media = await this.mediaPlaylist(url)
+      if (token !== this.loadToken || this.transcodeSession !== session) return
+      this.decideTimeline = false
+      this.relativeStream = media.duration !== undefined ? this.isRelative(media.duration) : this.streamOffset > 0
+      const { token: plexToken } = this.deps.api
       const hls = new Hls({
-        autoStartLoad: false,
+        startPosition: Math.max(0, fileTime - (this.relativeStream ? this.streamOffset : 0)),
         maxBufferLength: 60,
         backBufferLength: 60,
         // Playlists and segments of the session carry the token too.
         xhrSetup: (xhr, requestURL) => {
-          if (requestURL.startsWith(baseURL) && !/[?&]X-Plex-Token=/.test(requestURL)) {
-            const sep = requestURL.includes('?') ? '&' : '?'
-            xhr.open('GET', `${requestURL}${sep}X-Plex-Token=${encodeURIComponent(plexToken)}`, true)
+          if (this.isServerURL(requestURL) && !/[?&]X-Plex-Token=/.test(requestURL)) {
+            xhr.open('GET', withQuery(requestURL, 'X-Plex-Token', plexToken), true)
           }
         },
       })
       this.hls = hls
-      this.decideTimeline = false
-      let started = false
-      hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
-        if (started) return
-        started = true
-        // Decide before loading segments, so hls.js starts right where we want.
-        this.relativeStream = this.isRelative(data.details.totalduration)
-        hls.startLoad(Math.max(0, fileTime - (this.relativeStream ? this.streamOffset : 0)))
-      })
       hls.on(Hls.Events.ERROR, (_, data) => {
         if (!data.fatal) return
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
@@ -424,8 +437,39 @@ export class PlayerSession {
           error: `Сервер Plex не смог подготовить видео${status ? ` (ошибка ${status})` : ''}: ${data.details}`,
         })
       })
-      hls.loadSource(url)
+      hls.loadSource(media.url)
       hls.attachMedia(video)
+    }
+  }
+
+  private isServerURL(url: string): boolean {
+    try {
+      return new URL(url).origin === new URL(this.deps.api.baseURL).origin
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * The media playlist behind Plex's `start.m3u8` (a master playlist with one variant)
+   * and its total length. Falls back to the master URL when it can't be read.
+   */
+  private async mediaPlaylist(masterURL: string): Promise<{ url: string; duration?: number }> {
+    const { token } = this.deps.api
+    try {
+      const master = await fetchText(masterURL)
+      if (/#EXTINF:/.test(master)) return { url: masterURL, duration: playlistDuration(master) }
+      const variant = master
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .find((l) => l !== '' && !l.startsWith('#'))
+      if (!variant) return { url: masterURL }
+      let levelURL = new URL(variant, masterURL).href
+      if (this.isServerURL(levelURL) && !/[?&]X-Plex-Token=/.test(levelURL)) levelURL = withQuery(levelURL, 'X-Plex-Token', token)
+      const level = await fetchText(levelURL)
+      return { url: levelURL, duration: /#EXT-X-ENDLIST/.test(level) ? playlistDuration(level) : undefined }
+    } catch {
+      return { url: masterURL }
     }
   }
 
@@ -661,8 +705,11 @@ export class PlayerSession {
     const watched = this.tracker.isWatched(position, duration > 0 ? duration : undefined)
     const alreadyScrobbled = this.tracker.scrobbled
     const { api } = this.deps
+    // Stopped in the final credits: report the end, not a resume point. Plex would keep
+    // "continue from 41:10" for an episode it just marked watched (credits start < 90 %).
+    const reported = watched && duration > 0 ? duration : position
     api
-      .reportTimeline(item, 'stopped', position, duration > 0 ? duration : undefined, this.transcodeSession, keepalive)
+      .reportTimeline(item, 'stopped', reported, duration > 0 ? duration : undefined, this.transcodeSession, keepalive)
       .catch(() => {})
     if (watched && !alreadyScrobbled) {
       this.tracker.scrobbled = true

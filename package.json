@@ -10,6 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc -b && eslint .",
+    "build:fake": "vite build --mode fake --outDir dev/.out/dist --emptyOutDir",
+    "dev:fake": "vite --mode fake",
     "fake": "node dev/fake-server.mjs",
     "smoke": "node dev/smoke.mjs"
   },

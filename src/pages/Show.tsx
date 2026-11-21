@@ -35,7 +35,12 @@ export function Show() {
   const { requestPlay } = usePlay()
   const [params, setParams] = useSearchParams()
   const seasonParam = params.get('season')
-  const [selected, setSelected] = useState<string | undefined>(params.get('episode') ?? undefined)
+  const episodeParam = params.get('episode') ?? undefined
+  const [selected, setSelected] = useState<string | undefined>(episodeParam)
+  // A link naming another episode of this show (back/forward) selects it.
+  useEffect(() => {
+    if (episodeParam) setSelected(episodeParam)
+  }, [episodeParam])
   const rowRef = useRef<HTMLDivElement>(null)
   const cardRefs = useRef(new Map<string, HTMLDivElement>())
 

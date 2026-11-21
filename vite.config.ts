@@ -9,6 +9,8 @@ export default defineConfig({
   build: {
     target: 'es2020',
     sourcemap: true,
+    // hls.js alone is ~600 kB; it is loaded only when a transcode starts.
+    chunkSizeWarningLimit: 700,
   },
   server: {
     host: true,

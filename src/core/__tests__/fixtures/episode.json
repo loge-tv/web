@@ -1,0 +1,77 @@
+{
+  "MediaContainer": {
+    "size": 1,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 2,
+    "librarySectionTitle": "Сериалы",
+    "Metadata": [
+      {
+        "ratingKey": "12345",
+        "key": "/library/metadata/12345",
+        "parentRatingKey": "12300",
+        "grandparentRatingKey": "12200",
+        "guid": "plex://episode/0000",
+        "type": "episode",
+        "title": "Пилот",
+        "grandparentKey": "/library/metadata/12200",
+        "parentKey": "/library/metadata/12300",
+        "grandparentTitle": "Тестовый сериал",
+        "parentTitle": "Сезон 2",
+        "contentRating": "TV-MA",
+        "summary": "Описание серии.",
+        "index": 3,
+        "parentIndex": 2,
+        "audienceRating": 8.4,
+        "viewOffset": 615000,
+        "viewCount": "1",
+        "lastViewedAt": 1700000500,
+        "year": 2021,
+        "thumb": "/library/metadata/12345/thumb/1700000000",
+        "art": "/library/metadata/12200/art/1700000000",
+        "parentThumb": "/library/metadata/12300/thumb/1700000000",
+        "grandparentThumb": "/library/metadata/12200/thumb/1700000000",
+        "grandparentArt": "/library/metadata/12200/art/1700000000",
+        "duration": 2990000,
+        "originallyAvailableAt": "2021-04-02",
+        "addedAt": 1690000000,
+        "updatedAt": 1700000000,
+        "Media": [
+          {
+            "id": 555,
+            "duration": 2990000,
+            "bitrate": 68000,
+            "width": 3840,
+            "height": 2160,
+            "aspectRatio": 1.78,
+            "audioChannels": 8,
+            "audioCodec": "truehd",
+            "videoCodec": "hevc",
+            "videoResolution": "4k",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "main 10",
+            "Part": [
+              {
+                "id": 777,
+                "key": "/library/parts/777/1690000000/file.mkv",
+                "duration": 2990000,
+                "file": "/media/tv/Show/Season 02/Show - S02E03.mkv",
+                "size": 25123456789,
+                "container": "mkv",
+                "videoProfile": "main 10",
+                "Stream": [
+                  { "id": 1, "streamType": 1, "default": true, "codec": "hevc", "index": 0, "DOVIPresent": true, "colorTrc": "smpte2084", "displayTitle": "4K DoVi/HDR10 (HEVC Main 10)" },
+                  { "id": 2, "streamType": 2, "selected": true, "default": true, "codec": "truehd", "index": 1, "channels": 8, "language": "English", "languageCode": "eng", "displayTitle": "English (TRUEHD 7.1)" },
+                  { "id": 3, "streamType": 2, "codec": "ac3", "index": 2, "channels": 6, "language": "Русский", "languageCode": "rus", "displayTitle": "Русский (AC3 5.1)" },
+                  { "id": 4, "streamType": 3, "codec": "pgs", "index": 3, "language": "Русский", "languageCode": "rus", "displayTitle": "Русский (PGS)" },
+                  { "id": 5, "streamType": 3, "codec": "srt", "key": "/library/streams/5", "language": "English", "languageCode": "eng", "displayTitle": "English (SRT External)" }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

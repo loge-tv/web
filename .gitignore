@@ -1,0 +1,6 @@
+node_modules/
+dist/
+dev/.media/
+dev/.out/
+*.local
+.env.local

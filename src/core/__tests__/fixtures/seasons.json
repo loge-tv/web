@@ -1,0 +1,33 @@
+{
+  "MediaContainer": {
+    "size": 2,
+    "key": "12200",
+    "title1": "Сериалы",
+    "title2": "Тестовый сериал",
+    "Metadata": [
+      {
+        "ratingKey": "12299",
+        "key": "/library/metadata/12299/children",
+        "parentRatingKey": "12200",
+        "type": "season",
+        "title": "Сезон 1",
+        "parentTitle": "Тестовый сериал",
+        "index": 1,
+        "thumb": "/library/metadata/12299/thumb/1",
+        "leafCount": 10,
+        "viewedLeafCount": 10
+      },
+      {
+        "ratingKey": "12300",
+        "key": "/library/metadata/12300/children",
+        "parentRatingKey": "12200",
+        "type": "season",
+        "title": "Сезон 2",
+        "parentTitle": "Тестовый сериал",
+        "index": 2,
+        "leafCount": 8,
+        "viewedLeafCount": 3
+      }
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+[
+  {
+    "name": "Home",
+    "product": "Plex Media Server",
+    "productVersion": "1.41.0.0000",
+    "platform": "Linux",
+    "clientIdentifier": "server-abc",
+    "createdAt": "2023-01-01T00:00:00Z",
+    "provides": "server",
+    "ownerId": null,
+    "owned": true,
+    "accessToken": "server-token",
+    "publicAddress": "203.0.113.10",
+    "httpsRequired": false,
+    "relay": true,
+    "presence": true,
+    "connections": [
+      { "protocol": "https", "address": "203.0.113.10", "port": 32400, "uri": "https://203-0-113-10.abc.plex.direct:32400", "local": false, "relay": false, "IPv6": false },
+      { "protocol": "https", "address": "plex.example.com", "port": 443, "uri": "https://plex.example.com", "local": false, "relay": false, "IPv6": false },
+      { "protocol": "https", "address": "192.168.0.10", "port": 32400, "uri": "https://192-168-0-10.abc.plex.direct:32400", "local": true, "relay": false, "IPv6": false },
+      { "protocol": "https", "address": "198.51.100.1", "port": 8443, "uri": "https://198-51-100-1.abc.plex.direct:8443", "local": false, "relay": true, "IPv6": false }
+    ]
+  },
+  {
+    "name": "iPhone",
+    "product": "Plex for iOS",
+    "clientIdentifier": "phone-1",
+    "provides": "client,player",
+    "owned": true,
+    "accessToken": null,
+    "connections": []
+  }
+]

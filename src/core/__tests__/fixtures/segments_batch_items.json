@@ -1,0 +1,17 @@
+{
+  "items": [
+    {
+      "ratingKey": "1",
+      "segments": [
+        { "type": "credits", "start": 2900, "end": 2990 },
+        { "type": "intro", "start": 0, "end": 45 }
+      ],
+      "analyzed": true
+    },
+    {
+      "ratingKey": "2",
+      "segments": [],
+      "analyzed": false
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "ratingKey": "12345",
+  "segments": [
+    { "type": "credits", "start": 2909.1, "end": 2987.9 },
+    { "type": "intro", "start": 17.5, "end": 61.7 },
+    { "type": "sponsor", "start": 100, "end": 120 },
+    { "type": "recap", "start": 70, "end": 60 }
+  ],
+  "analyzed": true
+}

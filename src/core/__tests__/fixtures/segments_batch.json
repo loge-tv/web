@@ -1,0 +1,12 @@
+[
+  {
+    "ratingKey": "1",
+    "segments": [{ "type": "intro", "start": 0, "end": 45 }],
+    "analyzed": true
+  },
+  {
+    "ratingKey": "2",
+    "segments": [],
+    "analyzed": false
+  }
+]

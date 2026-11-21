@@ -1,0 +1,15 @@
+{
+  "MediaContainer": {
+    "size": 6,
+    "key": "12200",
+    "parentTitle": "Тестовый сериал",
+    "Metadata": [
+      { "ratingKey": "900", "type": "episode", "title": "Спецвыпуск", "parentIndex": 0, "index": 1, "duration": 1200000 },
+      { "ratingKey": "101", "type": "episode", "title": "Первая", "parentIndex": 1, "index": 1, "viewCount": 1, "duration": 3000000 },
+      { "ratingKey": "102", "type": "episode", "title": "Вторая", "parentIndex": 1, "index": 2, "viewCount": 1, "duration": 3000000 },
+      { "ratingKey": "103", "type": "episode", "title": "Третья", "parentIndex": 1, "index": 3, "duration": 3000000 },
+      { "ratingKey": "201", "type": "episode", "title": "Новый сезон", "parentIndex": 2, "index": 1, "duration": 3000000 },
+      { "ratingKey": "202", "type": "episode", "title": "Дальше", "parentIndex": 2, "index": 2, "viewOffset": 120000, "duration": 3000000 }
+    ]
+  }
+}

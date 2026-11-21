@@ -1,0 +1,39 @@
+{
+  "MediaContainer": {
+    "size": 3,
+    "allowSync": false,
+    "title1": "Plex Library",
+    "Directory": [
+      {
+        "allowSync": true,
+        "art": "/:/resources/movie-fanart.jpg",
+        "composite": "/library/sections/1/composite/1700000000",
+        "filters": true,
+        "refreshing": false,
+        "thumb": "/:/resources/movie.png",
+        "key": "1",
+        "type": "movie",
+        "title": "Фильмы",
+        "agent": "tv.plex.agents.movie",
+        "scanner": "Plex Movie",
+        "language": "ru-RU",
+        "uuid": "0b8c7e86-0000-0000-0000-000000000001",
+        "updatedAt": 1700000000,
+        "Location": [{ "id": 1, "path": "/media/movies" }]
+      },
+      {
+        "key": "2",
+        "type": "show",
+        "title": "Сериалы",
+        "agent": "tv.plex.agents.series",
+        "language": "ru-RU",
+        "Location": [{ "id": 2, "path": "/media/tv" }]
+      },
+      {
+        "key": "3",
+        "type": "artist",
+        "title": "Музыка"
+      }
+    ]
+  }
+}

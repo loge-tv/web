@@ -1074,6 +1074,13 @@ await step('phone layout: no horizontal scrolling on home, show and player', asy
   await p.getByRole('heading', { name: 'Продолжить просмотр' }).waitFor({ timeout: 15000 })
   await p.locator('.img img.loaded').first().waitFor()
   assert.ok((await overflow()) <= 0, `home overflows by ${await overflow()} px`)
+  // The sections sit at the bottom, all of them inside the screen.
+  const tabs = p.getByRole('navigation', { name: 'Разделы внизу' }).getByRole('link')
+  assert.deepEqual(await tabs.allInnerTexts(), ['Главная', 'Фильмы', 'Сериалы', 'Обзор'])
+  for (const box of await tabs.evaluateAll((links) => links.map((a) => a.getBoundingClientRect().toJSON()))) {
+    assert.ok(box.x >= 0 && box.x + box.width <= 390 && box.y > 700, `tab inside the bottom of the screen: ${JSON.stringify(box)}`)
+  }
+  assert.ok(!(await p.getByRole('navigation', { name: 'Разделы', exact: true }).isVisible()), 'no sections in the top bar')
   await p.screenshot({ path: join(screens, 'phone-home.png') })
   await p.getByRole('heading', { name: 'Ещё не вышло' }).waitFor()
   assert.ok((await overflow()) <= 0, `home with the list overflows by ${await overflow()} px`)

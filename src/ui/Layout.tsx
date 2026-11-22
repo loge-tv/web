@@ -27,6 +27,21 @@ export function Layout() {
     window.scrollTo(0, 0)
   }, [location.pathname])
 
+  const links = (
+    <>
+      <NavLink to="/" end>
+        Главная
+      </NavLink>
+      {sections.map((section) => (
+        <NavLink key={section.key} to={`/library/${section.key}`} title={sectionKind(section) === 'movie' ? 'Фильмы' : 'Сериалы'}>
+          {section.title}
+        </NavLink>
+      ))}
+      {/* Plex's collections: while any is on in settings and a Plex account is signed in. */}
+      {showsExplore(settings) && discover && <NavLink to="/explore">Обзор</NavLink>}
+    </>
+  )
+
   return (
     <div className="app">
       <header className={`topbar${scrolled ? ' scrolled' : ''}`}>
@@ -34,16 +49,7 @@ export function Layout() {
           <Wordmark height={24} />
         </NavLink>
         <nav className={`topnav${nav.className}`} aria-label="Разделы" ref={nav.ref} onScroll={nav.update}>
-          <NavLink to="/" end>
-            Главная
-          </NavLink>
-          {sections.map((section) => (
-            <NavLink key={section.key} to={`/library/${section.key}`} title={sectionKind(section) === 'movie' ? 'Фильмы' : 'Сериалы'}>
-              {section.title}
-            </NavLink>
-          ))}
-          {/* Plex's collections: while any is on in settings and a Plex account is signed in. */}
-          {showsExplore(settings) && discover && <NavLink to="/explore">Обзор</NavLink>}
+          {links}
         </nav>
         <div className="topbar-actions">
           <NavLink to="/search" className="icon-link" aria-label="Поиск" title="Поиск">
@@ -57,6 +63,11 @@ export function Layout() {
       <main className="page">
         <Outlet />
       </main>
+      {/* Phones: the sections at the bottom, like the iPhone app (the top bar has no room for
+          them next to the logo, search and settings). */}
+      <nav className="tabbar" aria-label="Разделы внизу">
+        {links}
+      </nav>
       <WatchlistAlert />
     </div>
   )

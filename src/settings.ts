@@ -25,7 +25,7 @@ export interface Settings {
 
 export const countdownOptions = [5, 10, 15]
 export const seekBackOptions = [5, 10, 15, 30]
-export const seekForwardOptions = [10, 15, 30, 60]
+export const seekForwardOptions = [5, 10, 15, 30, 60]
 
 export const defaultDetectorURL = DEFAULT_DETECTOR ?? DEFAULT_DETECTOR_URL
 
@@ -33,8 +33,8 @@ const defaults: Settings = {
   skipMode: 'countdown',
   autoplayNext: true,
   nextEpisodeCountdown: 5,
-  seekBack: 10,
-  seekForward: 30,
+  seekBack: 5,
+  seekForward: 5,
   detectorURL: defaultDetectorURL,
   preferredConnection: '',
   forceTranscode: false,

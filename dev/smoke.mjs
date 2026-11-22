@@ -35,6 +35,14 @@ const browser = await chromium.launch({
 })
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ru-RU' })
 const page = await context.newPage()
+// Every host the browser asked for: only the fakes (rule: never the real Plex).
+const requestedHosts = new Set()
+const recordHosts = (ctx) =>
+  ctx.on('request', (r) => {
+    const url = new URL(r.url())
+    if (url.protocol.startsWith('http')) requestedHosts.add(url.host)
+  })
+recordHosts(context)
 const pageErrors = []
 const consoleErrors = []
 page.on('pageerror', (e) => pageErrors.push(String(e)))
@@ -71,6 +79,27 @@ async function until(fn, { timeout = 15000, interval = 150, message = 'condition
 
 const find = (pred) => fake.requests.filter(pred)
 const pms = (path, extra = () => true) => find((r) => r.server === 'pms' && r.path === path && extra(r))
+const discover = (path, extra = () => true) => find((r) => r.server === 'discover' && r.path === path && extra(r))
+/** "title | subtitle" of the cards of a home shelf or a search section (null when absent). */
+const cardsUnder = (root, selector, title) =>
+  root.$$eval(
+    selector,
+    (list, [t]) => {
+      const box = list.find((s) => s.querySelector('h2')?.textContent === t)
+      return box
+        ? [...box.querySelectorAll('.card')].map((c) => `${c.querySelector('.card-title')?.textContent} | ${c.querySelector('.card-subtitle')?.textContent ?? ''}`)
+        : null
+    },
+    [title],
+  )
+const shelfCards = (title, root = page) => cardsUnder(root, 'section.shelf', title)
+const sectionCards = (title, root = page) => cardsUnder(root, '.search-section', title)
+const listAlert = () => page.getByRole('alertdialog', { name: 'Список Plex' })
+/** Screenshot once fades are over (dialog 0.15 s, images and buttons 0.3 s). */
+const settledShot = async (name) => {
+  await page.waitForTimeout(400)
+  await shot(name)
+}
 const video = () =>
   page.evaluate(() => {
     const v = document.querySelector('video')
@@ -106,8 +135,8 @@ await step('home: continue watching order, recently added collapsed to seasons',
   )
   assert.equal(shelves[0].title, 'Продолжить просмотр')
   assert.equal(shelves[0].cards.length, 5)
-  // In progress by last viewed (episode 3, then the movie), then next up by when the show was
-  // last watched (the test show, then two others that Plex listed first).
+  // One list by recency: episode 3 and the movie by their own last view, next-up episodes by
+  // when their show was last watched (the test show, then two others that Plex listed first).
   assert.match(shelves[0].cards[0], /Финал/)
   assert.match(shelves[0].cards[1], /Тестовый фильм/)
   assert.match(shelves[0].cards[2], /Продолжение/)
@@ -290,21 +319,22 @@ await step('show page selects the episode in progress when none is named', async
   assert.match((await page.locator('.detail-body .btn-primary').textContent()) ?? '', /Продолжить/)
 })
 
-await step('movie: resume dialog, mark watched, library filters', async () => {
+await step('movie: ▶ plays from where it was left (no dialog), mark watched, library filters', async () => {
   await page.goto(`${app}/#/`)
   const movieCard = page.locator('section.shelf').first().locator('.card').nth(1)
   await movieCard.hover()
   await movieCard.locator('.play-overlay').click()
-  await page.getByRole('dialog').getByRole('button', { name: 'Продолжить с 0:30' }).waitFor()
-  await shot('resume-dialog')
-  await page.getByRole('dialog').getByRole('button', { name: 'Отмена' }).click()
+  await page.waitForURL(/#\/play\/200\?t=30$/)
+  await page.locator('.scrub').waitFor() // the player's keys work once it is up
+  await page.keyboard.press('Escape')
+  await page.waitForURL((u) => !u.hash.startsWith('#/play'), { timeout: 5000 })
   await page.getByRole('navigation').getByRole('link', { name: 'Фильмы' }).click()
   await page.waitForURL(/#\/library\/1/)
   await page.getByRole('tab', { name: 'Непросмотренные' }).click()
   assert.equal(await page.locator('.poster-grid .card').count(), 1)
   await page.locator('.poster-grid .card button.card-art').first().click({ position: { x: 20, y: 20 } })
   await page.waitForURL(/#\/movie\/200/)
-  await page.getByRole('button', { name: /Продолжить с 0:30/ }).waitFor()
+  await page.getByRole('button', { name: /Продолжить с 0:3\d/ }).waitFor()
   await shot('movie')
   await page.getByRole('button', { name: 'Просмотрено' }).click()
   await page.getByRole('button', { name: 'Не просмотрено' }).waitFor()
@@ -392,6 +422,169 @@ await step('leaving the player while it still loads starts no media and no trans
   assert.equal(await page.evaluate(() => document.querySelectorAll('video').length), 0)
 })
 
+// MARK: Plex list and catalog
+
+await step('home: «Хочу посмотреть» and «Ещё не вышло» from the Plex list', async () => {
+  fake.state.resetWatchlist()
+  // Plus the server's old-agent movie (no catalog key): it must stay off the shelves too.
+  fake.state.watchlist.unshift('cat-film-200')
+  await page.goto(`${app}/#/`)
+  await page.getByRole('heading', { name: 'Хочу посмотреть' }).waitFor({ timeout: 10000 })
+  const titles = await page.$$eval('section.shelf .shelf-title', (list) => list.map((h) => h.textContent))
+  assert.deepEqual(titles.slice(0, 3), ['Продолжить просмотр', 'Хочу посмотреть', 'Ещё не вышло'])
+  // In Plex order; the watched title and the one on the server are on neither shelf.
+  assert.deepEqual(await shelfCards('Хочу посмотреть'), ['Новый сериал | Сериал · 2025', 'Ещё один новый фильм | Фильм · 2024'])
+  // Soonest first: the day before the year-only title.
+  assert.deepEqual(await shelfCards('Ещё не вышло'), ['Скоро фильм | 12 марта 2027', 'Будущий сериал | 2028'])
+  // The date alone under the poster; the button says the title with it.
+  await page.getByRole('button', { name: 'Скоро фильм, 12 марта 2027', exact: true }).waitFor()
+  assert.equal(await page.getByText('Мой список').count(), 0)
+  const list = discover('/library/sections/watchlist/all').at(-1)
+  assert.equal(list.query.includeUserState, '1')
+  assert.equal(list.headers['x-plex-language'], 'ru')
+  // The account token, in a header, never in a URL; the resizer gets no token at all.
+  const api = find((r) => r.server === 'discover' && r.path !== '/photo')
+  assert.ok(api.every((r) => r.headers['x-plex-token'] === USER_TOKEN && !r.query['X-Plex-Token']), 'Discover with the account token')
+  await page.locator('.catalog-card img.loaded').first().waitFor()
+  const photos = discover('/photo')
+  assert.ok(photos.length > 0 && photos.every((r) => !r.query['X-Plex-Token'] && r.query.url.startsWith('https://catalog-images.invalid/')))
+  await page.screenshot({ path: join(screens, 'home-watchlist.png'), fullPage: true })
+})
+
+await step('search: the empty query shows the list, or the hint when it is empty', async () => {
+  await page.getByRole('link', { name: 'Поиск' }).click()
+  await page.waitForURL(/#\/search$/)
+  await page.locator('.search-section h2', { hasText: 'Хочу посмотреть' }).waitFor()
+  assert.deepEqual(await sectionCards('Ещё не вышло'), ['Скоро фильм | 12 марта 2027', 'Будущий сериал | 2028'])
+  await page.locator('.search-section').last().locator('img.loaded').last().waitFor()
+  await settledShot('search-list')
+  fake.state.watchlist = []
+  const reloaded = Date.now()
+  await page.reload()
+  await until(() => discover('/library/sections/watchlist/all', (r) => r.at > reloaded && r.status === 200).length > 0, { message: 'list fetched again' })
+  await page.getByRole('heading', { name: 'Найдите фильм или сериал' }).waitFor()
+  await page.getByText('Чего нет на сервере, можно добавить в список Plex (он общий с приложениями Plex): оно появится здесь, в «Хочу посмотреть» или «Ещё не вышло».', { exact: false }).waitFor()
+  await shot('search-hint')
+  fake.state.resetWatchlist()
+})
+
+await step('search: the server\'s titles and the catalog\'s apart, each once; typing is debounced', async () => {
+  const before = discover('/library/search').length
+  await page.getByRole('searchbox', { name: 'Фильмы и сериалы' }).pressSequentially('тест', { delay: 60 })
+  await page.locator('.search-section h2', { hasText: 'Нет на сервере' }).waitFor()
+  const searches = discover('/library/search').slice(before)
+  assert.equal(searches.length, 1, 'one request once typing stops')
+  assert.equal(searches[0].query.query, 'тест')
+  // Both are the catalog's matches: the show by its plex:// key, the old-agent movie by kind,
+  // title and year; neither is repeated under «Нет на сервере»; the person is dropped.
+  assert.deepEqual(await sectionCards('На сервере'), ['Тестовый сериал | 2025', 'Тестовый фильм | 2024'])
+  assert.deepEqual(await sectionCards('Нет на сервере'), ['Тестовая комедия | Фильм · 2023'])
+  assert.match(page.url(), /#\/search\?q=/)
+  await page.locator('.search-section .catalog-card img.loaded').first().waitFor()
+  await settledShot('search-results')
+})
+
+await step('search: a catalog poster\'s bookmark puts it on the Plex list', async () => {
+  await page.getByRole('button', { name: 'Добавить «Тестовая комедия» в список' }).click()
+  await page.getByRole('button', { name: 'Убрать «Тестовая комедия» из списка' }).waitFor()
+  const put = await until(() => discover('/actions/addToWatchlist', (r) => r.query.ratingKey === 'cat-test-1')[0], { message: 'PUT add' })
+  assert.equal(put.method, 'PUT')
+  assert.equal(put.headers['x-plex-token'], USER_TOKEN)
+  assert.equal(fake.state.watchlist[0], 'cat-test-1')
+  await page.getByRole('searchbox', { name: 'Фильмы и сериалы' }).fill('')
+  await page.locator('.search-section h2', { hasText: 'Хочу посмотреть' }).waitFor()
+  assert.equal((await sectionCards('Хочу посмотреть'))[0], 'Тестовая комедия | Фильм · 2023')
+})
+
+await step('refused add: the bookmark goes back and «Список Plex» says why', async () => {
+  await page.getByRole('searchbox', { name: 'Фильмы и сериалы' }).fill('нов')
+  await page.locator('.search-section h2', { hasText: 'Нет на сервере' }).waitFor()
+  fake.state.watchlistFail = true
+  await page.getByRole('button', { name: 'Добавить «Новый фильм» в список' }).click()
+  await listAlert().waitFor()
+  assert.equal(await listAlert().locator('p').textContent(), 'Не удалось добавить «Новый фильм» в список. Проверьте подключение к интернету.')
+  await settledShot('watchlist-refused')
+  await listAlert().getByRole('button', { name: 'OK' }).click()
+  await listAlert().waitFor({ state: 'detached' })
+  await page.getByRole('button', { name: 'Добавить «Новый фильм» в список' }).waitFor()
+  assert.ok(!fake.state.watchlist.includes('cat-new-1'))
+  fake.state.watchlistFail = false
+})
+
+await step('catalog page: details from Plex, add and remove', async () => {
+  await page.getByRole('button', { name: 'Новый фильм, Фильм · 2026', exact: true }).click()
+  await page.waitForURL(/#\/catalog\/cat-new-1$/)
+  await page.getByRole('heading', { name: 'Новый фильм' }).waitFor()
+  // The summary is only in the details answer (search results come without it).
+  await page.getByText('Фильма нет на сервере: его можно добавить в список.').waitFor()
+  assert.ok(discover('/library/metadata/cat-new-1').length > 0)
+  const meta = (await page.locator('.detail .meta').textContent()) ?? ''
+  for (const part of ['Фильм · 2026', '2 ч', '16+', '★ 7.4']) assert.ok(meta.includes(part), `${part} in ${meta}`)
+  await page.getByText('Драма · Фантастика').waitFor()
+  await page.getByText('На сервере «Фейковый сервер» этого нет. Список общий с приложениями Plex.').waitFor()
+  assert.equal(await page.getByRole('button', { name: 'Открыть в библиотеке' }).count(), 0)
+  await page.getByRole('button', { name: 'Добавить в список' }).click()
+  await page.getByRole('button', { name: 'В списке' }).waitFor()
+  await until(() => fake.state.watchlist.includes('cat-new-1'), { message: 'added on the fake' })
+  await page.locator('.detail-backdrop img.loaded').waitFor()
+  await settledShot('catalog')
+  await page.getByRole('button', { name: 'В списке' }).click()
+  await page.getByRole('button', { name: 'Добавить в список' }).waitFor()
+  await until(() => !fake.state.watchlist.includes('cat-new-1'), { message: 'removed on the fake' })
+  assert.equal(discover('/actions/removeFromWatchlist', (r) => r.query.ratingKey === 'cat-new-1').length, 1)
+})
+
+await step('catalog page of a title the server has (opened by link): «Открыть в библиотеке»', async () => {
+  await page.goto(`${app}/#/catalog/cat-show-10`)
+  await page.getByRole('button', { name: 'Открыть в библиотеке' }).waitFor({ timeout: 10000 })
+  assert.equal(await page.getByText(/этого нет/).count(), 0)
+  await page.getByRole('button', { name: 'Открыть в библиотеке' }).click()
+  await page.waitForURL(/#\/show\/100/)
+  // The old-agent movie too, by kind, title and year.
+  await page.goto(`${app}/#/catalog/cat-film-200`)
+  await page.getByRole('button', { name: 'Открыть в библиотеке' }).waitFor({ timeout: 10000 })
+  assert.equal(await page.getByText(/этого нет/).count(), 0)
+  await page.getByRole('button', { name: 'Открыть в библиотеке' }).click()
+  await page.waitForURL(/#\/movie\/200$/)
+})
+
+await step('catalog down: the server\'s titles with a note; «Ничего не нашлось» when nothing matches', async () => {
+  fake.state.searchFail = true
+  const down = 'Каталог Plex сейчас недоступен: показано только то, что есть на сервере.'
+  await page.goto(`${app}/#/search?q=${encodeURIComponent('тест')}`)
+  await page.getByText(down).waitFor({ timeout: 10000 })
+  // Title matches only, in library order (movies first here).
+  assert.deepEqual(await sectionCards('На сервере'), ['Тестовый фильм | 2024', 'Тестовый сериал | 2025'])
+  assert.equal(await sectionCards('Нет на сервере'), null)
+  await page.getByRole('searchbox', { name: 'Фильмы и сериалы' }).fill('ъъъ')
+  await page.getByText('Ничего не нашлось').waitFor()
+  await page.getByText(down).waitFor()
+  await shot('search-catalog-down')
+  fake.state.searchFail = false
+  await page.getByRole('searchbox', { name: 'Фильмы и сериалы' }).fill('ъъъъ')
+  await until(async () => (await page.getByText(down).count()) === 0, { message: 'note gone once the catalog answers' })
+  await page.getByText('Ничего не нашлось').waitFor()
+})
+
+await step('home: removing from a card; a refused removal comes back', async () => {
+  fake.state.resetWatchlist()
+  await page.goto(`${app}/#/`)
+  await page.getByRole('heading', { name: 'Хочу посмотреть' }).waitFor({ timeout: 10000 })
+  await page.getByRole('button', { name: 'Убрать «Ещё один новый фильм» из списка' }).click()
+  await until(async () => (await shelfCards('Хочу посмотреть'))?.length === 1, { message: 'card removed' })
+  await until(() => !fake.state.watchlist.includes('cat-new-3'), { message: 'removed on the fake' })
+  fake.state.watchlistFail = true
+  await page.getByRole('button', { name: 'Убрать «Новый сериал» из списка' }).click()
+  await listAlert().waitFor()
+  assert.equal(await listAlert().locator('p').textContent(), 'Не удалось убрать «Новый сериал» из списка. Проверьте подключение к интернету.')
+  await settledShot('home-refused')
+  await page.keyboard.press('Escape')
+  await listAlert().waitFor({ state: 'detached' })
+  assert.deepEqual(await shelfCards('Хочу посмотреть'), ['Новый сериал | Сериал · 2025'])
+  assert.ok(fake.state.watchlist.includes('cat-new-2'))
+  fake.state.resetWatchlist()
+})
+
 await step('phone layout: no horizontal scrolling on home, show and player', async () => {
   const phone = await browser.newContext({
     viewport: { width: 390, height: 844 },
@@ -401,6 +594,7 @@ await step('phone layout: no horizontal scrolling on home, show and player', asy
     locale: 'ru-RU',
     storageState: await context.storageState(),
   })
+  recordHosts(phone)
   const p = await phone.newPage()
   p.on('pageerror', (e) => pageErrors.push(`phone: ${e}`))
   const overflow = () => p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
@@ -409,6 +603,24 @@ await step('phone layout: no horizontal scrolling on home, show and player', asy
   await p.locator('.img img.loaded').first().waitFor()
   assert.ok((await overflow()) <= 0, `home overflows by ${await overflow()} px`)
   await p.screenshot({ path: join(screens, 'phone-home.png') })
+  await p.getByRole('heading', { name: 'Ещё не вышло' }).waitFor()
+  assert.ok((await overflow()) <= 0, `home with the list overflows by ${await overflow()} px`)
+  await p.screenshot({ path: join(screens, 'phone-home-full.png'), fullPage: true })
+  await p.goto(`${app}/#/search?q=${encodeURIComponent('тест')}`)
+  await p.locator('.search-section h2', { hasText: 'Нет на сервере' }).waitFor({ timeout: 10000 })
+  await p.locator('.catalog-card img.loaded').first().waitFor()
+  assert.ok((await overflow()) <= 0, `search overflows by ${await overflow()} px`)
+  await p.screenshot({ path: join(screens, 'phone-search.png'), fullPage: true })
+  await p.goto(`${app}/#/search`)
+  await p.locator('.search-section h2', { hasText: 'Ещё не вышло' }).waitFor({ timeout: 10000 })
+  await p.locator('.search-section').last().locator('img.loaded').last().waitFor()
+  await p.waitForTimeout(400)
+  assert.ok((await overflow()) <= 0, `search list overflows by ${await overflow()} px`)
+  await p.screenshot({ path: join(screens, 'phone-search-list.png'), fullPage: true })
+  await p.goto(`${app}/#/catalog/cat-new-1`)
+  await p.getByText('Фильма нет на сервере: его можно добавить в список.').waitFor({ timeout: 10000 })
+  assert.ok((await overflow()) <= 0, `catalog page overflows by ${await overflow()} px`)
+  await p.screenshot({ path: join(screens, 'phone-catalog.png'), fullPage: true })
   await p.goto(`${app}/#/show/100`)
   await p.locator('.landscape-card.selected').waitFor()
   assert.ok((await overflow()) <= 0, `show overflows by ${await overflow()} px`)
@@ -422,6 +634,11 @@ await step('phone layout: no horizontal scrolling on home, show and player', asy
   assert.ok((await overflow()) <= 0, `settings overflow by ${await overflow()} px`)
   await p.screenshot({ path: join(screens, 'phone-settings.png'), fullPage: true })
   await phone.close()
+})
+
+await step('the browser asked only the fakes (plus the never-answering fake plex.direct)', async () => {
+  const outside = [...requestedHosts].filter((h) => !h.startsWith('127.0.0.1:') && !h.endsWith('.fake.plex.direct:32400'))
+  assert.deepEqual(outside, [])
 })
 
 await step('no uncaught errors in the page', async () => {

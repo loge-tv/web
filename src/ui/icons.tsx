@@ -101,6 +101,29 @@ export const RestartIcon = (p: IconProps) => (
   </Icon>
 )
 
+export const SearchIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path
+      fillRule="evenodd"
+      d="M10.5 3a7.5 7.5 0 0 1 5.96 12.05l4.25 4.24a1 1 0 0 1-1.42 1.42l-4.24-4.25A7.5 7.5 0 1 1 10.5 3zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z"
+    />
+  </Icon>
+)
+
+/** Bookmark: outlined, or filled when the title is on the Plex list. */
+export const BookmarkIcon = ({ filled, ...p }: IconProps & { filled?: boolean }) => (
+  <Icon {...p}>
+    {filled ? (
+      <path d="M6.5 3h11A1.5 1.5 0 0 1 19 4.5v15.6a.9.9 0 0 1-1.4.7L12 16.7l-5.6 4.1a.9.9 0 0 1-1.4-.7V4.5A1.5 1.5 0 0 1 6.5 3z" />
+    ) : (
+      <path
+        fillRule="evenodd"
+        d="M6.5 3h11A1.5 1.5 0 0 1 19 4.5v15.6a.9.9 0 0 1-1.4.7L12 16.7l-5.6 4.1a.9.9 0 0 1-1.4-.7V4.5A1.5 1.5 0 0 1 6.5 3zM7 5v13.1l4.4-3.2a1 1 0 0 1 1.2 0l4.4 3.2V5H7z"
+      />
+    )}
+  </Icon>
+)
+
 /** Gear (Material Icons "settings", Apache 2.0). */
 export const SettingsIcon = (p: IconProps) => (
   <Icon {...p}>

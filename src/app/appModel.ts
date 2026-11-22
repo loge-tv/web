@@ -1,13 +1,15 @@
-import { PLEX_AUTH_URL, PLEX_TV_URL } from '../config'
+import { PLEX_AUTH_URL, PLEX_DISCOVER_URL, PLEX_IMAGES_URL, PLEX_TV_URL } from '../config'
 import { DetectorClient, normalizeDetectorURL } from '../core/detectorClient'
 import { HTTPError } from '../core/http'
 import { PlexAccountAPI, usableCandidateURLs, type PlexClientInfo, type PlexServer } from '../core/plexAccount'
+import { PlexDiscoverAPI } from '../core/plexDiscover'
 import { sectionKind, type PlexItem, type PlexLibrarySection } from '../core/plexModels'
 import { PlexServerAPI } from '../core/plexServerAPI'
 import { ShowPreferencesStore, ShowPreferencesSync } from '../core/showPreferences'
 import { makeClientInfo } from '../platform'
 import { settingsStore } from '../settings'
 import { readJSON, readString, storage, StorageKey, writeJSON, writeString } from '../storage'
+import { Watchlist } from './watchlist'
 
 export type Phase =
   | { kind: 'starting' }
@@ -44,6 +46,8 @@ export class AppModel {
   readonly account = new PlexAccountAPI(this.client, undefined, PLEX_TV_URL, PLEX_AUTH_URL)
   readonly preferences = new ShowPreferencesStore(storage)
   readonly preferencesSync = new ShowPreferencesSync(this.preferences, () => this.detector())
+  /** Plex Watchlist and which catalog titles the server has. */
+  readonly watchlist = new Watchlist()
 
   private state: AppSnapshot = { phase: { kind: 'starting' }, sections: [], refreshKey: 0 }
   private listeners = new Set<() => void>()
@@ -69,6 +73,13 @@ export class AppModel {
     const api = this.state.api
     if (!api) return null
     return new DetectorClient(normalizeDetectorURL(settingsStore.get().detectorURL), api.token)
+  }
+
+  /** Plex's catalog for the signed-in account (the account token, not the server's). */
+  private discoverAPI(): PlexDiscoverAPI | undefined {
+    if (!this.userToken) return undefined
+    const language = navigator.language?.slice(0, 2) || 'ru'
+    return new PlexDiscoverAPI(this.userToken, this.client, undefined, PLEX_DISCOVER_URL, PLEX_IMAGES_URL, language)
   }
 
   // MARK: Session
@@ -200,6 +211,7 @@ export class AppModel {
     const api = new PlexServerAPI(url, current.accessToken, this.client)
     try {
       const sections = (await api.sections()).filter((s) => sectionKind(s) === 'movie' || sectionKind(s) === 'show')
+      this.watchlist.configure(this.discoverAPI(), api, sections)
       this.set({ server: current, api, sections, phase: { kind: 'ready' } })
       // Changes made while the detector was unreachable.
       this.preferencesSync.schedulePush(0)
@@ -221,6 +233,7 @@ export class AppModel {
   async switchServer() {
     writeJSON(StorageKey.server, undefined)
     settingsStore.update({ preferredConnection: '' })
+    this.watchlist.configure(undefined, undefined, [])
     this.set({ server: undefined, api: undefined, sections: [] })
     await this.loadServers()
   }
@@ -230,6 +243,7 @@ export class AppModel {
     writeJSON(StorageKey.server, undefined)
     writeJSON(StorageKey.pendingPin, undefined)
     this.userToken = undefined
+    this.watchlist.configure(undefined, undefined, [])
     this.set({ server: undefined, api: undefined, sections: [], phase: { kind: 'login' } })
   }
 

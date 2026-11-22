@@ -1,10 +1,12 @@
-// Fake plex.tv, Plex Media Server and detector for local development and the smoke test.
-// Nothing here talks to the real Plex. Media is generated with ffmpeg into dev/.media.
+// Fake plex.tv, Plex Media Server, Plex's catalog (Discover + image resizer) and detector for
+// local development and the smoke test. Nothing here talks to the real Plex. Media is generated
+// with ffmpeg into dev/.media.
 //
 //   node dev/fake-server.mjs            # serves dev/.out/dist (build with `npm run build:fake`)
 //   FAKE_HLS=absolute node dev/fake-server.mjs
 //
-// Ports (env): FAKE_APP_PORT 5180, FAKE_PLEXTV_PORT 5181, FAKE_PMS_PORT 5182, FAKE_DETECTOR_PORT 5183.
+// Ports (env): FAKE_APP_PORT 5180, FAKE_PLEXTV_PORT 5181, FAKE_PMS_PORT 5182, FAKE_DETECTOR_PORT 5183,
+// FAKE_DISCOVER_PORT 5184.
 
 import { execFile } from 'node:child_process'
 import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -141,6 +143,8 @@ export function makeLibrary() {
     key: '/library/metadata/100/children',
     type: 'show',
     title: 'Тестовый сериал',
+    // Modern agent: the same title as the catalog's cat-show-10.
+    guid: 'plex://show/cat-show-10',
     summary: 'Сериал из генератора тестового сигнала: счётчик на экране и ровный тон.',
     year: 2025,
     contentRating: '16+',
@@ -220,6 +224,8 @@ export function makeLibrary() {
     key: '/library/metadata/200',
     type: 'movie',
     title: 'Тестовый фильм',
+    // Old agent: no catalog key, found by its title only.
+    guid: 'com.plexapp.agents.imdb://tt0000200?lang=ru',
     summary: 'Полтора часа? Нет, полторы минуты тестовой таблицы.',
     year: 2024,
     contentRating: '12+',
@@ -259,6 +265,58 @@ function otherShows(t) {
     },
   }
 }
+
+// MARK: Catalog
+
+// Pictures are absolute URLs on a host that doesn't exist: the app must only ever hand them to
+// the resizer (/photo), never load them itself.
+const CATALOG_IMAGES = 'https://catalog-images.invalid'
+
+function catalogItem(key, kind, title, year, summary, extra = {}) {
+  return {
+    ...extra,
+    ratingKey: key,
+    key: `/library/metadata/${key}`,
+    guid: `plex://${kind}/${key}`,
+    type: kind,
+    title,
+    year,
+    summary,
+    duration: kind === 'movie' ? 7_200_000 : 3_000_000,
+    thumb: `${CATALOG_IMAGES}/${key}-poster.jpg`,
+    art: `${CATALOG_IMAGES}/${key}-art.jpg`,
+    Genre: [{ tag: 'Драма' }, { tag: 'Фантастика' }],
+    ...(kind === 'show' ? { childCount: 3 } : {}),
+  }
+}
+
+/** Plex's catalog (same titles as the Apple app's fake), plus a catalog-only «Тест…» title. */
+export function makeCatalog() {
+  return [
+    catalogItem('cat-show-10', 'show', 'Тестовый сериал', 2025, 'Сериал для проверки интерфейса.'),
+    // The server's old-agent movie (no catalog key): recognised by kind, title and year.
+    catalogItem('cat-film-200', 'movie', 'Тестовый фильм', 2024, 'Фильм для проверки интерфейса.'),
+    catalogItem('cat-new-1', 'movie', 'Новый фильм', 2026, 'Фильма нет на сервере: его можно добавить в список.', {
+      contentRating: '16+',
+      audienceRating: 7.4,
+    }),
+    catalogItem('cat-new-2', 'show', 'Новый сериал', 2025, 'Сериала нет на сервере.'),
+    catalogItem('cat-new-3', 'movie', 'Ещё один новый фильм', 2024, 'Третий тайтл каталога.'),
+    // Not out yet (by the pinned «today», 2026-11-22): soonest first, the day before the year-only one.
+    catalogItem('cat-soon-2', 'show', 'Будущий сериал', 2028, 'Объявлен на 2028 год.'),
+    catalogItem('cat-soon-1', 'movie', 'Скоро фильм', 2027, 'Выйдет в марте 2027.', { originallyAvailableAt: '2027-03-12' }),
+    // Watched elsewhere (Plex's watch history): on the list but on no shelf.
+    catalogItem('cat-seen-1', 'movie', 'Просмотренный фильм', 2023, 'Уже посмотрен.', { UserState: [{ viewCount: 1, viewState: 'complete' }] }),
+    // Only in the catalog: «тест» finds it next to the server's two titles.
+    catalogItem('cat-test-1', 'movie', 'Тестовая комедия', 2023, 'Комедии нет на сервере.'),
+  ]
+}
+
+/**
+ * The list after a reset: two missing titles («Хочу посмотреть»), one the server has and one
+ * watched (on no shelf), two not out yet («Ещё не вышло»).
+ */
+export const WATCHLIST_START = ['cat-new-2', 'cat-show-10', 'cat-new-3', 'cat-seen-1', 'cat-soon-2', 'cat-soon-1']
 
 const defaultSegments = {
   112: [
@@ -357,6 +415,7 @@ export async function startFake(options = {}) {
     plextv: Number(options.plextvPort ?? process.env.FAKE_PLEXTV_PORT ?? 5181),
     pms: Number(options.pmsPort ?? process.env.FAKE_PMS_PORT ?? 5182),
     detector: Number(options.detectorPort ?? process.env.FAKE_DETECTOR_PORT ?? 5183),
+    discover: Number(options.discoverPort ?? process.env.FAKE_DISCOVER_PORT ?? 5184),
   }
   const host = '127.0.0.1'
   const urls = Object.fromEntries(Object.entries(ports).map(([k, p]) => [k, `http://${host}:${p}`]))
@@ -373,7 +432,26 @@ export async function startFake(options = {}) {
   const preferences = new Map()
   const pins = new Map()
   const requests = []
-  const state = { detectorDown: !!options.detectorDown, detectorDelayMs: 0, preferences, pins, library }
+  const catalog = makeCatalog()
+  const state = {
+    detectorDown: !!options.detectorDown,
+    detectorDelayMs: 0,
+    preferences,
+    pins,
+    library,
+    catalog,
+    /** Catalog keys on the account's Plex list, last added first. */
+    watchlist: [...WATCHLIST_START],
+    /** Refuse list changes, like Plex being down. */
+    watchlistFail: false,
+    /** Catalog search down: the app falls back to the server's titles. */
+    searchFail: false,
+    resetWatchlist() {
+      state.watchlist = [...WATCHLIST_START]
+      state.watchlistFail = false
+      state.searchFail = false
+    },
+  }
 
   const log = (server, req, url, body, res) => {
     const entry = {
@@ -381,7 +459,12 @@ export async function startFake(options = {}) {
       method: req.method,
       path: decodeURIComponent(url.pathname),
       query: Object.fromEntries(url.searchParams),
-      headers: { 'x-plex-token': req.headers['x-plex-token'], 'content-type': req.headers['content-type'] },
+      headers: {
+        'x-plex-token': req.headers['x-plex-token'],
+        'x-plex-language': req.headers['x-plex-language'],
+        'x-plex-client-identifier': req.headers['x-plex-client-identifier'],
+        'content-type': req.headers['content-type'],
+      },
       body,
       at: Date.now(),
     }
@@ -513,8 +596,10 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
       }
       let m = /^\/library\/metadata\/(\w+(?:,\w+)+)$/.exec(p)
       if (m) {
-        // Several items at once; like PMS, a show's lastViewedAt is its latest watched episode.
-        const lastViewed = Math.max(0, ...library.episodes.map((e) => e.lastViewedAt ?? 0))
+        // Several items at once. The fake's own simplification: a show's lastViewedAt is its
+        // latest fully watched episode (not checked against PMS), so the half-watched episode
+        // doesn't tie with the next-up one in «Продолжить просмотр».
+        const lastViewed = Math.max(0, ...library.episodes.filter((e) => (e.viewCount ?? 0) > 0).map((e) => e.lastViewedAt ?? 0))
         const found = m[1].split(',').map((key) =>
           key === library.show.ratingKey ? { ...library.show, lastViewedAt: lastViewed || undefined } : others.shows[key] ?? findItem(key),
         )
@@ -648,6 +733,62 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
     json(res, { error: 'not found' }, 404)
   })
 
+  // Plex's catalog (discover.provider.plex.tv) and its image resizer (images.plex.tv) on one port.
+  const catalogByKey = new Map(catalog.map((c) => [c.ratingKey, c]))
+  const discover = createServer(async (req, res) => {
+    const url = new URL(req.url, urls.discover)
+    // Like the real one: any origin, PUT allowed; headers limited to what the app sends.
+    cors(res, 'GET, HEAD, PUT, OPTIONS', 'Accept, X-Plex-Token, X-Plex-Client-Identifier, X-Plex-Product, X-Plex-Language')
+    if (req.method === 'OPTIONS') return res.writeHead(204).end()
+    log('discover', req, url, undefined, res)
+    const p = decodeURIComponent(url.pathname)
+    if (p === '/photo') {
+      // The resizer needs no token; the label comes from the catalog picture's URL.
+      const source = url.searchParams.get('url') ?? ''
+      const item = catalog.find((c) => c.thumb === source || c.art === source)
+      const w = Math.min(2000, Number(url.searchParams.get('width') ?? 300))
+      const h = Math.min(2000, Number(url.searchParams.get('height') ?? 300))
+      res.setHeader('Cache-Control', 'max-age=3600')
+      return text(res, artwork(item?.title ?? 'Plex', w, h), item ? 200 : 404, 'image/svg+xml')
+    }
+    // The account token (not the server's), in a header.
+    if (req.headers['x-plex-token'] !== USER_TOKEN) return json(res, { error: 'unauthorized' }, 401)
+    if (!req.headers['x-plex-client-identifier']) return json(res, { error: 'no client id' }, 400)
+    if (req.method === 'GET' && p === '/library/search') {
+      if (state.searchFail) return json(res, { error: 'down' }, 503)
+      const query = (url.searchParams.get('query') ?? '').toLowerCase()
+      const found = query ? catalog.filter((c) => c.title.toLowerCase().includes(query)) : []
+      const results = found.map((c, i) => ({ score: 0.9 - i * 0.05, Metadata: { ...c, summary: undefined } }))
+      // People come back too; the app drops them.
+      if (query && 'тестовый актёр'.includes(query)) results.push({ score: 0.4, Metadata: { ratingKey: 'person-1', type: 'person', title: 'Тестовый актёр' } })
+      return json(res, { MediaContainer: { size: results.length, SearchResults: [{ id: 'external', title: 'More Ways To Watch', size: results.length, SearchResult: results }] } })
+    }
+    if (req.method === 'GET' && p === '/library/sections/watchlist/all') {
+      const start = Number(url.searchParams.get('X-Plex-Container-Start') ?? 0)
+      const size = Number(url.searchParams.get('X-Plex-Container-Size') ?? 50)
+      const all = state.watchlist.map((k) => catalogByKey.get(k)).filter(Boolean)
+      // Watch state only on request, as Plex does.
+      const withState = url.searchParams.get('includeUserState') === '1' ? all : all.map((c) => ({ ...c, UserState: undefined }))
+      const page = withState.slice(start, start + size)
+      return json(res, { MediaContainer: { offset: start, totalSize: all.length, size: page.length, Metadata: page } })
+    }
+    let m = /^\/library\/metadata\/([\w-]+)$/.exec(p)
+    if (req.method === 'GET' && m) {
+      const item = catalogByKey.get(m[1])
+      return item ? json(res, { MediaContainer: { size: 1, Metadata: [item] } }) : json(res, { error: 'not found' }, 404)
+    }
+    m = /^\/actions\/(addToWatchlist|removeFromWatchlist)$/.exec(p)
+    if (m) {
+      if (req.method !== 'PUT') return json(res, { error: 'method' }, 405)
+      const key = url.searchParams.get('ratingKey') ?? ''
+      if (state.watchlistFail || !catalogByKey.has(key)) return json(res, { error: 'refused' }, 500)
+      state.watchlist = state.watchlist.filter((k) => k !== key)
+      if (m[1] === 'addToWatchlist') state.watchlist.unshift(key)
+      return text(res, '')
+    }
+    json(res, { error: 'not found' }, 404)
+  })
+
   // The built app.
   const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.map': 'application/json' }
   const app = createServer((req, res) => {
@@ -660,7 +801,7 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
     createReadStream(file).pipe(res)
   })
 
-  const servers = { app, plextv, pms, detector }
+  const servers = { app, plextv, pms, detector, discover }
   await Promise.all(Object.entries(servers).map(([name, s]) => new Promise((ok, fail) => s.once('error', fail).listen(ports[name], host, ok))))
 
   return {

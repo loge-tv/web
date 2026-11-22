@@ -1,4 +1,6 @@
-import { useApi, useApp, useLoad, useOpenItem, usePlay } from '../app/hooks'
+import { useApi, useApp, useLoad, useOpenCatalog, useOpenItem, usePlay, useWatchlistRefresh, useWatchlistShelves } from '../app/hooks'
+import { shelvesAreEmpty, type WatchlistShelves } from '../core/catalogMatch'
+import { upcomingCaption } from '../core/plexDiscover'
 import {
   backdropPath,
   collapseRecentlyAdded,
@@ -11,7 +13,7 @@ import {
   type PlexLibrarySection,
 } from '../core/plexModels'
 import { TimeFormat } from '../core/progressTracker'
-import { LandscapeCard, PosterCard, Shelf } from '../ui/cards'
+import { CatalogCard, LandscapeCard, PosterCard, Shelf } from '../ui/cards'
 import { ErrorView, PlexImage, Spinner } from '../ui/common'
 import { PlayIcon } from '../ui/icons'
 
@@ -31,6 +33,8 @@ export function Home() {
   const { sections } = useApp()
   const open = useOpenItem()
   const { requestPlay } = usePlay()
+  const shelves = useWatchlistShelves()
+  useWatchlistRefresh()
   const { data, error, loading, reload } = useLoad<HomeData>(async () => {
     const [deck, recent] = await Promise.all([
       api.onDeck(),
@@ -52,7 +56,7 @@ export function Home() {
   if (!data) return <ErrorView message={`Не удалось загрузить главную: ${error ?? ''}`} onRetry={reload} />
 
   const hero = data.onDeck[0] ?? data.recent.find((r) => r.items.length > 0)?.items[0]
-  const nothing = data.onDeck.length === 0 && data.recent.every((r) => r.items.length === 0)
+  const nothing = data.onDeck.length === 0 && data.recent.every((r) => r.items.length === 0) && shelvesAreEmpty(shelves)
 
   return (
     <div className="home">
@@ -72,6 +76,7 @@ export function Home() {
             ))}
           </Shelf>
         )}
+        <WatchlistShelvesView shelves={shelves} />
         {data.recent
           .filter((r) => r.items.length > 0)
           .map((r) => (
@@ -84,6 +89,29 @@ export function Home() {
         {nothing && <p className="muted page-inset">Медиатека пуста.</p>}
       </div>
     </div>
+  )
+}
+
+/** The Plex list minus what the server has: «Хочу посмотреть» and «Ещё не вышло». */
+function WatchlistShelvesView({ shelves }: { shelves: WatchlistShelves }) {
+  const openCatalog = useOpenCatalog()
+  return (
+    <>
+      {shelves.wanted.length > 0 && (
+        <Shelf title="Хочу посмотреть">
+          {shelves.wanted.map((entry) => (
+            <CatalogCard key={entry.ratingKey} entry={entry} onOpen={() => openCatalog(entry)} />
+          ))}
+        </Shelf>
+      )}
+      {shelves.upcoming.length > 0 && (
+        <Shelf title="Ещё не вышло">
+          {shelves.upcoming.map((entry) => (
+            <CatalogCard key={entry.ratingKey} entry={entry} caption={upcomingCaption(entry)} onOpen={() => openCatalog(entry)} />
+          ))}
+        </Shelf>
+      )}
+    </>
   )
 }
 

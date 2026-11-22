@@ -1,12 +1,35 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useNavigate } from 'react-router-dom'
+import type { WatchlistShelves } from '../core/catalogMatch'
+import type { DiscoverItem } from '../core/plexDiscover'
 import type { PlexItem } from '../core/plexModels'
 import type { PlexServerAPI } from '../core/plexServerAPI'
 import { ResumePolicy } from '../core/progressTracker'
+import { PINNED_TODAY } from '../config'
 import { appModel, type AppSnapshot } from './appModel'
+import { today, watchlistShelves, type WatchlistSnapshot } from './watchlist'
 
 export function useApp(): AppSnapshot {
   return useSyncExternalStore(appModel.subscribe, appModel.getSnapshot)
+}
+
+export function useWatchlist(): WatchlistSnapshot {
+  return useSyncExternalStore(appModel.watchlist.subscribe, appModel.watchlist.getSnapshot)
+}
+
+/** «Хочу посмотреть» and «Ещё не вышло». */
+export function useWatchlistShelves(): WatchlistShelves {
+  const snapshot = useWatchlist()
+  return useMemo(() => watchlistShelves(snapshot, today(PINNED_TODAY)), [snapshot])
+}
+
+/** Loads the Plex list and the library index, apart from the page's own data (Plex being slow doesn't hold it up). */
+export function useWatchlistRefresh() {
+  const { refreshKey } = useApp()
+  useEffect(() => {
+    void appModel.watchlist.load()
+    void appModel.watchlist.refreshIndex()
+  }, [refreshKey])
 }
 
 /** The connected server API (screens behind the "ready" phase only). */
@@ -105,5 +128,19 @@ export function useOpenItem() {
       }
     },
     [navigate, requestPlay],
+  )
+}
+
+/** Opens a catalog title: its library page when the server has it, otherwise the catalog page. */
+export function useOpenCatalog() {
+  const navigate = useNavigate()
+  const openItem = useOpenItem()
+  return useCallback(
+    (entry: DiscoverItem) => {
+      const item = appModel.watchlist.getSnapshot().index.item(entry)
+      if (item) openItem(item)
+      else navigate(`/catalog/${encodeURIComponent(entry.ratingKey)}`, { state: { entry } })
+    },
+    [navigate, openItem],
   )
 }

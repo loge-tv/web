@@ -349,6 +349,21 @@ p {
   display: none;
 }
 
+.topnav.fade-end {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+
+.topnav.fade-start {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
+}
+
+.topnav.fade-start.fade-end {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+}
+
 .topnav a {
   padding: 7px 14px;
   border-radius: 999px;
@@ -370,9 +385,15 @@ p {
   background: var(--primary-bg);
 }
 
-.settings-link {
+.topbar-actions {
   flex: none;
   margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+
+.icon-link {
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -385,11 +406,11 @@ p {
     background-color 0.15s ease;
 }
 
-.settings-link:hover {
+.icon-link:hover {
   color: var(--text);
 }
 
-.settings-link.active {
+.icon-link.active {
   color: var(--primary-text);
   background: var(--primary-bg);
 }
@@ -400,7 +421,8 @@ p {
 
 /* Pages without a hero start below the bar. */
 .library,
-.settings {
+.settings,
+.search {
   padding-top: 88px;
 }
 
@@ -749,6 +771,13 @@ p {
   white-space: nowrap;
 }
 
+.card-subtitle.two-lines {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
 /* MARK: Library */
 
 .library-header {
@@ -803,6 +832,129 @@ p {
   .poster-grid .card-title {
     font-size: 13px;
   }
+}
+
+/* MARK: Plex list bookmark on posters */
+
+.watchlist-mark {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  transition:
+    background-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+/* A larger target than the circle, for fingers. */
+.watchlist-mark::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+
+.watchlist-mark:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.watchlist-mark:active {
+  transform: scale(0.92);
+}
+
+.watchlist-mark.listed {
+  background: var(--primary-bg);
+  color: var(--primary-text);
+}
+
+/* MARK: Search */
+
+.search {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.search h1 {
+  font-size: clamp(26px, 4vw, 36px);
+}
+
+.search-field {
+  position: relative;
+  max-width: 640px;
+}
+
+.search-field svg {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.search-field input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px 0 44px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 17px;
+  transition: background-color 0.15s ease;
+}
+
+.search-field input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.search-field input:focus {
+  background: var(--surface-hover);
+}
+
+.search-section h2 {
+  font-size: 21px;
+  margin-bottom: 12px;
+}
+
+.search-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-top: 40px;
+  text-align: center;
+}
+
+.search-hint svg {
+  color: var(--text-secondary);
+}
+
+.search-hint h2 {
+  font-size: 19px;
+}
+
+.search-hint p {
+  max-width: 440px;
+  color: var(--text-secondary);
+  font-size: 15px;
+}
+
+.search-empty {
+  padding-top: 24px;
+  text-align: center;
 }
 
 /* MARK: Detail pages */
@@ -900,6 +1052,13 @@ p {
 .summary {
   color: var(--text-secondary);
   max-width: 720px;
+}
+
+.catalog-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 520px;
 }
 
 .clamp-4 {

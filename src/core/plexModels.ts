@@ -53,6 +53,11 @@ export interface PlexItem {
   key: string
   type: PlexItemType
   title: string
+  /**
+   * Plex catalog id (`plex://movie/5d77…`) with the modern agents; older agents give
+   * `com.plexapp.agents.…` or nothing.
+   */
+  guid?: string
   summary?: string
   year?: number
   index?: number
@@ -154,6 +159,7 @@ export function parseItem(raw: unknown): PlexItem | null {
     key: lossyString(raw.key) ?? `/library/metadata/${ratingKey}`,
     type: itemTypes.find((t) => t === typeName) ?? 'other',
     title: lossyString(raw.title) ?? '',
+    guid: lossyString(raw.guid),
     summary: lossyString(raw.summary),
     year: lossyInt(raw.year),
     index: lossyInt(raw.index),
@@ -275,6 +281,16 @@ export function landscapePath(item: PlexItem): string | undefined {
 
 export function backdropPath(item: PlexItem): string | undefined {
   return item.art ?? item.grandparentArt ?? item.thumb
+}
+
+/**
+ * Key of the same title in Plex's online catalog (Discover, Watchlist): the tail of a
+ * `plex://movie/…` or `plex://show/…` guid. Undefined for items matched by older agents.
+ */
+export function catalogKey(item: PlexItem): string | undefined {
+  const guid = item.guid
+  if (!guid || !(guid.startsWith('plex://movie/') || guid.startsWith('plex://show/'))) return undefined
+  return guid.split('/').pop() || undefined
 }
 
 /** The show this item belongs to (for episodes and seasons) or itself. */

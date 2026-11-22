@@ -9,9 +9,12 @@ const listJSON = (keys: string[]) =>
     MediaContainer: { totalSize: keys.length, Metadata: keys.map((k) => ({ ratingKey: k, type: 'movie', title: k, year: 2020 })) },
   })
 
+const statesPath = (keys: string[]) => `/library/metadata/${keys.join(',')}/userState`
+
 function setUp(keys: string[] = ['a', 'b', 'c']) {
   const discover = new MockFetch()
   discover.stub('/library/sections/watchlist/all', listJSON(keys))
+  discover.stub(statesPath(keys), JSON.stringify({ MediaContainer: { UserState: [] } }))
   discover.stub('/actions/addToWatchlist', '')
   discover.stub('/actions/removeFromWatchlist', '')
   const pms = new MockFetch()
@@ -76,6 +79,22 @@ describe('Watchlist', () => {
     await loading
     expect(watchlist.getSnapshot().items).toEqual([])
     expect(watchlist.getSnapshot().loaded).toBe(false)
+  })
+
+  it('watched titles leave the shelf; without an answer the last known state stays', async () => {
+    const { watchlist, discover } = setUp()
+    discover.stub(statesPath(['a', 'b', 'c']), '', 500)
+    await watchlist.load()
+    await watchlist.refreshIndex()
+    // A failed /userState doesn't fail the list.
+    expect(watchlist.getSnapshot().loaded).toBe(true)
+    expect(watchlistShelves(watchlist.getSnapshot(), '2026-11-22').wanted.map((i) => i.ratingKey)).toEqual(['a', 'c'])
+    discover.stub(statesPath(['a', 'b', 'c']), JSON.stringify({ MediaContainer: { UserState: [{ ratingKey: 'a', viewCount: 1 }] } }))
+    await watchlist.load()
+    expect(watchlistShelves(watchlist.getSnapshot(), '2026-11-22').wanted.map((i) => i.ratingKey)).toEqual(['c'])
+    discover.stub(statesPath(['a', 'b', 'c']), '', 500)
+    await watchlist.load()
+    expect(watchlistShelves(watchlist.getSnapshot(), '2026-11-22').wanted.map((i) => i.ratingKey)).toEqual(['c'])
   })
 
   it('shelves wait for both the list and the index, then drop what the server has', async () => {

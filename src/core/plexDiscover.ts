@@ -28,12 +28,39 @@ export interface DiscoverItem {
   originallyAvailableAt?: string
   genres: string[]
   /**
-   * Plex's watch history of the account (`includeUserState`), wherever it was watched.
-   * Missing when Plex gives none: such a title counts as not watched.
+   * Plex's watch history of the account, wherever it was watched (`userStates`; the watchlist
+   * itself carries none). Missing: the title counts as not watched.
    */
   viewCount?: number
+  /** Episodes of a show watched. */
+  viewedLeafCount?: number
   /** `complete` once a movie, or every episode of a show, is watched. */
   viewState?: string
+}
+
+/** Watch state of a catalog title for the account (`/library/metadata/<keys>/userState`). */
+export interface DiscoverUserState {
+  ratingKey: string
+  viewCount?: number
+  viewedLeafCount?: number
+  viewState?: string
+}
+
+function parseUserState(raw: unknown): DiscoverUserState | null {
+  if (!isRecord(raw)) return null
+  return {
+    ratingKey: lossyString(raw.ratingKey) ?? '',
+    viewCount: lossyInt(raw.viewCount),
+    viewedLeafCount: lossyInt(raw.viewedLeafCount),
+    viewState: lossyString(raw.viewState),
+  }
+}
+
+/** `UserState` of a `/userState` answer: a list (discover) or one object (metadata provider). */
+export function parseUserStates(json: unknown): DiscoverUserState[] {
+  const container = isRecord(json) && isRecord(json.MediaContainer) ? json.MediaContainer : {}
+  const raw = Array.isArray(container.UserState) ? container.UserState : [container.UserState]
+  return raw.map(parseUserState).filter((s): s is DiscoverUserState => s !== null && s.ratingKey !== '')
 }
 
 /** A catalog movie or show; null for people, episodes, collections and entries without a key. */
@@ -43,8 +70,7 @@ export function parseDiscoverItem(raw: unknown): DiscoverItem | null {
   const ratingKey = lossyString(raw.ratingKey)
   if ((type !== 'movie' && type !== 'show') || !ratingKey) return null
   // Watch state as attributes, or as a `UserState` child (one object or a list of one).
-  const userState = Array.isArray(raw.UserState) ? raw.UserState[0] : raw.UserState
-  const state = isRecord(userState) ? userState : {}
+  const state = parseUserState(Array.isArray(raw.UserState) ? raw.UserState[0] : raw.UserState)
   return {
     ratingKey,
     guid: lossyString(raw.guid) ?? `plex://${type}/${ratingKey}`,
@@ -64,8 +90,9 @@ export function parseDiscoverItem(raw: unknown): DiscoverItem | null {
           .map((g) => lossyString(g.tag))
           .filter((g): g is string => !!g)
       : [],
-    viewCount: lossyInt(raw.viewCount) ?? lossyInt(state.viewCount),
-    viewState: lossyString(raw.viewState) ?? lossyString(state.viewState),
+    viewCount: lossyInt(raw.viewCount) ?? state?.viewCount,
+    viewedLeafCount: lossyInt(raw.viewedLeafCount) ?? state?.viewedLeafCount,
+    viewState: lossyString(raw.viewState) ?? state?.viewState,
   }
 }
 
@@ -104,9 +131,19 @@ export function discoverCaption(item: DiscoverItem): string {
   return item.year !== undefined ? `${kindName(item)} · ${item.year}` : kindName(item)
 }
 
-/** Watched according to Plex: a movie played at least once, a show to the end. */
+/**
+ * Watched according to Plex: a movie played at least once, a show with any episode watched
+ * (started elsewhere is not "want to watch" either).
+ */
 export function isWatchedInPlex(item: DiscoverItem): boolean {
-  return item.viewState === 'complete' || (item.kind === 'movie' && (item.viewCount ?? 0) > 0)
+  if (item.viewState === 'complete') return true
+  return item.kind === 'movie' ? (item.viewCount ?? 0) > 0 : (item.viewedLeafCount ?? 0) > 0
+}
+
+/** The item with the watch state Plex gave for it (unchanged without one). */
+export function withUserState(item: DiscoverItem, state: DiscoverUserState | undefined): DiscoverItem {
+  if (!state) return item
+  return { ...item, viewCount: state.viewCount, viewedLeafCount: state.viewedLeafCount, viewState: state.viewState }
 }
 
 /** Release (a show's premiere) as `yyyy-MM-dd`, when Plex gives the day. */
@@ -249,8 +286,8 @@ export class PlexDiscoverAPI {
       const url = joinURL(this.base, '/library/sections/watchlist/all', {
         'X-Plex-Container-Start': start,
         'X-Plex-Container-Size': pageSize,
-        // Watch state, so watched titles leave «Хочу посмотреть».
-        includeUserState: '1',
+        // No watch state here, `includeUserState` or not (items say `userState: false`, checked
+        // on a real account): `userStates` asks for it.
       })
       const page = parseDiscoverItems(await fetchJSON(this.fetchFn, url, this.init()))
       for (const item of page.items) {
@@ -262,6 +299,17 @@ export class PlexDiscoverAPI {
       if (page.items.length === 0 || start >= (page.totalSize ?? 0)) break
     }
     return result.slice(0, limit)
+  }
+
+  /** Watch state of many titles: `chunk` keys per request (50 checked on a real account). */
+  async userStates(ratingKeys: string[], chunk = 50): Promise<Map<string, DiscoverUserState>> {
+    const result = new Map<string, DiscoverUserState>()
+    for (let start = 0; start < ratingKeys.length; start += chunk) {
+      const keys = ratingKeys.slice(start, start + chunk).map(encodeURIComponent).join(',')
+      const url = joinURL(this.base, `/library/metadata/${keys}/userState`)
+      for (const state of parseUserStates(await fetchJSON(this.fetchFn, url, this.init()))) result.set(state.ratingKey, state)
+    }
+    return result
   }
 
   /** Full catalog entry: description, genres, rating. */

@@ -428,20 +428,27 @@ await step('home: «Хочу посмотреть» and «Ещё не вышло
   fake.state.resetWatchlist()
   // Plus the server's old-agent movie (no catalog key): it must stay off the shelves too.
   fake.state.watchlist.unshift('cat-film-200')
+  // A fresh start: the shelves appear only once this list and its watch state are in.
   await page.goto(`${app}/#/`)
+  await page.reload()
   await page.getByRole('heading', { name: 'Хочу посмотреть' }).waitFor({ timeout: 10000 })
   const titles = await page.$$eval('section.shelf .shelf-title', (list) => list.map((h) => h.textContent))
   assert.deepEqual(titles.slice(0, 3), ['Продолжить просмотр', 'Хочу посмотреть', 'Ещё не вышло'])
-  // In Plex order; the watched title and the one on the server are on neither shelf.
+  // In Plex order; the watched movie, the started show and the server's titles are on neither shelf.
   assert.deepEqual(await shelfCards('Хочу посмотреть'), ['Новый сериал | Сериал · 2025', 'Ещё один новый фильм | Фильм · 2024'])
+  for (const title of ['Просмотренный фильм', 'Начатый сериал', 'Тестовый сериал', 'Тестовый фильм'])
+    assert.equal(await page.locator('section.shelf .catalog-card').getByText(title, { exact: true }).count(), 0, `${title} on a shelf`)
   // Soonest first: the day before the year-only title.
   assert.deepEqual(await shelfCards('Ещё не вышло'), ['Скоро фильм | 12 марта 2027', 'Будущий сериал | 2028'])
   // The date alone under the poster; the button says the title with it.
   await page.getByRole('button', { name: 'Скоро фильм, 12 марта 2027', exact: true }).waitFor()
   assert.equal(await page.getByText('Мой список').count(), 0)
   const list = discover('/library/sections/watchlist/all').at(-1)
-  assert.equal(list.query.includeUserState, '1')
+  assert.equal(list.query.includeUserState, undefined, 'the list carries no watch state anyway')
   assert.equal(list.headers['x-plex-language'], 'ru')
+  // Watch state of the whole list in one request.
+  const states = find((r) => r.server === 'discover' && /^\/library\/metadata\/[\w,-]+\/userState$/.test(r.path)).at(-1)
+  assert.equal(states?.path, `/library/metadata/${fake.state.watchlist.join(',')}/userState`)
   // The account token, in a header, never in a URL; the resizer gets no token at all.
   const api = find((r) => r.server === 'discover' && r.path !== '/photo')
   assert.ok(api.every((r) => r.headers['x-plex-token'] === USER_TOKEN && !r.query['X-Plex-Token']), 'Discover with the account token')
@@ -455,6 +462,7 @@ await step('search: the empty query shows the list, or the hint when it is empty
   await page.getByRole('link', { name: 'Поиск' }).click()
   await page.waitForURL(/#\/search$/)
   await page.locator('.search-section h2', { hasText: 'Хочу посмотреть' }).waitFor()
+  assert.deepEqual(await sectionCards('Хочу посмотреть'), ['Новый сериал | Сериал · 2025', 'Ещё один новый фильм | Фильм · 2024'])
   assert.deepEqual(await sectionCards('Ещё не вышло'), ['Скоро фильм | 12 марта 2027', 'Будущий сериал | 2028'])
   await page.locator('.search-section').last().locator('img.loaded').last().waitFor()
   await settledShot('search-list')

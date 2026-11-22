@@ -12,6 +12,7 @@ import {
   PlexDiscoverAPI,
   releaseDay,
   upcomingCaption,
+  withUserState,
   type DiscoverItem,
 } from '../plexDiscover'
 import { catalogKey, makeItem, parseMetadata, type PlexItemType } from '../plexModels'
@@ -63,7 +64,31 @@ describe('Discover API', () => {
     expect(mock.requests.map((r) => r.url.searchParams.get('X-Plex-Container-Start'))).toEqual(['0', '2'])
     expect(items.map((i) => i.ratingKey)).toEqual(['5d9c08444eefaa001f5d9359', '5d776cac47dd6e001f6ee059'])
     expect(items.map((i) => i.kind)).toEqual(['show', 'movie'])
-    expect(mock.requests[0].url.searchParams.get('includeUserState')).toBe('1')
+  })
+
+  // The answer's shape is a real one (keys changed): shows count episodes, movies plays.
+  it('user states in chunks', async () => {
+    const mock = new MockFetch()
+    mock.stub(
+      '/library/metadata/s1,m1/userState',
+      '{"MediaContainer":{"identifier":"tv.plex.provider.discover","size":2,"UserState":[{"ratingKey":"s1","type":"show","viewedLeafCount":12,"watchlistedAt":1792598042},{"ratingKey":"m1","type":"movie","viewCount":0,"viewOffset":0,"watchlistedAt":1792779204}]}}',
+    )
+    mock.stub(
+      '/library/metadata/m2/userState',
+      '{"MediaContainer":{"identifier":"tv.plex.provider.metadata","size":1,"UserState":{"ratingKey":"m2","type":"movie","viewCount":2}}}',
+    )
+    const states = await api(mock).userStates(['s1', 'm1', 'm2'], 2)
+    expect(mock.requests).toHaveLength(2)
+    expect(mock.requests[0].headers.get('X-Plex-Token')).toBe('user-token')
+    expect(states.get('s1')?.viewedLeafCount).toBe(12)
+    expect(states.get('m1')?.viewCount).toBe(0)
+    expect(states.get('m2')?.viewCount).toBe(2)
+
+    const show = makeDiscoverItem({ ratingKey: 's1', kind: 'show', title: '5:32' })
+    expect(isWatchedInPlex(show)).toBe(false)
+    expect(isWatchedInPlex(withUserState(show, states.get('s1')))).toBe(true)
+    expect(isWatchedInPlex(withUserState(makeDiscoverItem({ ratingKey: 'm1', kind: 'movie', title: 'M' }), states.get('m1')))).toBe(false)
+    expect(isWatchedInPlex(withUserState(makeDiscoverItem({ ratingKey: 'm2', kind: 'movie', title: 'M' }), states.get('m2')))).toBe(true)
   })
 
   // Watch state as attributes (like a media server) or as a `UserState` child, one or a list.
@@ -73,10 +98,13 @@ describe('Discover API', () => {
     expect(isWatchedInPlex(item({ viewCount: 1 }))).toBe(true)
     expect(isWatchedInPlex(item({ UserState: { viewCount: '2' } }))).toBe(true)
     expect(isWatchedInPlex(item({ UserState: [{ viewState: 'complete' }] }))).toBe(true)
+    // Episodes count only for shows.
+    expect(isWatchedInPlex(item({ UserState: [{ viewedLeafCount: 3 }] }))).toBe(false)
     expect(isWatchedInPlex(item({ userState: true }))).toBe(false)
     expect(isWatchedInPlex(item({}))).toBe(false)
-    // A show counts as watched only to the end.
+    // A show counts by its episodes, not by plays.
     expect(isWatchedInPlex({ ...item({ viewCount: 3 }), kind: 'show' })).toBe(false)
+    expect(isWatchedInPlex({ ...item({ viewedLeafCount: 1 }), kind: 'show' })).toBe(true)
   })
 
   it('release day and the caption of what is not out yet', () => {

@@ -305,18 +305,28 @@ export function makeCatalog() {
     // Not out yet (by the pinned «today», 2026-11-22): soonest first, the day before the year-only one.
     catalogItem('cat-soon-2', 'show', 'Будущий сериал', 2028, 'Объявлен на 2028 год.'),
     catalogItem('cat-soon-1', 'movie', 'Скоро фильм', 2027, 'Выйдет в марте 2027.', { originallyAvailableAt: '2027-03-12' }),
-    // Watched elsewhere (Plex's watch history): on the list but on no shelf.
-    catalogItem('cat-seen-1', 'movie', 'Просмотренный фильм', 2023, 'Уже посмотрен.', { UserState: [{ viewCount: 1, viewState: 'complete' }] }),
+    // Watched elsewhere (Plex's watch history, USER_STATES): on the list but on no shelf.
+    catalogItem('cat-seen-1', 'movie', 'Просмотренный фильм', 2023, 'Уже посмотрен.'),
+    catalogItem('cat-seen-2', 'show', 'Начатый сериал', 2021, 'Начат в другом приложении.'),
     // Only in the catalog: «тест» finds it next to the server's two titles.
     catalogItem('cat-test-1', 'movie', 'Тестовая комедия', 2023, 'Комедии нет на сервере.'),
   ]
 }
 
 /**
- * The list after a reset: two missing titles («Хочу посмотреть»), one the server has and one
- * watched (on no shelf), two not out yet («Ещё не вышло»).
+ * The list after a reset: two missing titles («Хочу посмотреть»), one the server has, a watched
+ * movie and a started show (on no shelf), two not out yet («Ещё не вышло»).
  */
-export const WATCHLIST_START = ['cat-new-2', 'cat-show-10', 'cat-new-3', 'cat-seen-1', 'cat-soon-2', 'cat-soon-1']
+export const WATCHLIST_START = ['cat-new-2', 'cat-show-10', 'cat-new-3', 'cat-seen-1', 'cat-soon-2', 'cat-seen-2', 'cat-soon-1']
+
+/**
+ * The account's watch history, as `/library/metadata/<keys>/userState` gives it (the watchlist
+ * itself carries none): movies count plays, shows watched episodes.
+ */
+const USER_STATES = {
+  'cat-seen-1': { viewCount: 1, viewState: 'complete' },
+  'cat-seen-2': { viewedLeafCount: 12 },
+}
 
 const defaultSegments = {
   112: [
@@ -766,13 +776,28 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
     if (req.method === 'GET' && p === '/library/sections/watchlist/all') {
       const start = Number(url.searchParams.get('X-Plex-Container-Start') ?? 0)
       const size = Number(url.searchParams.get('X-Plex-Container-Size') ?? 50)
-      const all = state.watchlist.map((k) => catalogByKey.get(k)).filter(Boolean)
-      // Watch state only on request, as Plex does.
-      const withState = url.searchParams.get('includeUserState') === '1' ? all : all.map((c) => ({ ...c, UserState: undefined }))
-      const page = withState.slice(start, start + size)
+      // No watch state, `includeUserState` or not, as on a real account.
+      const all = state.watchlist
+        .map((k) => catalogByKey.get(k))
+        .filter(Boolean)
+        .map((c) => ({ ...c, userState: false }))
+      const page = all.slice(start, start + size)
       return json(res, { MediaContainer: { offset: start, totalSize: all.length, size: page.length, Metadata: page } })
     }
-    let m = /^\/library\/metadata\/([\w-]+)$/.exec(p)
+    let m = /^\/library\/metadata\/([\w,-]+)\/userState$/.exec(p)
+    if (req.method === 'GET' && m) {
+      // Shaped like a real answer: movies with viewCount (0 when unwatched), shows with
+      // viewedLeafCount once an episode is watched.
+      const states = m[1]
+        .split(',')
+        .filter((k) => catalogByKey.has(k))
+        .map((k) => {
+          const type = catalogByKey.get(k).type
+          return { ratingKey: k, type, ...(type === 'movie' ? { viewCount: 0, viewOffset: 0 } : {}), ...USER_STATES[k], watchlistedAt: 1792598042 }
+        })
+      return json(res, { MediaContainer: { identifier: 'tv.plex.provider.discover', size: states.length, UserState: states } })
+    }
+    m = /^\/library\/metadata\/([\w-]+)$/.exec(p)
     if (req.method === 'GET' && m) {
       const item = catalogByKey.get(m[1])
       return item ? json(res, { MediaContainer: { size: 1, Metadata: [item] } }) : json(res, { error: 'not found' }, 404)

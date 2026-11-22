@@ -1,5 +1,5 @@
 import { emptyShelves, LibraryIndex, makeWatchlistShelves, type WatchlistShelves } from '../core/catalogMatch'
-import { dayOf, type DiscoverItem, type PlexDiscoverAPI } from '../core/plexDiscover'
+import { dayOf, withUserState, type DiscoverItem, type DiscoverUserState, type PlexDiscoverAPI } from '../core/plexDiscover'
 import type { PlexLibrarySection } from '../core/plexModels'
 import type { PlexServerAPI } from '../core/plexServerAPI'
 
@@ -48,6 +48,8 @@ export class Watchlist {
   private sections: PlexLibrarySection[] = []
   private indexLoadedAt?: number
   private indexTask?: Promise<void>
+  /** Watch state by catalog key, from the last answers. */
+  private knownStates = new Map<string, DiscoverUserState>()
   /** Titles with a toggle on its way: another click waits for its answer. */
   private pending = new Set<string>()
   /** Bumped by `configure`: answers for an old account or server are dropped. */
@@ -73,6 +75,7 @@ export class Watchlist {
     this.sections = sections
     this.indexLoadedAt = undefined
     this.indexTask = undefined
+    this.knownStates = new Map()
     this.pending = new Set()
     this.set({ api, items: [], loaded: false, index: LibraryIndex.empty, indexed: false, failure: undefined })
   }
@@ -81,14 +84,23 @@ export class Watchlist {
     return isListed(this.state.items, entry)
   }
 
-  /** Fetches the list. On failure (offline, Plex down) what was shown stays. */
+  /**
+   * Fetches the list and what of it was watched. On failure (offline, Plex down) what was shown
+   * stays; without the watch state the last known one is used.
+   */
   async load() {
     const { api } = this.state
     if (!api) return
     const generation = this.generation
     try {
-      const items = await api.watchlist()
-      if (generation === this.generation) this.set({ items, loaded: true })
+      const fresh = await api.watchlist()
+      const states = await api.userStates(fresh.map((i) => i.ratingKey)).catch((error: unknown) => {
+        console.warn('watchlist states', error)
+        return new Map<string, DiscoverUserState>()
+      })
+      if (generation !== this.generation) return
+      states.forEach((state, key) => this.knownStates.set(key, state))
+      this.set({ items: fresh.map((i) => withUserState(i, this.knownStates.get(i.ratingKey))), loaded: true })
     } catch (error) {
       console.warn('watchlist', error)
     }

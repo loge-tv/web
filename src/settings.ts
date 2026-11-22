@@ -30,7 +30,7 @@ export const seekForwardOptions = [10, 15, 30, 60]
 export const defaultDetectorURL = DEFAULT_DETECTOR ?? DEFAULT_DETECTOR_URL
 
 const defaults: Settings = {
-  skipMode: 'auto',
+  skipMode: 'countdown',
   autoplayNext: true,
   nextEpisodeCountdown: 5,
   seekBack: 10,

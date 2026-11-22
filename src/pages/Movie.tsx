@@ -7,6 +7,9 @@ import { LibraryWatchlistButton } from '../ui/cards'
 import { ErrorView, PlexImage, Spinner } from '../ui/common'
 import { CheckIcon, EyeIcon, PlayIcon, RestartIcon } from '../ui/icons'
 import { TrailerButton, useTrailers } from '../ui/trailers'
+import { useDeletion, useLeave } from '../ui/deletion'
+import { MoreMenu } from '../ui/menu'
+import { TrashIcon } from '../ui/icons'
 
 export function badges(item: PlexItem): string[] {
   const media = item.media[0]
@@ -27,6 +30,8 @@ export function Movie() {
   const { data: item, error, loading, reload } = useLoad<PlexItem | undefined>((signal) => api.item(key, signal), [api, key])
   const tmdb = item ? tmdbID(item) : undefined
   const trailers = useTrailers(tmdb ? `movie:${tmdb}` : undefined)
+  const leave = useLeave()
+  const deletion = useDeletion(leave)
 
   if (!item && loading) return <Spinner />
   if (!item) return <ErrorView message={`Не удалось загрузить фильм: ${error ?? 'не найден'}`} onRetry={reload} />
@@ -82,9 +87,14 @@ export function Movie() {
             </button>
             <LibraryWatchlistButton item={item} />
             <TrailerButton videos={trailers} />
+            <MoreMenu
+              disabled={deletion.deleting}
+              actions={[{ title: 'Удалить фильм', destructive: true, icon: <TrashIcon size={18} />, onSelect: () => deletion.ask({ kind: 'movie', item }) }]}
+            />
           </div>
         </div>
       </div>
+      {deletion.dialogs}
     </div>
   )
 }

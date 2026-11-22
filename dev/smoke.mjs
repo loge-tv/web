@@ -897,6 +897,88 @@ await step('«Обзор»: Plex collections, a new season stands for its show; 
   await nav().waitFor()
 })
 
+await step('deleting downloads: a movie, an episode refused and why, watched episodes, a season, the show (fake PMS only)', async () => {
+  const deletes = () => find((r) => r.method === 'DELETE')
+  const confirm = () => page.getByRole('alertdialog').filter({ has: page.getByRole('button', { name: 'Удалить' }) })
+  const more = async (item) => {
+    await page.getByRole('button', { name: 'Ещё' }).click()
+    await page.getByRole('menuitem', { name: item }).click()
+  }
+  // A movie: «Отмена» sends nothing; «Удалить» deletes it and goes back to the library.
+  await page.goto(`${app}/#/library/1`)
+  await page.locator('.poster-grid .card', { hasText: 'Неначатый фильм' }).locator('button.card-art').click({ position: { x: 20, y: 100 } })
+  await page.waitForURL(/#\/movie\/210$/)
+  await more('Удалить фильм')
+  await confirm().waitFor()
+  assert.equal(await confirm().getAttribute('aria-label'), 'Удалить «Неначатый фильм»?')
+  await confirm().getByText('Файл фильма удалится с диска сервера. Отменить это нельзя.').waitFor()
+  await settledShot('delete-confirm')
+  await confirm().getByRole('button', { name: 'Отмена' }).click()
+  await confirm().waitFor({ state: 'detached' })
+  assert.equal(deletes().length, 0, 'nothing sent after «Отмена»')
+  await more('Удалить фильм')
+  await confirm().getByRole('button', { name: 'Удалить' }).click()
+  await page.waitForURL(/#\/library\/1$/)
+  assert.deepEqual(deletes().map((r) => [r.server, r.path]), [['pms', '/library/metadata/210']])
+  assert.equal(deletes()[0].query['X-Plex-Token'], SERVER_TOKEN)
+  await until(async () => (await page.locator('.poster-grid .card').count()) === 1, { message: 'gone from the library' })
+
+  // An episode the server refuses to delete: the alert says how to allow it; nothing changes.
+  fake.state.deleteRefused = true
+  await page.goto(`${app}/#/show/100?season=110&episode=111`)
+  await page.getByRole('button', { name: 'Удалить серию' }).click()
+  await confirm().getByText('Файл серии удалится с диска сервера. Отменить это нельзя.').waitFor()
+  assert.equal(await confirm().getAttribute('aria-label'), 'Удалить серию «Начало»?')
+  await confirm().getByRole('button', { name: 'Удалить' }).click()
+  const refused = page.getByRole('alertdialog', { name: 'Не удалось удалить' })
+  await refused.waitFor()
+  await refused.getByText('Plex не удалил (ошибка 403).', { exact: false }).waitFor()
+  await refused.getByText('«Библиотека → Разрешить удаление медиафайлов» (Library → Allow media deletion)', { exact: false }).waitFor()
+  await settledShot('delete-refused')
+  await refused.getByRole('button', { name: 'OK' }).click()
+  await refused.waitFor({ state: 'detached' })
+  assert.equal(await page.locator('.episode-row .landscape-card').count(), 3)
+  fake.state.deleteRefused = false
+
+  // Watched episodes: asked again first, then the count confirmed is the count deleted.
+  const asked = Date.now()
+  await page.getByRole('button', { name: 'Ещё' }).click()
+  await page.getByRole('menu').waitFor()
+  await settledShot('delete-menu')
+  const item = page.getByRole('menuitem', { name: /^Удалить просмотренные серии \(\d+\)$/ })
+  const count = Number((/\((\d+)\)/.exec((await item.textContent()) ?? '') ?? [])[1])
+  assert.ok(count >= 1, 'something watched')
+  await item.click()
+  await confirm().waitFor()
+  assert.ok(pms('/library/metadata/100/allLeaves', (r) => r.at > asked).length > 0, 'episodes asked again')
+  assert.equal(await confirm().getAttribute('aria-label'), 'Удалить просмотренные серии?')
+  await confirm().getByText(`С диска сервера ${count === 1 ? 'удалится 1 серия' : `удалятся ${count} серии`}. Отменить это нельзя.`).waitFor()
+  const before = deletes().length
+  await confirm().getByRole('button', { name: 'Удалить' }).click()
+  await until(() => deletes().length === before + count, { message: 'watched deleted' })
+  const watched = deletes().slice(before).map((r) => r.path.split('/').pop())
+  assert.ok(watched.every((k) => ['111', '112', '113'].includes(k)), `${watched}`)
+  await until(async () => (await page.locator('.episode-row .landscape-card').count()) === 3 - watched.length, { message: 'row updated' })
+
+  // The open season, then the show (back to where it was opened from).
+  await more('Удалить «Сезон 1»')
+  await confirm().getByText(/^С диска сервера удал/).waitFor()
+  await confirm().getByRole('button', { name: 'Удалить' }).click()
+  await until(() => deletes().at(-1)?.path === '/library/metadata/110', { message: 'season deleted' })
+  await page.goto(`${app}/#/library/2`)
+  await page.locator('.poster-grid .card', { hasText: 'Тестовый сериал' }).locator('button.card-art').click({ position: { x: 20, y: 100 } })
+  await page.waitForURL(/#\/show\/100/)
+  await more('Удалить сериал')
+  assert.equal(await confirm().getAttribute('aria-label'), 'Удалить «Тестовый сериал»?')
+  await confirm().getByRole('button', { name: 'Удалить' }).click()
+  await page.waitForURL(/#\/library\/2$/)
+  assert.equal(deletes().at(-1)?.path, '/library/metadata/100')
+  await page.getByText('Здесь пока ничего нет.').waitFor()
+  // DELETE only ever went to the fake PMS.
+  assert.ok(deletes().every((r) => r.server === 'pms'))
+  fake.state.restoreLibrary()
+})
+
 await step('phone layout: no horizontal scrolling on home, show and player', async () => {
   const phone = await browser.newContext({
     viewport: { width: 390, height: 844 },
@@ -949,6 +1031,15 @@ await step('phone layout: no horizontal scrolling on home, show and player', asy
   await p.waitForTimeout(300)
   await p.screenshot({ path: join(screens, 'phone-trailer.png') })
   await p.keyboard.press('Escape')
+  await p.getByRole('button', { name: 'Ещё' }).click()
+  const menu = p.getByRole('menu')
+  await menu.waitFor()
+  const box = await menu.boundingBox()
+  assert.ok(box && box.x >= 0 && box.x + box.width <= 390, `menu inside the screen: ${JSON.stringify(box)}`)
+  await p.waitForTimeout(200)
+  await p.screenshot({ path: join(screens, 'phone-delete-menu.png') })
+  await p.keyboard.press('Escape')
+  await menu.waitFor({ state: 'detached' })
   await p.goto(`${app}/#/play/112`)
   await p.locator('.scrub').waitFor()
   await p.waitForTimeout(1500)

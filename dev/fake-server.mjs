@@ -531,6 +531,8 @@ export async function startFake(options = {}) {
     tmdbMissing: false,
     /** Plex's collections down. */
     hubsFail: false,
+    /** The server refuses DELETE (deletion not allowed in its settings). */
+    deleteRefused: false,
     resetWatchlist() {
       state.watchlist = [...WATCHLIST_START]
       state.watchlistFail = false
@@ -619,15 +621,23 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
     json(res, { error: 'not found' }, 404)
   })
 
-  const findItem = (ratingKey) => {
-    const { show, season, episodes, movie, fresh } = library
-    return [show, season, movie, fresh, ...episodes].find((i) => i.ratingKey === ratingKey)
+  const allItems = () => [library.show, library.season, library.movie, library.fresh, ...library.episodes]
+  /** Deleted items are gone from every answer (DELETE on the fake only). */
+  const findItem = (ratingKey) => allItems().find((i) => i.ratingKey === ratingKey && !i.deleted)
+  const alive = (list) => list.filter((i) => !i.deleted)
+  state.restoreLibrary = () => {
+    for (const item of allItems()) delete item.deleted
+    state.deleteRefused = false
+    recountShow()
   }
   const container = (Metadata, extra = {}) => ({ MediaContainer: { size: Metadata.length, Metadata, ...extra } })
   const recountShow = () => {
-    const watched = library.episodes.filter((e) => (e.viewCount ?? 0) > 0).length
+    const left = library.episodes.filter((e) => !e.deleted)
+    const watched = left.filter((e) => (e.viewCount ?? 0) > 0).length
     library.show.viewedLeafCount = watched
     library.season.viewedLeafCount = watched
+    library.show.leafCount = left.length
+    library.season.leafCount = left.length
   }
   const sessions = new Map()
 
@@ -659,6 +669,17 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
     const { episodes, show, season, movie } = library
 
     try {
+      if (req.method === 'DELETE') {
+        // «Allow media deletion»: off answers 403 (state.deleteRefused).
+        const target = /^\/library\/metadata\/(\w+)$/.exec(p)
+        const item = target ? findItem(target[1]) : undefined
+        if (!item) return json(res, { error: 'not found' }, 404)
+        if (state.deleteRefused) return json(res, { error: 'forbidden' }, 403)
+        const gone = item.type === 'show' ? [show, season, ...episodes] : item.type === 'season' ? [season, ...episodes] : [item]
+        for (const i of gone) i.deleted = true
+        recountShow()
+        return text(res, '')
+      }
       if (p === '/identity') return json(res, { MediaContainer: { machineIdentifier: 'fake-server', version: '1.41.0' } })
       if (p === '/library/sections')
         return json(res, {
@@ -671,9 +692,9 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
           },
         })
       if (p === '/library/sections/1/all') return json(res, container([movie, library.fresh].filter((i) => !i.deleted)))
-      if (p === '/library/sections/2/all') return json(res, container([show]))
-      if (p === '/library/sections/1/recentlyAdded') return json(res, container([movie]))
-      if (p === '/library/sections/2/recentlyAdded') return json(res, container([...episodes].reverse()))
+      if (p === '/library/sections/2/all') return json(res, container(alive([show])))
+      if (p === '/library/sections/1/recentlyAdded') return json(res, container(alive([movie])))
+      if (p === '/library/sections/2/recentlyAdded') return json(res, container(alive([...episodes].reverse())))
       if (p === '/status/sessions/history/all') {
         // The owner's plays (accountID 1), newest first: the last episode, then the movie.
         if (url.searchParams.get('accountID') !== '1') return json(res, container([]))
@@ -688,8 +709,8 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
         )
       }
       if (p === '/library/onDeck') {
-        const next = episodes.find((e) => !(e.viewCount > 0) && !e.viewOffset)
-        const inProgress = [movie, ...episodes].filter((i) => i.viewOffset > 0)
+        const next = alive(episodes).find((e) => !(e.viewCount > 0) && !e.viewOffset)
+        const inProgress = alive([movie, ...episodes]).filter((i) => i.viewOffset > 0)
         return json(res, container([...others.deck, ...(next ? [next] : []), ...inProgress]))
       }
       let m = /^\/library\/metadata\/(\w+(?:,\w+)+)$/.exec(p)
@@ -701,7 +722,7 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
         const found = m[1].split(',').map((key) =>
           key === library.show.ratingKey ? { ...library.show, lastViewedAt: lastViewed || undefined } : others.shows[key] ?? findItem(key),
         )
-        return json(res, container(found.filter(Boolean)))
+        return json(res, container(found.filter((i) => i && !i.deleted)))
       }
       m = /^\/library\/metadata\/(\w+)$/.exec(p)
       if (m) {
@@ -710,11 +731,11 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
       }
       m = /^\/library\/metadata\/(\w+)\/children$/.exec(p)
       if (m) {
-        if (m[1] === show.ratingKey) return json(res, container([season]))
-        if (m[1] === season.ratingKey) return json(res, container(episodes))
+        if (m[1] === show.ratingKey) return json(res, container(alive([season])))
+        if (m[1] === season.ratingKey) return json(res, container(alive(episodes)))
         return json(res, container([]))
       }
-      if (p === `/library/metadata/${show.ratingKey}/allLeaves`) return json(res, container(episodes))
+      if (p === `/library/metadata/${show.ratingKey}/allLeaves`) return json(res, container(alive(episodes)))
 
       if (p === '/:/timeline') {
         const item = findItem(url.searchParams.get('ratingKey') ?? '')

@@ -9,6 +9,7 @@ import { ShowPreferencesStore, ShowPreferencesSync } from '../core/showPreferenc
 import { makeClientInfo } from '../platform'
 import { settingsStore } from '../settings'
 import { readJSON, readString, storage, StorageKey, writeJSON, writeString } from '../storage'
+import { DeletionText } from '../core/deletion'
 import { Explore } from './explore'
 import { Recommendations } from './recommendations'
 import { Watchlist } from './watchlist'
@@ -269,6 +270,37 @@ export class AppModel {
 
   refresh() {
     this.set({ refreshKey: this.state.refreshKey + 1 })
+  }
+
+  /**
+   * Deletes titles with their files from the server, one by one (a failure doesn't stop the
+   * rest). Undefined when all went; otherwise what to tell the user.
+   */
+  async delete(items: PlexItem[]): Promise<string | undefined> {
+    const api = this.state.api
+    if (!api) return DeletionText.failed(undefined)
+    let failed = 0
+    let firstError: unknown
+    const gone = new Set<string>()
+    for (const item of items) {
+      try {
+        await api.delete(item.ratingKey)
+        gone.add(item.ratingKey)
+      } catch (error) {
+        console.warn('delete', item.ratingKey, error)
+        failed += 1
+        firstError ??= error
+      }
+    }
+    if (gone.size > 0) {
+      this.watchlist.forget(gone)
+      this.recommendations.forget(gone)
+      this.recommendations.expire()
+    }
+    this.refresh()
+    if (failed === 0) return undefined
+    const reason = DeletionText.failed(firstError)
+    return failed === items.length ? reason : `${DeletionText.partly(failed, items.length)} ${reason}`
   }
 
   async setWatched(item: PlexItem, watched: boolean) {

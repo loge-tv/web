@@ -7,8 +7,10 @@ import { displaySubtitle, episodeLabel, isWatched, progress, tmdbID, unwatchedLe
 import { ResumePolicy, TimeFormat } from '../core/progressTracker'
 import { LandscapeCard, LibraryWatchlistButton } from '../ui/cards'
 import { ErrorView, PlexImage, Spinner } from '../ui/common'
-import { CheckIcon, EyeIcon, PlayIcon } from '../ui/icons'
+import { CheckIcon, EyeIcon, PlayIcon, TrashIcon } from '../ui/icons'
 import { TrailerButton, useTrailers } from '../ui/trailers'
+import { useDeletion, useLeave } from '../ui/deletion'
+import { MoreMenu, type MenuAction } from '../ui/menu'
 
 interface ShowData {
   show: PlexItem
@@ -62,6 +64,10 @@ export function Show() {
   const data = showLoad.data
   const tmdb = data ? tmdbID(data.show) : undefined
   const trailers = useTrailers(tmdb ? `tv:${tmdb}` : undefined)
+  const leave = useLeave()
+  const deletion = useDeletion((done) => {
+    if (done.kind === 'show') leave()
+  })
   const seasons = data?.seasons ?? []
   const resumeTarget = data ? EpisodeNavigator.resumeEpisode(data.episodes) : undefined
   const defaultSeason =
@@ -105,6 +111,22 @@ export function Show() {
 
   const { show } = data
   const left = unwatchedLeafCount(show)
+  const openSeason = seasons.find((s) => s.ratingKey === season)
+
+  /** What is watched now, before asking: the page may be older than another device's progress. */
+  const askToDeleteWatched = async () => {
+    const fresh = await api.allEpisodes(key).catch(() => data.episodes)
+    const watched = fresh.filter(isWatched)
+    if (watched.length > 0) deletion.ask({ kind: 'watched', items: watched })
+  }
+  const watchedCount = data.episodes.filter(isWatched).length
+  const moreActions: MenuAction[] = [
+    ...(watchedCount > 0
+      ? [{ title: `Удалить просмотренные серии (${watchedCount})`, destructive: true, icon: <EyeIcon off size={18} />, onSelect: () => void askToDeleteWatched() }]
+      : []),
+    ...(openSeason ? [{ title: `Удалить «${openSeason.title}»`, destructive: true, icon: <TrashIcon size={18} />, onSelect: () => deletion.ask({ kind: 'season', item: openSeason }) }] : []),
+    { title: 'Удалить сериал', destructive: true, icon: <TrashIcon size={18} />, onSelect: () => deletion.ask({ kind: 'show', item: show }) },
+  ]
 
   const selectSeason = (id: string) => {
     if (id === season) return
@@ -145,6 +167,7 @@ export function Show() {
           )}
           <LibraryWatchlistButton item={show} />
           <TrailerButton videos={trailers} />
+          <MoreMenu actions={moreActions} disabled={deletion.deleting} />
         </div>
       </div>
 
@@ -186,12 +209,19 @@ export function Show() {
         </div>
       )}
 
-      {selectedEpisode && <EpisodeDetails episode={selectedEpisode} onPlay={() => requestPlay(selectedEpisode)} />}
+      {selectedEpisode && (
+        <EpisodeDetails
+          episode={selectedEpisode}
+          onPlay={() => requestPlay(selectedEpisode)}
+          onDelete={() => deletion.ask({ kind: 'episode', item: selectedEpisode })}
+        />
+      )}
+      {deletion.dialogs}
     </div>
   )
 }
 
-function EpisodeDetails({ episode, onPlay }: { episode: PlexItem; onPlay: () => void }) {
+function EpisodeDetails({ episode, onPlay, onDelete }: { episode: PlexItem; onPlay: () => void; onDelete: () => void }) {
   const watched = isWatched(episode)
   const resume = ResumePolicy.resumePosition(episode)
   const runtime = TimeFormat.runtime(episode.duration)
@@ -215,6 +245,9 @@ function EpisodeDetails({ episode, onPlay }: { episode: PlexItem; onPlay: () => 
         <button className="btn btn-secondary" onClick={() => void appModel.setWatched(episode, !watched)}>
           {watched ? <EyeIcon off size={18} /> : <CheckIcon size={18} />}{' '}
           {watched ? 'Отметить непросмотренной' : 'Отметить просмотренной'}
+        </button>
+        <button className="btn btn-ghost destructive" onClick={onDelete}>
+          <TrashIcon size={18} /> Удалить серию
         </button>
       </div>
     </section>

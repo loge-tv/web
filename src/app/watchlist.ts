@@ -115,6 +115,12 @@ export class Watchlist {
     }
   }
 
+  /** Titles deleted from the server: «not on the server» again at once; the index is asked again next time. */
+  forget(ratingKeys: Set<string>) {
+    this.indexLoadedAt = undefined
+    this.set({ index: this.state.index.without(ratingKeys) })
+  }
+
   /** Loads the list once (pages other than Home and search need it for the marks). */
   async loadIfNeeded() {
     if (!this.state.loaded) await this.load()

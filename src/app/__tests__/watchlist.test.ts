@@ -117,4 +117,14 @@ describe('Watchlist', () => {
     expect(libraryEntry(watchlist.getSnapshot(), old)).toBeUndefined()
     expect(libraryEntry(watchlist.getSnapshot(), season)).toBeUndefined()
   })
+
+  it('a title deleted from the server is wanted again at once', async () => {
+    const { watchlist } = setUp()
+    await watchlist.load()
+    await watchlist.refreshIndex()
+    expect(watchlistShelves(watchlist.getSnapshot(), '2026-11-22').wanted.map((i) => i.ratingKey)).toEqual(['a', 'c'])
+    watchlist.forget(new Set(['7']))
+    expect(watchlistShelves(watchlist.getSnapshot(), '2026-11-22').wanted.map((i) => i.ratingKey)).toEqual(['a', 'b', 'c'])
+  })
 })
+

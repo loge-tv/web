@@ -180,6 +180,18 @@ describe('Plex server API', () => {
     expect(mock.last.url.searchParams.get('identifier')).toBe('com.plexapp.plugins.library')
   })
 
+  it('delete: DELETE of the item; a refusal is an HTTPError with the status', async () => {
+    const mock = new MockFetch()
+    mock.stub('/library/metadata/77', '')
+    const api = new PlexServerAPI(base, 'tok', testClient, mock.fetch)
+    await api.delete('77')
+    expect(mock.last.method).toBe('DELETE')
+    expect(mock.last.url.pathname).toBe('/library/metadata/77')
+    expect(mock.last.url.searchParams.get('X-Plex-Token')).toBe('tok')
+    mock.stub('/library/metadata/78', '', 403)
+    await expect(api.delete('78')).rejects.toMatchObject({ status: 403 })
+  })
+
   it('URLs', () => {
     const api = new PlexServerAPI('https://plex.example/', 'tok', testClient)
     expect(api.directPlayURL({ id: '1', key: '/library/parts/777/1690000000/file.mkv', streams: [] })).toBe(

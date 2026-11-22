@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useApp } from '../app/hooks'
 import { APP_NAME } from '../config'
 import { sectionKind } from '../core/plexModels'
-import { SettingsIcon } from './icons'
+import { SettingsIcon, Wordmark } from './icons'
 
 /** Top navigation and the page below it. */
 export function Layout() {
@@ -26,7 +26,7 @@ export function Layout() {
     <div className="app">
       <header className={`topbar${scrolled ? ' scrolled' : ''}`}>
         <NavLink to="/" className="logo" aria-label={APP_NAME}>
-          {APP_NAME}
+          <Wordmark height={24} />
         </NavLink>
         <nav className="topnav" aria-label="Разделы">
           <NavLink to="/" end>

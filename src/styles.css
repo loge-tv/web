@@ -312,13 +312,8 @@ p {
 /* MARK: Top bar */
 
 .logo {
-  font-weight: 800;
-  font-size: 22px;
-  letter-spacing: -0.02em;
-}
-
-.logo.big {
-  font-size: 34px;
+  display: inline-flex;
+  color: #fff;
 }
 
 .topbar {

@@ -2,12 +2,15 @@ import { appModel, type Phase } from '../app/appModel'
 import { APP_NAME } from '../config'
 import type { PlexServer } from '../core/plexAccount'
 import { Spinner } from '../ui/common'
+import { Wordmark } from '../ui/icons'
 
 export function LoginScreen({ phase }: { phase: Extract<Phase, { kind: 'login' }> }) {
   return (
     <div className="session-screen">
       <div className="session-card">
-        <div className="logo big">{APP_NAME}</div>
+        <div className="logo big" role="img" aria-label={APP_NAME}>
+          <Wordmark height={40} />
+        </div>
         <h1>Войдите через аккаунт Plex</h1>
         <p className="muted">
           Откроется страница Plex: войдите в аккаунт и разрешите доступ, после этого вы вернётесь сюда. Пароль от Plex

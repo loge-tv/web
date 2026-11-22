@@ -1,5 +1,5 @@
-/** Working name of the app; a rename only needs this constant (and index.html's title fallback). */
-export const APP_NAME = 'SkipTV'
+/** The product name (also index.html's title fallback); the logo is `Wordmark` in ui/icons.tsx. */
+export const APP_NAME = 'Loge'
 
 export const APP_VERSION = '0.1.0'
 

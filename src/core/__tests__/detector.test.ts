@@ -20,6 +20,17 @@ describe('DetectorClient', () => {
     expect([...mock.requests[0].headers.keys()].sort()).toEqual(['accept', 'x-plex-token'])
   })
 
+  it('file URL of a part, token in the query for <video src>', () => {
+    const client = new DetectorClient(base, 'tok')
+    const part = { id: '1178507', key: '/library/parts/1178507/1794754192/file.mkv', streams: [] }
+    expect(client.fileURL('55549', part)).toBe('https://detector.test/v1/files/55549/1178507/file.mkv?X-Plex-Token=tok')
+    // No extension in the key: the container.
+    expect(client.fileURL('1', { id: '7', key: '/library/parts/7/1/file', container: 'mp4', streams: [] })).toBe(
+      'https://detector.test/v1/files/1/7/file.mp4?X-Plex-Token=tok',
+    )
+    expect(client.fileURL('1', { id: '', key: '/x.mkv', streams: [] })).toBeUndefined()
+  })
+
   it('an unavailable detector gives no segments', async () => {
     const mock = new MockFetch()
     mock.fail('/v1/segments/1')

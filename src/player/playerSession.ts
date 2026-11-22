@@ -3,7 +3,7 @@ import type { DetectorClient } from '../core/detectorClient'
 import { EpisodeNavigator } from '../core/episodeNavigator'
 import { TrackSelector, tracksFromPart, type MediaTrack } from '../core/mediaTrack'
 import { browserDefaultAudio, planPlayback, type BrowserCapabilities, type PlaybackPlan } from '../core/playbackPlan'
-import { primaryPart, type PlexItem } from '../core/plexModels'
+import { primaryPart, type PlexItem, type PlexPart } from '../core/plexModels'
 import type { PlexServerAPI } from '../core/plexServerAPI'
 import { ProgressTracker, ResumePolicy, type PlaybackState } from '../core/progressTracker'
 import type { Segment } from '../core/segment'
@@ -141,6 +141,10 @@ export class PlayerSession {
   private countdownTimer?: ReturnType<typeof setInterval>
   private reachedEnd = false
   private fellBackFromDirect = false
+  /** Direct play takes the file from the detector (outside the home network). */
+  private directFromDetector = false
+  /** The detector didn't give the file: direct play from Plex, then the transcoder. */
+  private fellBackFromDetector = false
   private disposed = false
   private detach: (() => void)[] = []
 
@@ -246,6 +250,7 @@ export class PlayerSession {
     this.teardownMedia()
     this.reachedEnd = false
     this.fellBackFromDirect = false
+    this.fellBackFromDetector = false
     this.failedTextSubtitles.clear()
     this.cues = []
     this.skip = undefined
@@ -370,7 +375,7 @@ export class PlayerSession {
       this.streamOffset = 0
       this.relativeStream = false
       video.addEventListener('loadedmetadata', ready, { once: true })
-      video.src = this.deps.api.directPlayURL(part)
+      video.src = this.directURL(part)
       video.load()
       return
     }
@@ -652,9 +657,27 @@ export class PlayerSession {
     else this.close()
   }
 
+  /**
+   * At home Plex gives the file itself. Through a public address or the relay Plex gives it
+   * only with Plex Pass or Remote Watch Pass (lists and artwork still load), so the detector
+   * serves it from its mount of the library.
+   */
+  private directURL(part: PlexPart): string {
+    const detector = this.deps.local || this.fellBackFromDetector ? null : this.deps.detector()
+    const url = detector?.fileURL(this.snapshot.item.ratingKey, part)
+    this.directFromDetector = url !== undefined
+    return url ?? this.deps.api.directPlayURL(part)
+  }
+
   private onMediaError() {
     const video = this.video
     if (!video || this.mode === undefined || !video.error) return
+    if (this.mode === 'direct' && this.directFromDetector && !this.fellBackFromDetector) {
+      // The detector couldn't give the file (down, an old version): Plex may (Plex Pass).
+      this.fellBackFromDetector = true
+      void this.startMedia(this.pendingSeekTarget ?? this.snapshot.position, true)
+      return
+    }
     if (this.mode === 'direct' && !this.fellBackFromDirect) {
       // The browser can't decode this file after all: let Plex convert it.
       this.fellBackFromDirect = true

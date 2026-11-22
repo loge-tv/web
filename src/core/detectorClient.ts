@@ -1,5 +1,6 @@
 import { fetchChecked, fetchJSON, fetchWithTimeout, isRecord, joinURL, lossyString, strictEncode, type FetchFn } from './http'
 import { parseSegment, sanitizeSegments, type Segment } from './segment'
+import type { PlexPart } from './plexModels'
 import { decodePreferences, preferencesBody, type PreferencesRemote, type ShowPreferences } from './showPreferences'
 
 export const DEFAULT_DETECTOR_URL = 'https://loge-server.example.com'
@@ -38,6 +39,22 @@ export class DetectorClient implements PreferencesRemote {
       ...extra,
       headers: { 'X-Plex-Token': this.token, Accept: 'application/json', ...(extra.headers ?? {}) },
     }
+  }
+
+  /**
+   * The original file of a part, served by the detector from its own mount of the library.
+   * Outside the home network Plex without Plex Pass refuses the file itself (403
+   * "Downloading requires a Remote Watch Pass or Plex Pass"), the detector doesn't. A
+   * `<video src>` can't send headers, so the token goes in the query (the detector takes it
+   * there for files only). The file name only gives the extension.
+   */
+  fileURL(ratingKey: string, part: PlexPart): string | undefined {
+    if (!part.id) return undefined
+    const last = part.key.split('/').pop() ?? ''
+    const dot = last.lastIndexOf('.')
+    const ext = dot > 0 ? last.slice(dot + 1) : (part.container ?? 'bin')
+    const path = `/v1/files/${strictEncode(ratingKey)}/${strictEncode(part.id)}/${strictEncode(`file.${ext}`)}`
+    return joinURL(this.baseURL, path, { 'X-Plex-Token': this.token })
   }
 
   async segments(ratingKey: string): Promise<Segment[]> {

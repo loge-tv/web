@@ -212,6 +212,19 @@ describe('Plex server API', () => {
     expect(q.get('X-Plex-Token')).toBe('tok')
   })
 
+  it('transcode decision asks with the start parameters', async () => {
+    const mock = new MockFetch()
+    mock.stub('/video/:/transcode/universal/decision', JSON.stringify({ MediaContainer: { generalDecisionCode: 2013, generalDecisionText: 'Remote playback requires a Remote Watch Pass or Plex Pass.' } }))
+    const api = new PlexServerAPI(base, 'tok', testClient, mock.fetch)
+    const options = { item: makeItem({ ratingKey: '55', type: 'movie' }), session: 's2', offset: 120.5, local: false, burnSubtitles: false }
+    const decision = await api.transcodeDecision(options)
+    expect(decision).toEqual({ code: 2013, text: 'Remote playback requires a Remote Watch Pass or Plex Pass.' })
+    const start = new URL(api.transcodeURL(options)).searchParams
+    for (const name of ['path', 'session', 'X-Plex-Session-Identifier', 'offset', 'location', 'X-Plex-Client-Profile-Extra']) {
+      expect(mock.last.url.searchParams.get(name), name).toBe(start.get(name))
+    }
+  })
+
   it('stream selection is a PUT on the part', async () => {
     const mock = new MockFetch()
     mock.stub('/library/parts/777', '')

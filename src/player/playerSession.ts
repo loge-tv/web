@@ -395,13 +395,27 @@ export class PlayerSession {
     this.transcodeSession = session
     this.streamOffset = Math.max(0, Math.floor(fileTime))
     this.relativeStream = this.streamOffset > 0
-    const url = this.deps.api.transcodeURL({
+    const options = {
       item: this.snapshot.item,
       session,
       offset: this.streamOffset,
       local: this.deps.local,
       burnSubtitles: burn !== undefined,
-    })
+    }
+    // Plex 1.43 refuses (400) most starts of a session it hasn't decided on.
+    const decision = await this.deps.api.transcodeDecision(options).catch(() => undefined)
+    if (token !== this.loadToken || this.transcodeSession !== session) return
+    if ((decision?.code ?? 0) >= 2000) {
+      this.set({
+        loading: false,
+        error:
+          decision?.code === 2013
+            ? 'Вне домашней сети Plex не перекодирует видео без Plex Pass или Remote Watch Pass, а браузер не играет этот файл напрямую.'
+            : `Plex отказался перекодировать: ${decision?.text ?? 'без объяснения'} (код ${decision?.code}).`,
+      })
+      return
+    }
+    const url = this.deps.api.transcodeURL(options)
     // hls.js is loaded only when a transcode is needed (it is most of the bundle).
     const Hls = this.deps.nativeHLS() ? undefined : await loadHls()
     if (token !== this.loadToken || this.transcodeSession !== session) return

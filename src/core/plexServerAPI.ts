@@ -1,7 +1,16 @@
-import { fetchChecked, fetchJSON, fetchWithTimeout, joinURL, type FetchFn, type Query } from './http'
+import { fetchChecked, fetchJSON, fetchWithTimeout, joinURL, lossyInt, lossyString, type FetchFn, type Query } from './http'
 import { jsonInit, plexParams, type PlexClientInfo } from './plexAccount'
 import { parseMetadata, parseSections, sectionKind, type PlexItem, type PlexLibrarySection, type PlexPart } from './plexModels'
 import type { PlaybackState } from './progressTracker'
+
+/**
+ * Plex's answer to a transcode decision. `code` (generalDecisionCode) 1000/1001: direct play or
+ * conversion is possible; 2000 and up: refused (2013: outside home without Plex Pass).
+ */
+export interface TranscodeDecision {
+  code?: number
+  text?: string
+}
 
 export interface TranscodeOptions {
   item: PlexItem
@@ -197,6 +206,16 @@ export class PlexServerAPI {
   /** Same parameters as `transcodeURL`: what the server would do. */
   decisionURL(o: TranscodeOptions): string {
     return this.url('/video/:/transcode/universal/decision', this.transcodeQuery(o))
+  }
+
+  /**
+   * What the server will do with these options. Plex 1.43 refuses (400) most starts of a
+   * session it hasn't decided on, so ask this before loading `transcodeURL`.
+   */
+  async transcodeDecision(o: TranscodeOptions): Promise<TranscodeDecision> {
+    const json = await fetchJSON<{ MediaContainer?: Record<string, unknown> }>(this.fetchFn, this.decisionURL(o), jsonInit)
+    const container = json.MediaContainer ?? {}
+    return { code: lossyInt(container.generalDecisionCode), text: lossyString(container.generalDecisionText) }
   }
 
   transcodeQuery(o: TranscodeOptions): [string, string][] {

@@ -209,7 +209,7 @@ export class PlexServerAPI {
   }
 
   /**
-   * What the server will do with these options. Plex 1.43 refuses (400) most starts of a
+   * What the server will do with these options. Plex 1.43 refuses (400) some starts of a
    * session it hasn't decided on, so ask this before loading `transcodeURL`.
    */
   async transcodeDecision(o: TranscodeOptions): Promise<TranscodeDecision> {

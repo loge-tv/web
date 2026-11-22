@@ -402,7 +402,7 @@ export class PlayerSession {
       local: this.deps.local,
       burnSubtitles: burn !== undefined,
     }
-    // Plex 1.43 refuses (400) most starts of a session it hasn't decided on.
+    // Plex 1.43 refuses (400) some starts of a session it hasn't decided on (restarts, in practice).
     const decision = await this.deps.api.transcodeDecision(options).catch(() => undefined)
     if (token !== this.loadToken || this.transcodeSession !== session) return
     if ((decision?.code ?? 0) >= 2000) {

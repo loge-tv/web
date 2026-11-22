@@ -253,7 +253,7 @@ describe('items by keys', () => {
 })
 
 describe('home', () => {
-  it('continue watching: in progress by last viewed, then next-up in Plex order', () => {
+  it('continue watching: one list by last viewed, untimed items last in Plex order', () => {
     const items = [
       makeItem({ ratingKey: 'next1', type: 'episode' }),
       makeItem({ ratingKey: 'old', type: 'episode', viewOffset: 1000, lastViewedAt: 100 }),
@@ -264,7 +264,7 @@ describe('home', () => {
     expect(orderContinueWatching(items).map((i) => i.ratingKey)).toEqual(['recent', 'middle', 'old', 'next1', 'next2'])
   })
 
-  it('continue watching: next-up by when the show was last watched', () => {
+  it('continue watching: next-up by when the show was last watched, no priority for in progress', () => {
     const next = (key: string, show: string, lastViewedAt?: number) =>
       makeItem({ ratingKey: key, type: 'episode', grandparentRatingKey: show, lastViewedAt })
     const items = [
@@ -275,8 +275,9 @@ describe('home', () => {
       next('d', 'show-d'),
     ]
     const showLastViewed = { 'show-a': 100, 'show-b': 300 }
-    // c has no show entry and falls back to its own lastViewedAt; d has nothing and stays last.
-    expect(orderContinueWatching(items, showLastViewed).map((i) => i.ratingKey)).toEqual(['started', 'b', 'c', 'a', 'd'])
+    // c has no show entry and falls back to its own lastViewedAt; d has nothing and stays last;
+    // the half-watched episode was watched before the shows of a, b and c.
+    expect(orderContinueWatching(items, showLastViewed).map((i) => i.ratingKey)).toEqual(['b', 'c', 'a', 'started', 'd'])
   })
 
   it('shows to look up: next-up episodes only, once per show', () => {

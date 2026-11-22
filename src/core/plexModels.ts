@@ -332,24 +332,22 @@ export function dynamicRangeBadge(media: PlexMedia): string | undefined {
 const inProgress = (item: PlexItem) => (item.viewOffset ?? 0) > 0
 
 /**
- * "Continue watching" (port of SkipTVKit HomeOrdering): first the items in progress, most
- * recently watched first, then the next-up episodes of started shows, most recently watched
- * show first. `showLastViewed` holds the shows' `lastViewedAt` (the next episode itself was
- * never played); without it an item's own `lastViewedAt`, then the server's order, decide.
+ * "Continue watching" (port of SkipTVKit HomeOrdering) as one list by recency, most recent
+ * first: an item in progress counts from when it was last watched, the next episode of a
+ * started show from when the show was last watched (`showLastViewed`, the shows'
+ * `lastViewedAt`: the next episode itself was never played; without it the item's own
+ * `lastViewedAt`). Half-watched items get no priority over next-up ones. Items without a time
+ * go last; ties keep the server's order.
  */
 export function orderContinueWatching(items: PlexItem[], showLastViewed: Record<string, number> = {}): PlexItem[] {
-  const byRecency = (time: (item: PlexItem) => number | undefined) =>
-    (a: { item: PlexItem; offset: number }, b: { item: PlexItem; offset: number }) => {
-      const ta = time(a.item) ?? -Infinity
-      const tb = time(b.item) ?? -Infinity
-      return ta !== tb ? tb - ta : a.offset - b.offset
-    }
-  const indexed = items.map((item, offset) => ({ item, offset }))
-  const started = indexed.filter(({ item }) => inProgress(item)).sort(byRecency((item) => item.lastViewedAt))
-  const next = indexed
-    .filter(({ item }) => !inProgress(item))
-    .sort(byRecency((item) => (item.grandparentRatingKey && showLastViewed[item.grandparentRatingKey]) || item.lastViewedAt))
-  return [...started, ...next].map(({ item }) => item)
+  const lastWatched = (item: PlexItem) =>
+    (inProgress(item)
+      ? item.lastViewedAt
+      : (item.grandparentRatingKey && showLastViewed[item.grandparentRatingKey]) || item.lastViewedAt) ?? -Infinity
+  return items
+    .map((item, offset) => ({ item, offset, time: lastWatched(item) }))
+    .sort((a, b) => (a.time !== b.time ? b.time - a.time : a.offset - b.offset))
+    .map(({ item }) => item)
 }
 
 /** Shows whose `lastViewedAt` is needed to order the next-up episodes. */

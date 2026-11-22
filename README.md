@@ -1,9 +1,9 @@
 # Loge для браузера
 
 Веб-версия Loge: свой клиент Plex с пропуском заставок и титров по данным детектора из
-[`detector/`](../detector). React + TypeScript + Vite, статическая сборка без бэкенда.
+[loge-tv/detector](https://github.com/loge-tv/detector). React + TypeScript + Vite, статическая сборка без бэкенда.
 Работает на компьютере и адаптирована под телефон. Эталон поведения — приложение для
-Apple TV ([`app/`](../app/README.md)); логика пропуска, выбора дорожек и навигации по
+Apple TV ([loge-tv/apple](https://github.com/loge-tv/apple)); логика пропуска, выбора дорожек и навигации по
 сериям перенесена из SkipTVKit вместе с тестами.
 
 ## Что умеет
@@ -62,6 +62,7 @@ Apple TV ([`app/`](../app/README.md)); логика пропуска, выбор
 Нужен Node 20+.
 
 ```sh
+git clone https://github.com/loge-tv/web.git
 cd web
 npm ci
 npm run dev          # http://localhost:5173, настоящий plex.tv

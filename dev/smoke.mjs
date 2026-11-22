@@ -354,7 +354,7 @@ await step('settings: a list of four pages, Back returns to it; detector reachab
   await page.getByRole('link', { name: 'Настройки' }).click()
   await page.waitForURL(/#\/settings$/)
   await settingsPages().first().waitFor()
-  assert.deepEqual(await settingsPages().allTextContents(), ['Воспроизведение', 'Главная и Обзор', 'Детектор заставок', 'Сервер и аккаунт'])
+  assert.deepEqual(await settingsPages().allTextContents(), ['Плеер', 'Главная и Обзор', 'Детектор заставок', 'Сервер и аккаунт'])
   await page.getByText(/^Loge /).waitFor()
   await settledShot('settings')
   // Browser Back from a page lands on the list.
@@ -371,7 +371,7 @@ await step('settings: a list of four pages, Back returns to it; detector reachab
   await page.getByRole('button', { name: 'Выйти из аккаунта Plex' }).waitFor()
   await page.getByRole('button', { name: 'Настройки' }).click()
   await page.waitForURL(/#\/settings$/)
-  await settingsPages().filter({ hasText: 'Воспроизведение' }).click()
+  await settingsPages().filter({ hasText: 'Плеер' }).click()
   await page.waitForURL(/#\/settings\/playback$/)
   await page.getByRole('switch', { name: 'Всегда через сервер (транскодирование)' }).waitFor({ state: 'attached' })
   await page.getByRole('radio', { name: 'Кнопкой' }).click().catch(async () => {

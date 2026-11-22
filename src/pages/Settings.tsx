@@ -24,7 +24,7 @@ import { BackIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, ChevronUpIcon, 
 
 /** Pages of the settings screen, the same in every Loge app (ids as in the Apple app). */
 const settingsPages: { id: string; title: string; icon: ComponentType<{ size?: number }>; content: ComponentType }[] = [
-  { id: 'playback', title: 'Воспроизведение', icon: PlayIcon, content: PlaybackSettings },
+  { id: 'playback', title: 'Плеер', icon: PlayIcon, content: PlaybackSettings },
   // «Главная» and «Обзор» share a page, a section each.
   { id: 'home', title: 'Главная и Обзор', icon: HomeIcon, content: HomeSettings },
   { id: 'detector', title: 'Детектор заставок', icon: ForwardEndIcon, content: DetectorSettings },
@@ -252,7 +252,7 @@ function PlaybackSettings() {
       </Section>
 
       <Section
-        title="Плеер"
+        title="Транскодирование"
         footer="Если файл в этом браузере играет с ошибками, включите — сервер Plex будет готовить поток сам. Действует со следующего запуска видео."
       >
         <Toggle

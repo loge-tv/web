@@ -55,20 +55,18 @@ export function useLoad<T>(load: (signal: AbortSignal) => Promise<T>, deps: unkn
   return { ...state, reload }
 }
 
-/** Starts playback: asks "resume or restart" first when the item is partially watched. */
+/** Starts playback; `requestPlay` goes straight from where a partially watched item was left. */
 export function usePlay() {
   const navigate = useNavigate()
   const play = useCallback(
     (item: PlexItem, from?: number) => {
-      appModel.setResumeCandidate(undefined)
       navigate(`/play/${encodeURIComponent(item.ratingKey)}${from ? `?t=${Math.floor(from)}` : ''}`)
     },
     [navigate],
   )
   const requestPlay = useCallback(
     (item: PlexItem) => {
-      if (ResumePolicy.resumePosition(item) !== undefined) appModel.setResumeCandidate(item)
-      else play(item)
+      play(item, ResumePolicy.resumePosition(item))
     },
     [play],
   )

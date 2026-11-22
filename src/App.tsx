@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { appModel } from './app/appModel'
-import { useApp, usePlay } from './app/hooks'
-import { displaySubtitle, displayTitle } from './core/plexModels'
-import { ResumePolicy, TimeFormat } from './core/progressTracker'
+import { useApp } from './app/hooks'
 import { Home } from './pages/Home'
 import { Library } from './pages/Library'
 import { Movie } from './pages/Movie'
@@ -57,51 +55,10 @@ export function App() {
             <Route path="play/:key" element={<PlayerPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-          <ResumeDialog />
           <TitleReset />
         </HashRouter>
       )
   }
-}
-
-/** "Continue from 12:34 / From the beginning" before playing a partially watched item. */
-function ResumeDialog() {
-  const { resumeCandidate: item } = useApp()
-  const { play } = usePlay()
-
-  useEffect(() => {
-    if (!item) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') appModel.setResumeCandidate(undefined)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [item])
-
-  if (!item) return null
-  const resume = ResumePolicy.resumePosition(item)
-  const subtitle = item.type === 'episode' ? displaySubtitle(item) : undefined
-  return (
-    <div className="modal-backdrop" onClick={() => appModel.setResumeCandidate(undefined)}>
-      <div className="modal glass-strong" role="dialog" aria-modal="true" aria-label="Продолжить просмотр" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-title">{displayTitle(item)}</div>
-        {subtitle && <div className="muted">{subtitle}</div>}
-        <div className="modal-actions">
-          {resume !== undefined && (
-            <button className="btn btn-primary wide" autoFocus onClick={() => play(item, resume)}>
-              Продолжить с {TimeFormat.clock(resume)}
-            </button>
-          )}
-          <button className="btn btn-secondary wide" onClick={() => play(item)}>
-            С начала
-          </button>
-          <button className="btn btn-ghost wide" onClick={() => appModel.setResumeCandidate(undefined)}>
-            Отмена
-          </button>
-        </div>
-      </div>
-    </div>
-  )
 }
 
 /** Restores the tab title after the player sets it. */

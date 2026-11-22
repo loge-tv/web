@@ -24,8 +24,6 @@ export interface AppSnapshot {
   sections: PlexLibrarySection[]
   /** Bumped after playback and watch-state changes so screens reload. */
   refreshKey: number
-  /** Item waiting for the "Resume / From the beginning" choice. */
-  resumeCandidate?: PlexItem
 }
 
 interface PendingPin {
@@ -236,10 +234,6 @@ export class AppModel {
   }
 
   // MARK: Playback and watch state
-
-  setResumeCandidate(item: PlexItem | undefined) {
-    this.set({ resumeCandidate: item })
-  }
 
   refresh() {
     this.set({ refreshKey: this.state.refreshKey + 1 })

@@ -346,16 +346,39 @@ await step('movie: ▶ plays from where it was left (no dialog), mark watched, l
   assert.equal(await page.locator('.poster-grid .card').count(), 1)
 })
 
-await step('settings: detector reachable, skip mode switch persists', async () => {
+const settingsPages = () => page.getByRole('navigation', { name: 'Разделы настроек' }).getByRole('link')
+
+await step('settings: a list of four pages, Back returns to it; detector reachable, skip mode persists', async () => {
   await page.getByRole('link', { name: 'Настройки' }).click()
+  await page.waitForURL(/#\/settings$/)
+  await settingsPages().first().waitFor()
+  assert.deepEqual(await settingsPages().allTextContents(), ['Воспроизведение', 'Главная', 'Детектор заставок', 'Сервер и аккаунт'])
+  await page.getByText(/^Loge /).waitFor()
+  await settledShot('settings')
+  // Browser Back from a page lands on the list.
+  await settingsPages().filter({ hasText: 'Детектор заставок' }).click()
+  await page.waitForURL(/#\/settings\/detector$/)
   await page.getByText('Детектор отвечает').waitFor({ timeout: 8000 })
+  await page.getByText('Сервис, который находит заставки и титры. Если он недоступен, видео просто играет без пропуска.').waitFor()
+  await page.goBack()
+  await page.waitForURL(/#\/settings$/)
+  // So does the page's own «Настройки».
+  await settingsPages().filter({ hasText: 'Сервер и аккаунт' }).click()
+  await page.waitForURL(/#\/settings\/server$/)
+  await page.getByText('Фейковый сервер').waitFor()
+  await page.getByRole('button', { name: 'Выйти из аккаунта Plex' }).waitFor()
+  await page.getByRole('button', { name: 'Настройки' }).click()
+  await page.waitForURL(/#\/settings$/)
+  await settingsPages().filter({ hasText: 'Воспроизведение' }).click()
+  await page.waitForURL(/#\/settings\/playback$/)
+  await page.getByRole('switch', { name: 'Всегда через сервер (транскодирование)' }).waitFor({ state: 'attached' })
   await page.getByRole('radio', { name: 'Кнопкой' }).click().catch(async () => {
     // Title of the button mode may differ; pick the third option.
     await page.locator('[role=radiogroup]').first().locator('[role=radio]').nth(2).click()
   })
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('settings') ?? '{}'))
   assert.notEqual(stored.skipMode, 'auto')
-  await shot('settings')
+  await shot('settings-playback')
 })
 
 await step('countdown mode: «Не пропускать» keeps the intro, then a skip button inside it', async () => {
@@ -374,7 +397,7 @@ await step('countdown mode: «Не пропускать» keeps the intro, then 
   await until(async () => ((await video())?.time ?? 0) >= 14.5, { timeout: 5000, message: 'skipped by the button' })
   await page.keyboard.press('Escape')
   await page.waitForURL((u) => !u.hash.startsWith('#/play'), { timeout: 5000 })
-  await page.goto(`${app}/#/settings`)
+  await page.goto(`${app}/#/settings/playback`)
   await page.getByRole('radiogroup', { name: 'Пропуск' }).getByRole('radio', { name: 'Автоматически' }).click()
 })
 
@@ -593,6 +616,39 @@ await step('home: removing from a card; a refused removal comes back', async () 
   fake.state.resetWatchlist()
 })
 
+await step('settings «Главная»: «Ещё не вышло» off is gone from Home, the empty search keeps it', async () => {
+  fake.state.resetWatchlist()
+  const hidden = () => page.evaluate(() => JSON.parse(localStorage.getItem('settings') ?? '{}').hiddenShelves)
+  await page.goto(`${app}/#/settings`)
+  await settingsPages().filter({ hasText: 'Главная' }).click()
+  await page.waitForURL(/#\/settings\/home$/)
+  const wanted = page.getByRole('switch', { name: 'Хочу посмотреть' })
+  const upcoming = page.getByRole('switch', { name: 'Ещё не вышло' })
+  assert.ok((await wanted.isChecked()) && (await upcoming.isChecked()), 'both on by default')
+  await page.getByText('Из списка Plex: вышло, но нет на сервере и ещё не просмотрено.').waitFor()
+  await page.getByText('Из списка Plex: ещё не вышло, ближайшее первым.').waitFor()
+  await page.getByText('Полки главной из списка Plex. В пустом поиске список виден всегда.').waitFor()
+  await settledShot('settings-home')
+  await page.locator('label.toggle', { hasText: 'Ещё не вышло' }).click()
+  await until(async () => !(await upcoming.isChecked()), { message: 'switched off' })
+  assert.deepEqual(await hidden(), ['upcoming'])
+  // A fresh Home: the list is in, «Ещё не вышло» is not shown.
+  await page.goto(`${app}/#/`)
+  await page.reload()
+  await page.getByRole('heading', { name: 'Хочу посмотреть' }).waitFor({ timeout: 10000 })
+  const homeShelves = await page.$$eval('section.shelf .shelf-title', (list) => list.map((h) => h.textContent))
+  assert.ok(!homeShelves.includes('Ещё не вышло'), `home shelves: ${homeShelves}`)
+  await page.goto(`${app}/#/search`)
+  await page.locator('.search-section h2', { hasText: 'Ещё не вышло' }).waitFor({ timeout: 10000 })
+  assert.deepEqual(await sectionCards('Ещё не вышло'), ['Скоро фильм | 12 марта 2027', 'Будущий сериал | 2028'])
+  // Back on, so nothing after this depends on it.
+  await page.goto(`${app}/#/settings/home`)
+  await page.locator('label.toggle', { hasText: 'Ещё не вышло' }).click()
+  await until(async () => (await hidden()).length === 0, { message: 'switched back on' })
+  await page.goto(`${app}/#/`)
+  await page.getByRole('heading', { name: 'Ещё не вышло' }).waitFor({ timeout: 10000 })
+})
+
 await step('phone layout: no horizontal scrolling on home, show and player', async () => {
   const phone = await browser.newContext({
     viewport: { width: 390, height: 844 },
@@ -638,9 +694,16 @@ await step('phone layout: no horizontal scrolling on home, show and player', asy
   await p.waitForTimeout(1500)
   await p.screenshot({ path: join(screens, 'phone-player.png') })
   await p.goto(`${app}/#/settings`)
-  await p.getByText('Детектор отвечает').waitFor({ timeout: 8000 })
+  await p.getByRole('navigation', { name: 'Разделы настроек' }).waitFor({ timeout: 8000 })
   assert.ok((await overflow()) <= 0, `settings overflow by ${await overflow()} px`)
   await p.screenshot({ path: join(screens, 'phone-settings.png'), fullPage: true })
+  for (const id of ['playback', 'home', 'detector', 'server']) {
+    await p.goto(`${app}/#/settings/${id}`)
+    await p.getByRole('button', { name: 'Настройки' }).waitFor({ timeout: 8000 })
+    if (id === 'detector') await p.getByText('Детектор отвечает').waitFor({ timeout: 8000 })
+    assert.ok((await overflow()) <= 0, `settings/${id} overflows by ${await overflow()} px`)
+    await p.screenshot({ path: join(screens, `phone-settings-${id}.png`), fullPage: true })
+  }
   await phone.close()
 })
 

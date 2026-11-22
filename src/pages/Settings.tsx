@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useId, useState, type ComponentType, type ReactNode } from 'react'
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { appModel } from '../app/appModel'
 import { useApp } from '../app/hooks'
 import { APP_NAME, APP_VERSION } from '../config'
@@ -7,12 +8,27 @@ import { skipModes, skipModeTitle, type SkipMode } from '../core/skipPolicy'
 import {
   countdownOptions,
   defaultDetectorURL,
+  homeShelves,
   seekBackOptions,
   seekForwardOptions,
   settingsStore,
+  shelfShown,
   useSettings,
 } from '../settings'
-import { CheckIcon } from '../ui/icons'
+import { BackIcon, CheckIcon, ChevronRightIcon, ForwardEndIcon, HomeIcon, PlayIcon, ServerIcon } from '../ui/icons'
+
+/** Pages of the settings screen, the same in every Loge app (ids as in the Apple app). */
+const settingsPages: { id: string; title: string; icon: ComponentType<{ size?: number }>; content: ComponentType }[] = [
+  { id: 'playback', title: 'Воспроизведение', icon: PlayIcon, content: PlaybackSettings },
+  { id: 'home', title: 'Главная', icon: HomeIcon, content: HomeSettings },
+  { id: 'detector', title: 'Детектор заставок', icon: ForwardEndIcon, content: DetectorSettings },
+  { id: 'server', title: 'Сервер и аккаунт', icon: ServerIcon, content: ServerSettings },
+]
+
+/** Opened from the list: «Настройки» goes back in history, so browser Back lands on the list too. */
+interface FromList {
+  fromList?: boolean
+}
 
 function skipFooter(mode: SkipMode): string {
   switch (mode) {
@@ -27,10 +43,10 @@ function skipFooter(mode: SkipMode): string {
   }
 }
 
-function Section({ title, footer, children }: { title: string; footer?: ReactNode; children: ReactNode }) {
+function Section({ title, footer, children }: { title?: string; footer?: ReactNode; children: ReactNode }) {
   return (
     <section className="settings-section">
-      <h2>{title}</h2>
+      {title && <h2>{title}</h2>}
       <div className="settings-group">{children}</div>
       {footer && <p className="settings-footer">{footer}</p>}
     </section>
@@ -69,11 +85,26 @@ function Choices<T extends string | number>({
   )
 }
 
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ label, detail, checked, onChange }: { label: string; detail?: string; checked: boolean; onChange: (v: boolean) => void }) {
+  const detailId = useId()
   return (
     <label className="settings-row toggle">
-      <span>{label}</span>
-      <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span className="settings-text">
+        <span>{label}</span>
+        {detail && (
+          <span className="settings-detail" id={detailId}>
+            {detail}
+          </span>
+        )}
+      </span>
+      <input
+        type="checkbox"
+        role="switch"
+        aria-label={label}
+        aria-describedby={detail ? detailId : undefined}
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
       <span className="switch" aria-hidden="true" />
     </label>
   )
@@ -99,16 +130,63 @@ function DetectorStatus({ url, token }: { url: string; token?: string }) {
   return <span className={`status status-${status}`}>{text}</span>
 }
 
+/** The settings screen: a list of pages, the version below it. */
 export function SettingsPage() {
-  const settings = useSettings()
-  const { server, api } = useApp()
-  const [detectorDraft, setDetectorDraft] = useState(settings.detectorURL)
-  const candidates = server ? appModel.candidates(server) : []
-
   return (
     <div className="settings page-inset">
       <h1>Настройки</h1>
+      <Section>
+        <nav aria-label="Разделы настроек">
+          {settingsPages.map(({ id, title, icon: Icon }) => (
+            <Link key={id} to={`/settings/${id}`} state={{ fromList: true } satisfies FromList} className="settings-row settings-link">
+              <span className="settings-icon">
+                <Icon size={18} />
+              </span>
+              <span className="grow">{title}</span>
+              <ChevronRightIcon size={18} />
+            </Link>
+          ))}
+        </nav>
+      </Section>
+      <Section title="О приложении">
+        <div className="settings-row">
+          <span>Версия</span>
+          <span className="muted">
+            {APP_NAME} {APP_VERSION}
+          </span>
+        </div>
+      </Section>
+    </div>
+  )
+}
 
+/** One page of settings (`#/settings/<id>`), with a way back to the list. */
+export function SettingsSubpage() {
+  const { page: id } = useParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const page = settingsPages.find((p) => p.id === id)
+  if (!page) return <Navigate to="/settings" replace />
+  const fromList = (location.state as FromList | null)?.fromList
+  const Content = page.content
+  return (
+    <div className="settings page-inset">
+      <button
+        className="settings-back"
+        onClick={() => (fromList ? navigate(-1) : navigate('/settings', { replace: true }))}
+      >
+        <BackIcon size={18} /> Настройки
+      </button>
+      <h1>{page.title}</h1>
+      <Content />
+    </div>
+  )
+}
+
+function PlaybackSettings() {
+  const settings = useSettings()
+  return (
+    <>
       <Section
         title="Пропуск заставок и титров"
         footer={
@@ -168,42 +246,6 @@ export function SettingsPage() {
       </Section>
 
       <Section
-        title="Детектор заставок"
-        footer="Сервис, который находит заставки и титры. Если он недоступен, видео просто играет без пропуска."
-      >
-        <form
-          className="settings-row input-row"
-          onSubmit={(e) => {
-            e.preventDefault()
-            settingsStore.update({ detectorURL: normalizeDetectorURL(detectorDraft) })
-            setDetectorDraft(normalizeDetectorURL(detectorDraft))
-          }}
-        >
-          <input
-            type="url"
-            aria-label="Адрес детектора"
-            value={detectorDraft}
-            onChange={(e) => setDetectorDraft(e.target.value)}
-            onBlur={() => settingsStore.update({ detectorURL: normalizeDetectorURL(detectorDraft) })}
-            spellCheck={false}
-            autoCapitalize="off"
-          />
-        </form>
-        <div className="settings-row">
-          <DetectorStatus url={settings.detectorURL} token={api?.token} />
-          <button
-            className="link-button"
-            onClick={() => {
-              setDetectorDraft(defaultDetectorURL)
-              settingsStore.update({ detectorURL: defaultDetectorURL })
-            }}
-          >
-            Сбросить адрес детектора
-          </button>
-        </div>
-      </Section>
-
-      <Section
         title="Плеер"
         footer="Если файл в этом браузере играет с ошибками, включите — сервер Plex будет готовить поток сам. Действует со следующего запуска видео."
       >
@@ -213,7 +255,73 @@ export function SettingsPage() {
           onChange={(forceTranscode) => settingsStore.update({ forceTranscode })}
         />
       </Section>
+    </>
+  )
+}
 
+function HomeSettings() {
+  const settings = useSettings()
+  return (
+    <Section title="Полки" footer="Полки главной из списка Plex. В пустом поиске список виден всегда.">
+      {homeShelves.map((shelf) => (
+        <Toggle
+          key={shelf.id}
+          label={shelf.title}
+          detail={shelf.detail}
+          checked={shelfShown(settings, shelf.id)}
+          onChange={(shown) => settingsStore.setShelfShown(shelf.id, shown)}
+        />
+      ))}
+    </Section>
+  )
+}
+
+function DetectorSettings() {
+  const settings = useSettings()
+  const { api } = useApp()
+  const [detectorDraft, setDetectorDraft] = useState(settings.detectorURL)
+  return (
+    <Section footer="Сервис, который находит заставки и титры. Если он недоступен, видео просто играет без пропуска.">
+      <form
+        className="settings-row input-row"
+        onSubmit={(e) => {
+          e.preventDefault()
+          settingsStore.update({ detectorURL: normalizeDetectorURL(detectorDraft) })
+          setDetectorDraft(normalizeDetectorURL(detectorDraft))
+        }}
+      >
+        <input
+          type="url"
+          aria-label="Адрес детектора"
+          value={detectorDraft}
+          onChange={(e) => setDetectorDraft(e.target.value)}
+          onBlur={() => settingsStore.update({ detectorURL: normalizeDetectorURL(detectorDraft) })}
+          spellCheck={false}
+          autoCapitalize="off"
+        />
+      </form>
+      <div className="settings-row">
+        <DetectorStatus url={settings.detectorURL} token={api?.token} />
+        <button
+          className="link-button"
+          onClick={() => {
+            setDetectorDraft(defaultDetectorURL)
+            settingsStore.update({ detectorURL: defaultDetectorURL })
+          }}
+        >
+          Сбросить адрес детектора
+        </button>
+      </div>
+    </Section>
+  )
+}
+
+function ServerSettings() {
+  const settings = useSettings()
+  const { server, api } = useApp()
+  const candidates = server ? appModel.candidates(server) : []
+  return (
+    <>
       <Section title="Сервер">
         <div className="settings-row">
           <span>Сервер</span>
@@ -255,15 +363,6 @@ export function SettingsPage() {
           Выйти из аккаунта Plex
         </button>
       </Section>
-
-      <Section title="О приложении">
-        <div className="settings-row">
-          <span>Версия</span>
-          <span className="muted">
-            {APP_NAME} {APP_VERSION}
-          </span>
-        </div>
-      </Section>
-    </div>
+    </>
   )
 }

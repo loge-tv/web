@@ -124,6 +124,26 @@ export const BookmarkIcon = ({ filled, ...p }: IconProps & { filled?: boolean })
   </Icon>
 )
 
+/** House: the «Главная» settings page. */
+export const HomeIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path
+      fillRule="evenodd"
+      d="M11.3 3.3a1 1 0 0 1 1.4 0l8 7.6a1 1 0 0 1-1.4 1.5l-.3-.3V19a2 2 0 0 1-2 2h-3.5a1 1 0 0 1-1-1v-4.5h-1V20a1 1 0 0 1-1 1H7a2 2 0 0 1-2-2v-6.9l-.3.3a1 1 0 0 1-1.4-1.5l8-7.6zM7 10.2V19h2.5v-4.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V19H17v-8.8l-5-4.8-5 4.8z"
+    />
+  </Icon>
+)
+
+/** Two server units: the «Сервер и аккаунт» settings page. */
+export const ServerIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path
+      fillRule="evenodd"
+      d="M5 3h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 2v4h14V5H5zm0 8h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2zm0 2v4h14v-4H5zm2-9h2v2H7V6zm0 10h2v2H7v-2z"
+    />
+  </Icon>
+)
+
 /** Gear (Material Icons "settings", Apache 2.0). */
 export const SettingsIcon = (p: IconProps) => (
   <Icon {...p}>

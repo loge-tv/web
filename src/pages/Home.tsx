@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useApi, useApp, useLoad, useOpenCatalog, useOpenItem, usePlay, useWatchlistRefresh, useWatchlistShelves } from '../app/hooks'
 import { shelvesAreEmpty, type WatchlistShelves } from '../core/catalogMatch'
 import { upcomingCaption } from '../core/plexDiscover'
@@ -13,6 +14,7 @@ import {
   type PlexLibrarySection,
 } from '../core/plexModels'
 import { TimeFormat } from '../core/progressTracker'
+import { useSettings, visibleShelves } from '../settings'
 import { CatalogCard, LandscapeCard, PosterCard, Shelf } from '../ui/cards'
 import { ErrorView, PlexImage, Spinner } from '../ui/common'
 import { PlayIcon } from '../ui/icons'
@@ -33,7 +35,10 @@ export function Home() {
   const { sections } = useApp()
   const open = useOpenItem()
   const { requestPlay } = usePlay()
-  const shelves = useWatchlistShelves()
+  // Only the shelves turned on in settings (search shows the whole list).
+  const settings = useSettings()
+  const allShelves = useWatchlistShelves()
+  const shelves = useMemo(() => visibleShelves(allShelves, settings), [allShelves, settings])
   useWatchlistRefresh()
   const { data, error, loading, reload } = useLoad<HomeData>(async () => {
     const [deck, recent] = await Promise.all([

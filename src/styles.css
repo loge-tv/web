@@ -1180,8 +1180,70 @@ p {
   border-top: 1px solid var(--separator);
 }
 
-button.settings-row:hover {
+button.settings-row:hover,
+a.settings-row:hover {
   background: var(--surface);
+}
+
+/* A row of the settings list: icon, title, chevron. */
+.settings-link {
+  justify-content: flex-start;
+  color: var(--text);
+}
+
+.settings-link > svg {
+  flex: none;
+  color: var(--text-tertiary);
+}
+
+.settings-link .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-group > nav > .settings-row + .settings-row {
+  border-top: 1px solid var(--separator);
+}
+
+.settings-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.settings-back {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 -16px -6px;
+  padding: 6px 8px 6px 4px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.settings-back:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+
+/* Title over a smaller description (the home shelf toggles). */
+.settings-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-detail {
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .settings-row.action {

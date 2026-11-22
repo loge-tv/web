@@ -8,7 +8,7 @@ import { Library } from './pages/Library'
 import { Movie } from './pages/Movie'
 import { FailedScreen, LoginScreen, ServerPicker, SplashScreen } from './pages/SessionScreens'
 import { Search } from './pages/Search'
-import { SettingsPage } from './pages/Settings'
+import { SettingsPage, SettingsSubpage } from './pages/Settings'
 import { Show } from './pages/Show'
 import { PlayerPage } from './player/PlayerPage'
 import { APP_NAME } from './config'
@@ -55,6 +55,7 @@ export function App() {
               <Route path="search" element={<Search />} />
               <Route path="catalog/:key" element={<Catalog />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="settings/:page" element={<SettingsSubpage />} />
             </Route>
             <Route path="play/:key" element={<PlayerPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />

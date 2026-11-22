@@ -18,11 +18,9 @@ export const correctionFields: CorrectionField[] = ['introStart', 'introEnd', 'c
 
 export const NO_CORRECTION: SkipCorrection = Object.freeze({ introStart: 0, introEnd: 0, creditsStart: 0, creditsEnd: 0 })
 
-/** Allowed range, whole seconds. */
-export const CORRECTION_RANGE = { min: -5, max: 5 } as const
-
-function clamp(value: number): number {
-  return Math.min(Math.max(value, CORRECTION_RANGE.min), CORRECTION_RANGE.max)
+/** A non-finite value becomes 0; any size is allowed (the user's choice, 2026-11-22). */
+function finiteOrZero(value: number): number {
+  return Number.isFinite(value) ? value : 0
 }
 
 export function correction(fields: Partial<SkipCorrection> = {}): SkipCorrection {
@@ -37,17 +35,17 @@ export function correctionsEqual(a: SkipCorrection, b: SkipCorrection): boolean 
   return correctionFields.every((f) => a[f] === b[f])
 }
 
-/** Moves one boundary by `delta`, kept within the range. */
+/** Moves one boundary by `delta`; `applyCorrection` keeps the result inside the file. */
 export function adjustCorrection(c: SkipCorrection, field: CorrectionField, delta: number): SkipCorrection {
-  return { ...c, [field]: clamp(c[field] + delta) }
+  return { ...c, [field]: finiteOrZero(c[field] + delta) }
 }
 
-/** Lenient: missing or broken fields are 0, values are kept within the range. */
+/** Lenient: missing or broken fields are 0; any size is kept. */
 export function decodeCorrection(raw: unknown): SkipCorrection {
   const r = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {}
   const value = (key: CorrectionField) => {
     const v = r[key]
-    return typeof v === 'number' && Number.isFinite(v) ? clamp(v) : 0
+    return typeof v === 'number' ? finiteOrZero(v) : 0
   }
   return {
     introStart: value('introStart'),

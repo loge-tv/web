@@ -73,7 +73,7 @@ describe('preferences JSON', () => {
     let c = adjustCorrection(correction(), 'introStart', -2)
     c = adjustCorrection(c, 'creditsEnd', 9)
     const prefs: ShowPreferences = { correction: c, audio: { language: 'rus', title: 'LostFilm', indexInLanguage: 0 } }
-    expect(prefs.correction.creditsEnd).toBe(5) // clamped to the range
+    expect(prefs.correction.creditsEnd).toBe(9) // no limit on the size
     const decoded = decodePreferences(JSON.parse(JSON.stringify(encodePreferences(prefs))))
     expect(decoded).toEqual(prefs)
   })
@@ -90,7 +90,7 @@ describe('preferences JSON', () => {
       correction: correction({ introEnd: 2 }),
     })
     expect(decodePreferences({ audio: { language: 3, indexInLanguage: 0 } }).audio).toBeUndefined()
-    expect(decodePreferences({ correction: { introStart: 'x', creditsEnd: -40 } }).correction).toEqual(correction({ creditsEnd: -5 }))
+    expect(decodePreferences({ correction: { introStart: 'x', creditsEnd: -40 } }).correction).toEqual(correction({ creditsEnd: -40 }))
   })
 })
 

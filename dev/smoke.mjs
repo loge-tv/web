@@ -623,6 +623,70 @@ await step('library titles carry the list mark: posters and pages; not for an ol
   fake.state.resetWatchlist()
 })
 
+await step('«Трейлер»: TMDB trailers through the detector in the preferred language, a YouTube player in the page', async () => {
+  const videos = (since) => find((r) => r.server === 'detector' && r.path === '/v1/videos' && r.at > since)
+  const dialog = () => page.getByRole('dialog', { name: 'Трейлер' })
+  const frame = () => dialog().locator('iframe')
+  let since = Date.now()
+  await page.goto(`${app}/#/show/100`)
+  await page.getByRole('button', { name: 'Трейлер' }).click({ timeout: 10000 })
+  assert.deepEqual(videos(since).map((r) => [r.query.item, r.query.language, r.headers['x-plex-token']]), [['tv:1100', 'ru', SERVER_TOKEN]])
+  await dialog().waitFor()
+  // The Russian one plays first; the broken key is dropped; the English one is in the list.
+  const detector = fake.urls.detector
+  assert.ok((await frame().getAttribute('src'))?.startsWith(`${detector}/embed/ruTrailer01?`), await frame().getAttribute('src'))
+  assert.match((await frame().getAttribute('src')) ?? '', /hl=ru/)
+  const list = dialog().getByRole('list', { name: 'Другие видео' }).getByRole('button')
+  assert.deepEqual(await list.allTextContents(), ['Тестовый сериал — трейлерРусский', 'Official TrailerАнглийский'])
+  assert.equal(await dialog().getByRole('link', { name: 'Открыть в YouTube' }).getAttribute('href'), 'https://www.youtube.com/watch?v=ruTrailer01')
+  await page.frameLocator('.trailer-frame iframe').getByText('Fake YouTube: ruTrailer01 (ru)').waitFor()
+  await settledShot('trailer')
+  await list.nth(1).click()
+  await until(async () => (await frame().getAttribute('src'))?.includes('/embed/enTrailer01?'), { message: 'switched to the English one' })
+  assert.equal(await dialog().getByRole('link', { name: 'Открыть в YouTube' }).getAttribute('href'), 'https://www.youtube.com/watch?v=enTrailer01')
+  await page.keyboard.press('Escape')
+  await dialog().waitFor({ state: 'detached' })
+  // A movie TMDB has none for: no button.
+  since = Date.now()
+  await page.goto(`${app}/#/movie/200`)
+  await until(() => videos(since).length > 0, { message: 'asked for the movie' })
+  assert.equal(videos(since)[0].query.item, 'movie:1200')
+  await page.waitForTimeout(300)
+  assert.equal(await page.getByRole('button', { name: 'Трейлер' }).count(), 0)
+  // A catalog title: its TMDB id from the details; a teaser without a name.
+  await page.goto(`${app}/#/catalog/cat-new-1`)
+  await page.getByRole('button', { name: 'Трейлер' }).click({ timeout: 10000 })
+  assert.ok((await frame().getAttribute('src'))?.includes('/embed/newTeaser01?'))
+  assert.equal(await dialog().getByRole('list').count(), 0, 'one video: no list')
+  await dialog().getByRole('button', { name: 'Готово' }).click()
+  await dialog().waitFor({ state: 'detached' })
+  // Another preferred language: asked in it, its trailer first.
+  await page.evaluate(() => {
+    const settings = JSON.parse(localStorage.getItem('settings') ?? '{}')
+    localStorage.setItem('settings', JSON.stringify({ ...settings, preferredLanguage: 'en' }))
+  })
+  since = Date.now()
+  await page.goto(`${app}/#/show/100`)
+  await page.reload()
+  await page.getByRole('button', { name: 'Трейлер' }).click({ timeout: 10000 })
+  assert.equal(videos(since).at(-1).query.language, 'en')
+  assert.ok((await frame().getAttribute('src'))?.includes('/embed/enTrailer01?') && (await frame().getAttribute('src'))?.includes('hl=en'))
+  await page.keyboard.press('Escape')
+  await page.evaluate(() => {
+    const settings = JSON.parse(localStorage.getItem('settings') ?? '{}')
+    localStorage.setItem('settings', JSON.stringify({ ...settings, preferredLanguage: 'ru' }))
+  })
+  // A detector without a TMDB key: no button.
+  fake.state.tmdbMissing = true
+  since = Date.now()
+  await page.goto(`${app}/#/catalog/cat-new-1`)
+  await page.reload()
+  await until(() => videos(since).length > 0, { message: 'asked' })
+  await page.waitForTimeout(300)
+  assert.equal(await page.getByRole('button', { name: 'Трейлер' }).count(), 0)
+  fake.state.tmdbMissing = false
+})
+
 await step('catalog down: the server\'s titles with a note; «Ничего не нашлось» when nothing matches', async () => {
   fake.state.searchFail = true
   const down = 'Каталог Plex сейчас недоступен: показано только то, что есть на сервере.'
@@ -878,6 +942,13 @@ await step('phone layout: no horizontal scrolling on home, show and player', asy
   await p.locator('section.shelf img.loaded').first().waitFor()
   assert.ok((await overflow()) <= 0, `explore overflows by ${await overflow()} px`)
   await p.screenshot({ path: join(screens, 'phone-explore.png'), fullPage: true })
+  await p.goto(`${app}/#/show/100`)
+  await p.getByRole('button', { name: 'Трейлер' }).click({ timeout: 10000 })
+  await p.frameLocator('.trailer-frame iframe').getByText(/Fake YouTube/).waitFor()
+  assert.ok((await overflow()) <= 0, `trailer overflows by ${await overflow()} px`)
+  await p.waitForTimeout(300)
+  await p.screenshot({ path: join(screens, 'phone-trailer.png') })
+  await p.keyboard.press('Escape')
   await p.goto(`${app}/#/play/112`)
   await p.locator('.scrub').waitFor()
   await p.waitForTimeout(1500)

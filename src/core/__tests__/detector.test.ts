@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_DETECTOR_URL, DetectorClient, normalizeDetectorURL } from '../detectorClient'
+import { DEFAULT_DETECTOR_URL, DetectorClient, isYouTubeID, normalizeDetectorURL, trailerWatchURL } from '../detectorClient'
+import { discoverTmdbID, parseDiscoverItem } from '../plexDiscover'
 import { fixture, MockFetch } from './support'
 
 // Port of DetectorClientTests.swift.
@@ -84,5 +85,44 @@ describe('DetectorClient', () => {
     expect(normalizeDetectorURL(' https://d.test/ ')).toBe('https://d.test')
     expect(normalizeDetectorURL('ftp://x')).toBe(DEFAULT_DETECTOR_URL)
     expect(normalizeDetectorURL('')).toBe(DEFAULT_DETECTOR_URL)
+  })
+
+  it('videos: TMDB trailers of a title, null without a TMDB key', async () => {
+    const mock = new MockFetch()
+    mock.stub(
+      '/v1/videos',
+      JSON.stringify({
+        videos: [
+          { key: 'abc', name: 'Трейлер', type: 'Trailer', language: 'ru', official: true, size: 1080 },
+          { key: 'def', name: 'Teaser', type: 'Teaser', language: 'en', official: false },
+        ],
+      }),
+    )
+    const client = new DetectorClient(base, 'tok', mock.fetch)
+    const videos = await client.videos('movie:603', 'ru')
+    expect(videos?.map((v) => v.key)).toEqual(['abc', 'def'])
+    expect(videos?.[1]).toEqual({ key: 'def', name: 'Teaser', type: 'Teaser', language: 'en', official: false })
+    expect(trailerWatchURL(videos![0])).toBe('https://www.youtube.com/watch?v=abc')
+    expect(mock.last.url.searchParams.get('item')).toBe('movie:603')
+    expect(mock.last.url.searchParams.get('language')).toBe('ru')
+    expect(mock.last.headers.get('X-Plex-Token')).toBe('tok')
+
+    const none = new MockFetch()
+    none.stub('/v1/videos', JSON.stringify({ configured: false }), 404)
+    expect(await new DetectorClient(base, 'tok', none.fetch).videos('tv:1')).toBeNull()
+  })
+
+  it('only YouTube ids go into the player URL', () => {
+    expect(isYouTubeID('dQw4w9WgXcQ')).toBe(true)
+    expect(isYouTubeID('a-b_c')).toBe(true)
+    expect(isYouTubeID('')).toBe(false)
+    expect(isYouTubeID('x?autoplay=0')).toBe(false)
+    expect(isYouTubeID('../evil')).toBe(false)
+    expect(isYouTubeID('a'.repeat(33))).toBe(false)
+  })
+
+  it('a catalog title has its TMDB id in the details', () => {
+    const item = parseDiscoverItem({ ratingKey: '5d77', type: 'movie', title: 'X', Guid: [{ id: 'imdb://tt1' }, { id: 'tmdb://603' }] })
+    expect(item && discoverTmdbID(item)).toBe(603)
   })
 })

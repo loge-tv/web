@@ -1,11 +1,12 @@
 import { useParams } from 'react-router-dom'
 import { appModel } from '../app/appModel'
 import { useApi, useLoad, usePlay, useWatchlistLoaded } from '../app/hooks'
-import { backdropPath, dynamicRangeBadge, isWatched, type PlexItem } from '../core/plexModels'
+import { backdropPath, dynamicRangeBadge, isWatched, tmdbID, type PlexItem } from '../core/plexModels'
 import { ResumePolicy, TimeFormat } from '../core/progressTracker'
 import { LibraryWatchlistButton } from '../ui/cards'
 import { ErrorView, PlexImage, Spinner } from '../ui/common'
 import { CheckIcon, EyeIcon, PlayIcon, RestartIcon } from '../ui/icons'
+import { TrailerButton, useTrailers } from '../ui/trailers'
 
 export function badges(item: PlexItem): string[] {
   const media = item.media[0]
@@ -24,6 +25,8 @@ export function Movie() {
   useWatchlistLoaded()
   const { play } = usePlay()
   const { data: item, error, loading, reload } = useLoad<PlexItem | undefined>((signal) => api.item(key, signal), [api, key])
+  const tmdb = item ? tmdbID(item) : undefined
+  const trailers = useTrailers(tmdb ? `movie:${tmdb}` : undefined)
 
   if (!item && loading) return <Spinner />
   if (!item) return <ErrorView message={`Не удалось загрузить фильм: ${error ?? 'не найден'}`} onRetry={reload} />
@@ -78,6 +81,7 @@ export function Movie() {
               {watched ? <EyeIcon off size={18} /> : <CheckIcon size={18} />} {watched ? 'Не просмотрено' : 'Просмотрено'}
             </button>
             <LibraryWatchlistButton item={item} />
+            <TrailerButton videos={trailers} />
           </div>
         </div>
       </div>

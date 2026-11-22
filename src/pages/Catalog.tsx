@@ -4,10 +4,11 @@ import { appModel } from '../app/appModel'
 import { useApp, useOpenItem, useWatchlist } from '../app/hooks'
 import { isListed } from '../app/watchlist'
 import { CatalogText } from '../core/catalogMatch'
-import { discoverCaption, type DiscoverItem } from '../core/plexDiscover'
+import { discoverCaption, discoverTmdbID, type DiscoverItem } from '../core/plexDiscover'
 import { TimeFormat } from '../core/progressTracker'
 import { CatalogImage, ErrorView, Spinner } from '../ui/common'
 import { BookmarkIcon, CheckIcon, PlayIcon } from '../ui/icons'
+import { TrailerButton, useTrailers } from '../ui/trailers'
 
 /**
  * Page of a catalog title the server doesn't have: description and the Plex list button.
@@ -38,6 +39,9 @@ export function Catalog() {
   }, [api, key, attempt])
 
   const loaded = details?.key === key ? details : undefined
+  // The TMDB id comes with the details (their `Guid`), not with search results.
+  const tmdb = loaded?.item ? discoverTmdbID(loaded.item) : undefined
+  const trailers = useTrailers(tmdb && loaded?.item ? `${loaded.item.kind === 'movie' ? 'movie' : 'tv'}:${tmdb}` : undefined)
   const item = loaded?.item ?? initial
   if (!item) {
     if (!loaded) return <Spinner />
@@ -84,6 +88,7 @@ export function Catalog() {
               >
                 {listed ? <CheckIcon size={18} /> : <BookmarkIcon size={18} />} {listed ? 'В списке' : 'Добавить в список'}
               </button>
+              <TrailerButton videos={trailers} />
             </div>
             {missing && <p className="muted small">{CatalogText.notOnServer(server?.name)}</p>}
           </div>

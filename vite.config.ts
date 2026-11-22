@@ -13,6 +13,8 @@ const fakeEnv: Record<string, string> = {
   VITE_DETECTOR_URL: `http://127.0.0.1:${process.env.FAKE_DETECTOR_PORT ?? 5183}`,
   VITE_PLEX_DISCOVER_URL: `http://127.0.0.1:${process.env.FAKE_DISCOVER_PORT ?? 5184}`,
   VITE_PLEX_IMAGES_URL: `http://127.0.0.1:${process.env.FAKE_DISCOVER_PORT ?? 5184}`,
+  // Trailers play in a fake YouTube embed page on the fake detector.
+  VITE_YOUTUBE_URL: `http://127.0.0.1:${process.env.FAKE_DETECTOR_PORT ?? 5183}`,
   // The fake catalog's release dates are fixed; so is its «today».
   VITE_TODAY: '2026-11-22',
 }

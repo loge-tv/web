@@ -3,11 +3,12 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { appModel } from '../app/appModel'
 import { useApi, useLoad, usePlay, useWatchlistLoaded } from '../app/hooks'
 import { EpisodeNavigator } from '../core/episodeNavigator'
-import { displaySubtitle, episodeLabel, isWatched, progress, unwatchedLeafCount, type PlexItem } from '../core/plexModels'
+import { displaySubtitle, episodeLabel, isWatched, progress, tmdbID, unwatchedLeafCount, type PlexItem } from '../core/plexModels'
 import { ResumePolicy, TimeFormat } from '../core/progressTracker'
 import { LandscapeCard, LibraryWatchlistButton } from '../ui/cards'
 import { ErrorView, PlexImage, Spinner } from '../ui/common'
 import { CheckIcon, EyeIcon, PlayIcon } from '../ui/icons'
+import { TrailerButton, useTrailers } from '../ui/trailers'
 
 interface ShowData {
   show: PlexItem
@@ -59,6 +60,8 @@ export function Show() {
     [api, key],
   )
   const data = showLoad.data
+  const tmdb = data ? tmdbID(data.show) : undefined
+  const trailers = useTrailers(tmdb ? `tv:${tmdb}` : undefined)
   const seasons = data?.seasons ?? []
   const resumeTarget = data ? EpisodeNavigator.resumeEpisode(data.episodes) : undefined
   const defaultSeason =
@@ -141,6 +144,7 @@ export function Show() {
             </button>
           )}
           <LibraryWatchlistButton item={show} />
+          <TrailerButton videos={trailers} />
         </div>
       </div>
 

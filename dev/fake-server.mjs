@@ -278,6 +278,19 @@ export const TMDB_RECOMMENDATIONS = {
   ],
 }
 
+/**
+ * The fake detector's TMDB trailers (`/v1/videos`). The show: a Russian and an English one (and a
+ * key that is not a YouTube id, dropped); the catalog movie: a teaser; the server's movie: none.
+ */
+export const TMDB_VIDEOS = {
+  'tv:1100': [
+    { key: 'ruTrailer01', name: 'Тестовый сериал — трейлер', type: 'Trailer', language: 'ru', official: true },
+    { key: 'enTrailer01', name: 'Official Trailer', type: 'Trailer', language: 'en', official: true },
+    { key: 'not a youtube id', name: 'Broken', type: 'Trailer', language: 'en', official: false },
+  ],
+  'movie:5001': [{ key: 'newTeaser01', name: '', type: 'Teaser', language: 'ru', official: true }],
+}
+
 /** TMDB id → catalog key (`/library/metadata/matches`). */
 const TMDB_MATCHES = { 'movie:5001': 'cat-new-1', 'movie:5003': 'cat-seen-1', 'movie:5004': 'cat-test-1' }
 
@@ -350,6 +363,8 @@ export function makeCatalog() {
     catalogItem('cat-new-1', 'movie', 'Новый фильм', 2026, 'Фильма нет на сервере: его можно добавить в список.', {
       contentRating: '16+',
       audienceRating: 7.4,
+      // Details carry the other ids: TMDB's for its trailer.
+      Guid: [{ id: 'imdb://tt0005001' }, { id: 'tmdb://5001' }],
     }),
     catalogItem('cat-new-2', 'show', 'Новый сериал', 2025, 'Сериала нет на сервере.'),
     catalogItem('cat-new-3', 'movie', 'Ещё один новый фильм', 2024, 'Третий тайтл каталога.'),
@@ -788,12 +803,28 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
     if (state.detectorDelayMs && url.pathname !== '/healthz') await new Promise((r) => setTimeout(r, state.detectorDelayMs))
     const p = decodeURIComponent(url.pathname)
     if (p === '/healthz') return text(res, 'ok')
+    // Stands in for YouTube's embed page (the trailer's iframe), so the browser never leaves the fakes.
+    const embed = /^\/embed\/([\w-]+)$/.exec(p)
+    if (embed)
+      return text(
+        res,
+        `<!doctype html><meta charset="utf-8"><body style="margin:0;background:#111;color:#eee;font:20px sans-serif;display:grid;place-items:center;height:100vh">Fake YouTube: ${embed[1]} (${escapeXML(url.searchParams.get('hl') ?? '')})</body>`,
+        200,
+        'text/html; charset=utf-8',
+      )
     if (req.headers['x-plex-token'] !== SERVER_TOKEN) return json(res, { error: 'unauthorized' }, 401)
     let m = /^\/v1\/segments\/(\w+)$/.exec(p)
     if (m) return json(res, { ratingKey: m[1], segments: segments[m[1]] ?? [], analyzed: true })
     if (p === '/v1/segments') {
       const keys = (url.searchParams.get('ratingKeys') ?? '').split(',').filter(Boolean)
       return json(res, { items: keys.map((k) => ({ ratingKey: k, segments: segments[k] ?? [], analyzed: true })) })
+    }
+    if (p === '/v1/videos') {
+      if (state.tmdbMissing) return json(res, { error: 'tmdb not configured' }, 404)
+      const language = url.searchParams.get('language') ?? 'ru'
+      // Like the detector: the asked language first.
+      const videos = [...(TMDB_VIDEOS[url.searchParams.get('item') ?? ''] ?? [])].sort((a, b) => Number(b.language === language) - Number(a.language === language))
+      return json(res, { item: url.searchParams.get('item'), videos })
     }
     if (p === '/v1/recommendations') {
       if (state.tmdbMissing) return json(res, { error: 'tmdb not configured' }, 404)

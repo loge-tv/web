@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { makeDiscoverItem, PlexDiscoverAPI } from '../../core/plexDiscover'
+import { makeItem } from '../../core/plexModels'
 import { PlexServerAPI } from '../../core/plexServerAPI'
 import { MockFetch, testClient } from '../../core/__tests__/support'
-import { Watchlist, watchlistShelves } from '../watchlist'
+import { libraryEntry, Watchlist, watchlistShelves } from '../watchlist'
 
 const listJSON = (keys: string[]) =>
   JSON.stringify({
@@ -103,5 +104,17 @@ describe('Watchlist', () => {
     expect(watchlistShelves(watchlist.getSnapshot(), '2026-11-22').wanted).toEqual([])
     await watchlist.refreshIndex()
     expect(watchlistShelves(watchlist.getSnapshot(), '2026-11-22').wanted.map((i) => i.ratingKey)).toEqual(['a', 'c'])
+  })
+
+  it('library titles get a list entry once the list is in, if the catalog knows them', async () => {
+    const { watchlist } = setUp()
+    const modern = makeItem({ ratingKey: '7', type: 'movie', title: 'B', guid: 'plex://movie/b' })
+    const old = makeItem({ ratingKey: '8', type: 'movie', title: 'C', guid: 'com.plexapp.agents.imdb://tt1' })
+    const season = makeItem({ ratingKey: '9', type: 'season', title: 'Сезон 1', guid: 'plex://season/s' })
+    expect(libraryEntry(watchlist.getSnapshot(), modern)).toBeUndefined() // not loaded yet
+    await watchlist.loadIfNeeded()
+    expect(libraryEntry(watchlist.getSnapshot(), modern)?.ratingKey).toBe('b')
+    expect(libraryEntry(watchlist.getSnapshot(), old)).toBeUndefined()
+    expect(libraryEntry(watchlist.getSnapshot(), season)).toBeUndefined()
   })
 })

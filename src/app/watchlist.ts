@@ -1,6 +1,6 @@
 import { emptyShelves, LibraryIndex, makeWatchlistShelves, type WatchlistShelves } from '../core/catalogMatch'
-import { dayOf, withUserState, type DiscoverItem, type DiscoverUserState, type PlexDiscoverAPI } from '../core/plexDiscover'
-import type { PlexLibrarySection } from '../core/plexModels'
+import { dayOf, discoverItemFromLibrary, withUserState, type DiscoverItem, type DiscoverUserState, type PlexDiscoverAPI } from '../core/plexDiscover'
+import type { PlexItem, PlexLibrarySection } from '../core/plexModels'
 import type { PlexServerAPI } from '../core/plexServerAPI'
 
 export interface WatchlistSnapshot {
@@ -19,6 +19,15 @@ export interface WatchlistSnapshot {
 
 export function isListed(items: DiscoverItem[], entry: DiscoverItem): boolean {
   return items.some((i) => i.ratingKey === entry.ratingKey)
+}
+
+/**
+ * The list entry of a library movie or show, once the list is in (signed in to plex.tv, matched
+ * by the modern Plex agents): library titles get the same mark as catalog ones.
+ */
+export function libraryEntry(snapshot: WatchlistSnapshot, item: PlexItem): DiscoverItem | undefined {
+  if (!snapshot.api || !snapshot.loaded) return undefined
+  return discoverItemFromLibrary(item)
 }
 
 /** «Хочу посмотреть» and «Ещё не вышло»: empty until both the list and the index are in. */
@@ -104,6 +113,11 @@ export class Watchlist {
     } catch (error) {
       console.warn('watchlist', error)
     }
+  }
+
+  /** Loads the list once (pages other than Home and search need it for the marks). */
+  async loadIfNeeded() {
+    if (!this.state.loaded) await this.load()
   }
 
   /** Loads the server's movies and shows when the index is missing or older than `maxAgeMs`. */

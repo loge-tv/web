@@ -55,7 +55,7 @@ export function useExplore(): ExploreSnapshot {
 /** Loads the Plex list once (pages other than Home and search need it for the marks). */
 export function useWatchlistLoaded() {
   useEffect(() => {
-    if (!appModel.watchlist.getSnapshot().loaded) void appModel.watchlist.load()
+    void appModel.watchlist.loadIfNeeded()
   }, [])
 }
 

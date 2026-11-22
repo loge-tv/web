@@ -311,7 +311,7 @@ await step('Esc closes the player: stopped timeline, transcode stopped, back to 
 await step('show page selects the episode in progress when none is named', async () => {
   // Library → show: a fresh show page without an episode in the link.
   await page.getByRole('navigation').getByRole('link', { name: 'Сериалы' }).click()
-  await page.locator('.poster-grid .card button.card-art').first().click({ position: { x: 20, y: 20 } })
+  await page.locator('.poster-grid .card button.card-art').first().click({ position: { x: 20, y: 100 } }) // below the list mark
   await page.waitForURL(/#\/show\/100$/)
   await page.locator('.landscape-card.selected').waitFor()
   assert.equal(
@@ -590,6 +590,37 @@ await step('catalog page of a title the server has (opened by link): «Откр�
   assert.equal(await page.getByText(/этого нет/).count(), 0)
   await page.getByRole('button', { name: 'Открыть в библиотеке' }).click()
   await page.waitForURL(/#\/movie\/200$/)
+})
+
+await step('library titles carry the list mark: posters and pages; not for an old-agent title', async () => {
+  fake.state.resetWatchlist()
+  await page.goto(`${app}/#/library/2`)
+  await page.reload()
+  // On the list from the start.
+  await page.getByRole('button', { name: 'Убрать «Тестовый сериал» из списка' }).waitFor({ timeout: 10000 })
+  await page.goto(`${app}/#/library/1`)
+  await page.getByRole('button', { name: 'Добавить «Неначатый фильм» в список' }).waitFor()
+  assert.equal(await page.getByRole('button', { name: /«Тестовый фильм»/ }).count(), 0, 'no mark without a catalog key')
+  await page.locator('.poster-grid img.loaded').first().waitFor()
+  await settledShot('library-marks')
+  await page.getByRole('button', { name: 'Добавить «Неначатый фильм» в список' }).click()
+  await page.getByRole('button', { name: 'Убрать «Неначатый фильм» из списка' }).waitFor()
+  await until(() => fake.state.watchlist[0] === 'cat-film-210', { message: 'added on the fake' })
+  // The show page: «В списке» takes it off the list and back.
+  await page.goto(`${app}/#/show/100`)
+  await page.getByRole('button', { name: 'В списке' }).click()
+  await page.getByRole('button', { name: 'Добавить в список' }).waitFor()
+  await until(() => !fake.state.watchlist.includes('cat-show-10'), { message: 'removed on the fake' })
+  await page.getByRole('button', { name: 'Добавить в список' }).click()
+  await page.getByRole('button', { name: 'В списке' }).waitFor()
+  await until(() => fake.state.watchlist.includes('cat-show-10'), { message: 'back on the fake' })
+  // The old-agent movie: the catalog doesn't know it by key, no button.
+  await page.goto(`${app}/#/movie/200`)
+  await page.getByRole('button', { name: /Смотреть|Продолжить/ }).first().waitFor()
+  assert.equal(await page.getByRole('button', { name: /в список|В списке/ }).count(), 0)
+  await page.goto(`${app}/#/movie/210`)
+  await page.getByRole('button', { name: 'В списке' }).waitFor()
+  fake.state.resetWatchlist()
 })
 
 await step('catalog down: the server\'s titles with a note; «Ничего не нашлось» when nothing matches', async () => {

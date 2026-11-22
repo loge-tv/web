@@ -361,6 +361,8 @@ export function makeCatalog() {
     catalogItem('cat-seen-2', 'show', 'Начатый сериал', 2021, 'Начат в другом приложении.'),
     // Only in the catalog: «тест» finds it next to the server's two titles.
     catalogItem('cat-test-1', 'movie', 'Тестовая комедия', 2023, 'Комедии нет на сервере.'),
+    // The server's unplayed movie (modern agent).
+    catalogItem('cat-film-210', 'movie', 'Неначатый фильм', 2022, 'Его ещё не смотрели.'),
     // «Ещё с актёрами «Тестовый сериал»».
     catalogItem('cat-cast-1', 'movie', 'Фильм с теми же актёрами', 2022, 'Те же актёры.'),
     catalogItem('cat-cast-2', 'show', 'Сериал с теми же актёрами', 2020, 'Те же актёры.'),

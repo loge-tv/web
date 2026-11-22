@@ -1,8 +1,9 @@
 import { useParams } from 'react-router-dom'
 import { appModel } from '../app/appModel'
-import { useApi, useLoad, usePlay } from '../app/hooks'
+import { useApi, useLoad, usePlay, useWatchlistLoaded } from '../app/hooks'
 import { backdropPath, dynamicRangeBadge, isWatched, type PlexItem } from '../core/plexModels'
 import { ResumePolicy, TimeFormat } from '../core/progressTracker'
+import { LibraryWatchlistButton } from '../ui/cards'
 import { ErrorView, PlexImage, Spinner } from '../ui/common'
 import { CheckIcon, EyeIcon, PlayIcon, RestartIcon } from '../ui/icons'
 
@@ -19,6 +20,8 @@ export function badges(item: PlexItem): string[] {
 export function Movie() {
   const { key = '' } = useParams()
   const api = useApi()
+  // The list marks of library titles.
+  useWatchlistLoaded()
   const { play } = usePlay()
   const { data: item, error, loading, reload } = useLoad<PlexItem | undefined>((signal) => api.item(key, signal), [api, key])
 
@@ -74,6 +77,7 @@ export function Movie() {
             <button className="btn btn-secondary" onClick={() => void appModel.setWatched(item, !watched)}>
               {watched ? <EyeIcon off size={18} /> : <CheckIcon size={18} />} {watched ? 'Не просмотрено' : 'Просмотрено'}
             </button>
+            <LibraryWatchlistButton item={item} />
           </div>
         </div>
       </div>

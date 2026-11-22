@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useApi, useApp, useLoad, useOpenItem } from '../app/hooks'
+import { useApi, useApp, useLoad, useOpenItem, useWatchlistLoaded } from '../app/hooks'
 import { isWatched, type PlexItem } from '../core/plexModels'
 import { PosterCard } from '../ui/cards'
 import { ErrorView, Spinner } from '../ui/common'
@@ -17,6 +17,8 @@ const filters: { id: Filter; title: string }[] = [
 export function Library() {
   const { key } = useParams()
   const api = useApi()
+  // The list marks of library titles.
+  useWatchlistLoaded()
   const { sections } = useApp()
   const open = useOpenItem()
   const section = sections.find((s) => s.key === key)

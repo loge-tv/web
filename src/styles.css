@@ -827,6 +827,12 @@ p {
   transform: scale(0.92);
 }
 
+/* On a library poster: left, the watched badge is on the right. */
+.watchlist-mark.leading {
+  left: 8px;
+  right: auto;
+}
+
 .watchlist-mark.listed {
   background: var(--primary-bg);
   color: var(--primary-text);

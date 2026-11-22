@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { appModel } from '../app/appModel'
-import { useApi, useLoad, usePlay } from '../app/hooks'
+import { useApi, useLoad, usePlay, useWatchlistLoaded } from '../app/hooks'
 import { EpisodeNavigator } from '../core/episodeNavigator'
 import { displaySubtitle, episodeLabel, isWatched, progress, unwatchedLeafCount, type PlexItem } from '../core/plexModels'
 import { ResumePolicy, TimeFormat } from '../core/progressTracker'
-import { LandscapeCard } from '../ui/cards'
+import { LandscapeCard, LibraryWatchlistButton } from '../ui/cards'
 import { ErrorView, PlexImage, Spinner } from '../ui/common'
 import { CheckIcon, EyeIcon, PlayIcon } from '../ui/icons'
 
@@ -32,6 +32,8 @@ function episodesWord(n: number): string {
 export function Show() {
   const { key = '' } = useParams()
   const api = useApi()
+  // The list marks of library titles.
+  useWatchlistLoaded()
   const { requestPlay } = usePlay()
   const [params, setParams] = useSearchParams()
   const seasonParam = params.get('season')
@@ -138,6 +140,7 @@ export function Show() {
               <PlayIcon size={18} /> {playTitle(resumeTarget)}
             </button>
           )}
+          <LibraryWatchlistButton item={show} />
         </div>
       </div>
 

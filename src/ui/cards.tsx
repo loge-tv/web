@@ -1,15 +1,18 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { appModel } from '../app/appModel'
 import { useWatchlist } from '../app/hooks'
-import { isListed } from '../app/watchlist'
+import { isListed, libraryEntry } from '../app/watchlist'
 import { discoverCaption, type DiscoverItem } from '../core/plexDiscover'
 import { displayTitle, isWatched, landscapePath, posterPath, progress, type PlexItem } from '../core/plexModels'
 import { CatalogImage, ItemBadge, PlexImage, ProgressLine } from './common'
-import { BookmarkIcon, ChevronRightIcon, BackIcon, PlayIcon } from './icons'
+import { BackIcon, BookmarkIcon, CheckIcon, ChevronRightIcon, PlayIcon } from './icons'
 
 /** Vertical poster with title underneath (movies, shows, seasons). */
 export function PosterCard({ item, onOpen, onPlay }: { item: PlexItem; onOpen: () => void; onPlay?: () => void }) {
   const p = progress(item)
+  // Like a catalog poster: the list mark (on the left: the watched badge is on the right).
+  const watchlist = useWatchlist()
+  const entry = libraryEntry(watchlist, item)
   const title = item.type === 'season' ? displayTitle(item) : item.title
   const subtitle = item.type === 'season' ? item.title : item.year !== undefined ? String(item.year) : undefined
   return (
@@ -23,6 +26,9 @@ export function PosterCard({ item, onOpen, onPlay }: { item: PlexItem; onOpen: (
           {p !== undefined && <ProgressLine value={p} />}
         </button>
         {onPlay && <PlayOverlayButton onPlay={onPlay} label={`Смотреть ${title}`} />}
+        {entry && (
+          <WatchlistMark leading listed={isListed(watchlist.items, entry)} title={item.title} onToggle={() => void appModel.watchlist.toggle(entry)} />
+        )}
       </div>
       <div className="card-text">
         <div className="card-title">{title}</div>
@@ -58,12 +64,28 @@ export function CatalogCard({ entry, caption, onOpen }: { entry: DiscoverItem; c
 }
 
 /** Round bookmark over a poster's corner: filled white when the title is on the list. */
-export function WatchlistMark({ listed, title, onToggle }: { listed: boolean; title: string; onToggle: () => void }) {
+export function WatchlistMark({ listed, title, onToggle, leading }: { listed: boolean; title: string; onToggle: () => void; leading?: boolean }) {
   const label = listed ? `Убрать «${title}» из списка` : `Добавить «${title}» в список`
   return (
     // A sibling of the card button (not inside it), like the play overlay.
-    <button className={`watchlist-mark${listed ? ' listed' : ''}`} aria-label={label} title={label} onClick={onToggle}>
+    <button className={`watchlist-mark${listed ? ' listed' : ''}${leading ? ' leading' : ''}`} aria-label={label} title={label} onClick={onToggle}>
       <BookmarkIcon filled={listed} size={17} />
+    </button>
+  )
+}
+
+/**
+ * «В списке» / «Добавить в список» on the page of a library movie or show, like on a catalog
+ * page. Nothing until the list is in (or for titles the Plex catalog doesn't know).
+ */
+export function LibraryWatchlistButton({ item }: { item: PlexItem }) {
+  const watchlist = useWatchlist()
+  const entry = libraryEntry(watchlist, item)
+  if (!entry) return null
+  const listed = isListed(watchlist.items, entry)
+  return (
+    <button className="btn btn-secondary" title={listed ? 'Убрать из списка' : undefined} onClick={() => void appModel.watchlist.toggle(entry)}>
+      {listed ? <CheckIcon size={18} /> : <BookmarkIcon size={18} />} {listed ? 'В списке' : 'Добавить в список'}
     </button>
   )
 }

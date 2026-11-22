@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { appModel } from './app/appModel'
 import { useApp, usePlay } from './app/hooks'
@@ -7,29 +7,40 @@ import { ResumePolicy, TimeFormat } from './core/progressTracker'
 import { Home } from './pages/Home'
 import { Library } from './pages/Library'
 import { Movie } from './pages/Movie'
-import { ConnectingScreen, FailedScreen, LoginScreen, ServerPicker } from './pages/SessionScreens'
+import { FailedScreen, LoginScreen, ServerPicker, SplashScreen } from './pages/SessionScreens'
 import { SettingsPage } from './pages/Settings'
 import { Show } from './pages/Show'
 import { PlayerPage } from './player/PlayerPage'
 import { APP_NAME } from './config'
 import { Layout } from './ui/Layout'
 
+/** One full sweep of the splash light. */
+const SPLASH_MIN_MS = 1300
+
 export function App() {
   const { phase } = useApp()
+
+  // The launch splash shows at least one sweep of its light, even when start-up is instant.
+  const [splashTimeUp, setSplashTimeUp] = useState(false)
 
   useEffect(() => {
     void appModel.start()
   }, [])
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSplashTimeUp(true), SPLASH_MIN_MS)
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  if (phase.kind === 'starting' || phase.kind === 'connecting' || !splashTimeUp) {
+    return <SplashScreen text={phase.kind === 'connecting' ? phase.text : undefined} />
+  }
+
   switch (phase.kind) {
-    case 'starting':
-      return <ConnectingScreen text="Загрузка…" />
     case 'login':
       return <LoginScreen phase={phase} />
     case 'choosingServer':
       return <ServerPicker servers={phase.servers} />
-    case 'connecting':
-      return <ConnectingScreen text={phase.text} />
     case 'failed':
       return <FailedScreen message={phase.message} />
     case 'ready':

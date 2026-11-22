@@ -1,7 +1,6 @@
 import { appModel, type Phase } from '../app/appModel'
 import { APP_NAME } from '../config'
 import type { PlexServer } from '../core/plexAccount'
-import { Spinner } from '../ui/common'
 import { Wordmark } from '../ui/icons'
 
 export function LoginScreen({ phase }: { phase: Extract<Phase, { kind: 'login' }> }) {
@@ -62,10 +61,19 @@ export function ServerPicker({ servers }: { servers: PlexServer[] }) {
   )
 }
 
-export function ConnectingScreen({ text }: { text: string }) {
+/**
+ * Launch and connecting screen: the wordmark fades in, then a tilted band of light sweeps across
+ * the dimmed letters (1.1 s sweep, 0.9 s rest). Without `text` the line stays empty so the logo
+ * doesn't jump when it appears.
+ */
+export function SplashScreen({ text }: { text?: string }) {
   return (
-    <div className="session-screen">
-      <Spinner label={text} />
+    <div className="session-screen splash" role="status" aria-label={text ?? APP_NAME}>
+      <div className="splash-logo" aria-hidden="true">
+        <Wordmark height={64} className="splash-base" />
+        <Wordmark height={64} className="splash-shine" />
+      </div>
+      <p className="muted splash-text">{text ?? '\u00a0'}</p>
     </div>
   )
 }

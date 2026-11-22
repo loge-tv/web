@@ -1681,6 +1681,69 @@ button.settings-row:hover {
   }
 }
 
+/* Launch splash: the wordmark fades in, then a tilted band of light sweeps across the dimmed
+   letters — 1.1 s sweep, 0.9 s rest. The light is a moving mask over a full-white copy. */
+.splash {
+  flex-direction: column;
+  gap: 28px;
+}
+
+.splash-logo {
+  position: relative;
+  display: inline-flex;
+  animation: splash-in 0.6s ease-out both;
+}
+
+.splash-base {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.splash-shine {
+  position: absolute;
+  inset: 0;
+  color: #fff;
+  -webkit-mask-image: linear-gradient(110deg, transparent 42%, #000 50%, transparent 58%);
+  mask-image: linear-gradient(110deg, transparent 42%, #000 50%, transparent 58%);
+  -webkit-mask-size: 300% 100%;
+  mask-size: 300% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: splash-shine 2s infinite;
+}
+
+.splash-text {
+  margin: 0;
+  min-height: 1.4em;
+}
+
+@keyframes splash-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes splash-shine {
+  0% {
+    -webkit-mask-position: 100% 0;
+    mask-position: 100% 0;
+    animation-timing-function: ease-in-out;
+  }
+  55%,
+  100% {
+    -webkit-mask-position: 0% 0;
+    mask-position: 0% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-shine {
+    animation: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

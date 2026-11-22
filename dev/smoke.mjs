@@ -380,7 +380,15 @@ await step('settings: a list of four pages, Back returns to it; detector reachab
   })
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('settings') ?? '{}'))
   assert.notEqual(stored.skipMode, 'auto')
+  // «Предпочитаемый язык»: Russian by default, 13 to pick from.
+  const language = page.getByRole('combobox', { name: 'Предпочитаемый язык' })
+  assert.equal(await language.inputValue(), 'ru')
+  assert.equal(await language.locator('option').count(), 13)
+  await language.selectOption({ label: 'Английский' })
+  await until(() => page.evaluate(() => JSON.parse(localStorage.getItem('settings') ?? '{}').preferredLanguage === 'en'), { message: 'language stored' })
+  await page.getByText('Озвучка выбирается на этом языке — лучшая по качеству (5.1 лучше стерео).', { exact: false }).waitFor()
   await shot('settings-playback')
+  await language.selectOption('ru')
 })
 
 await step('countdown mode: «Не пропускать» keeps the intro, then a skip button inside it', async () => {

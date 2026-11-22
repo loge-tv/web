@@ -5,6 +5,7 @@ import { useApp } from '../app/hooks'
 import { APP_NAME, APP_VERSION } from '../config'
 import { DetectorClient, normalizeDetectorURL } from '../core/detectorClient'
 import { skipModes, skipModeTitle, type SkipMode } from '../core/skipPolicy'
+import { Language } from '../core/mediaTrack'
 import { catalogHubs } from '../core/plexDiscover'
 import {
   countdownOptions,
@@ -189,10 +190,33 @@ export function SettingsSubpage() {
   )
 }
 
+/** «Предпочитаемый язык»: the footer, same as the Apple apps. */
+export const LanguageText = {
+  footer:
+    'Озвучка выбирается на этом языке — лучшая по качеству (5.1 лучше стерео). На нём же ищется трейлер. Озвучка, выбранная в плеере, запоминается для сериала и главнее этой настройки.',
+}
+
 function PlaybackSettings() {
   const settings = useSettings()
   return (
     <>
+      <Section title="Язык" footer={LanguageText.footer}>
+        <label className="settings-row">
+          <span>Предпочитаемый язык</span>
+          <select
+            aria-label="Предпочитаемый язык"
+            value={settings.preferredLanguage}
+            onChange={(e) => settingsStore.update({ preferredLanguage: e.target.value })}
+          >
+            {Language.choices.map((code) => (
+              <option key={code} value={code}>
+                {Language.name(code)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </Section>
+
       <Section
         title="Пропуск заставок и титров"
         footer={

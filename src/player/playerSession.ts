@@ -58,6 +58,8 @@ export interface PlayerSettings {
   autoplayNext: boolean
   nextEpisodeCountdown: number
   forceTranscode: boolean
+  /** ISO 639-1: the best audio in it is picked by default (Russian when missing). */
+  preferredLanguage?: string
 }
 
 export interface PlayerDeps {
@@ -310,8 +312,9 @@ export class PlayerSession {
     this.tracks = tracksFromPart(part)
     // The dub chosen earlier in this show, if this file has it; else the usual default.
     const remembered = preferences.audio ? preferredAudio(this.tracks, preferences.audio) : undefined
-    this.audio = remembered ?? TrackSelector.defaultAudio(this.tracks)
-    this.subtitle = TrackSelector.defaultSubtitle(this.tracks, this.audio)
+    const language = this.deps.settings().preferredLanguage ?? 'ru'
+    this.audio = remembered ?? TrackSelector.defaultAudio(this.tracks, language)
+    this.subtitle = TrackSelector.defaultSubtitle(this.tracks, this.audio, language)
 
     this.set({
       nextEpisode: next,

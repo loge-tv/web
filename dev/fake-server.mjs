@@ -399,6 +399,51 @@ const USER_STATES = {
   'cat-seen-2': { viewedLeafCount: 12 },
 }
 
+/**
+ * Seasons and episodes in Plex's catalog (`/library/metadata/<key>/children`). «Тестовый сериал»:
+ * the server has season 1's first three episodes; the catalog has five (E4 marked on the
+ * account) and season 2, not out yet. «Новый сериал» (not on the server): two seasons.
+ */
+function catalogSeasons(show, seasons) {
+  const result = []
+  for (const [index, days] of seasons.entries()) {
+    const key = `${show}-s${index + 1}`
+    const episodes = days.map((day, e) => ({
+      ratingKey: `${key}-e${e + 1}`,
+      key: `/library/metadata/${key}-e${e + 1}`,
+      type: 'episode',
+      title: `Серия ${e + 1}`,
+      index: e + 1,
+      parentIndex: index + 1,
+      parentRatingKey: key,
+      grandparentRatingKey: show,
+      summary: `Серия ${e + 1} сезона ${index + 1} из каталога Plex.`,
+      originallyAvailableAt: day,
+      duration: 2_700_000,
+      thumb: `${CATALOG_IMAGES}/${key}-e${e + 1}-thumb.jpg`,
+    }))
+    result.push({
+      season: { ratingKey: key, key: `/library/metadata/${key}`, type: 'season', title: `Сезон ${index + 1}`, index: index + 1, parentRatingKey: show, leafCount: days.length, thumb: `${CATALOG_IMAGES}/${key}-poster.jpg` },
+      episodes,
+    })
+  }
+  return result
+}
+
+export const CATALOG_CHILDREN = {
+  'cat-show-10': catalogSeasons('cat-show-10', [
+    ['2025-01-01', '2025-01-02', '2025-01-03', '2025-01-04', '2025-01-05'],
+    ['2027-01-15', '2027-01-22'],
+  ]),
+  'cat-new-2': catalogSeasons('cat-new-2', [
+    ['2025-02-01', '2025-02-08'],
+    ['2025-09-01', '2025-09-08'],
+  ]),
+}
+
+/** Catalog episodes and movies the account marked watched, after a reset. */
+export const CATALOG_MARKS_START = ['cat-show-10-s1-e4']
+
 const defaultSegments = {
   112: [
     { type: 'intro', start: 5, end: 15 },
@@ -533,6 +578,10 @@ export async function startFake(options = {}) {
     hubsFail: false,
     /** The server refuses DELETE (deletion not allowed in its settings). */
     deleteRefused: false,
+    /** Catalog titles and episodes marked watched on the account; scrobbles as [action, key]. */
+    catalogMarks: new Set(CATALOG_MARKS_START),
+    scrobbles: [],
+    scrobbleFail: false,
     resetWatchlist() {
       state.watchlist = [...WATCHLIST_START]
       state.watchlistFail = false
@@ -625,6 +674,11 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
   /** Deleted items are gone from every answer (DELETE on the fake only). */
   const findItem = (ratingKey) => allItems().find((i) => i.ratingKey === ratingKey && !i.deleted)
   const alive = (list) => list.filter((i) => !i.deleted)
+  state.resetCatalogMarks = () => {
+    state.catalogMarks = new Set(CATALOG_MARKS_START)
+    state.scrobbles = []
+    state.scrobbleFail = false
+  }
   state.restoreLibrary = () => {
     for (const item of allItems()) delete item.deleted
     state.deleteRefused = false
@@ -875,6 +929,8 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
 
   // Plex's catalog (discover.provider.plex.tv) and its image resizer (images.plex.tv) on one port.
   const catalogByKey = new Map(catalog.map((c) => [c.ratingKey, c]))
+  const seasonByKey = new Map(Object.values(CATALOG_CHILDREN).flatMap((show) => show.map((s) => [s.season.ratingKey, s])))
+  const childByKey = new Map(Object.values(CATALOG_CHILDREN).flatMap((show) => show.flatMap((s) => [[s.season.ratingKey, s.season], ...s.episodes.map((e) => [e.ratingKey, e])])))
   const discover = createServer(async (req, res) => {
     const url = new URL(req.url, urls.discover)
     // Like the real one: any origin, PUT allowed; headers limited to what the app sends.
@@ -885,7 +941,7 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
     if (p === '/photo') {
       // The resizer needs no token; the label comes from the catalog picture's URL.
       const source = url.searchParams.get('url') ?? ''
-      const item = catalog.find((c) => c.thumb === source || c.art === source)
+      const item = catalog.find((c) => c.thumb === source || c.art === source) ?? [...childByKey.values()].find((c) => c.thumb === source)
       const w = Math.min(2000, Number(url.searchParams.get('width') ?? 300))
       const h = Math.min(2000, Number(url.searchParams.get('height') ?? 300))
       res.setHeader('Cache-Control', 'max-age=3600')
@@ -936,16 +992,45 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
       const keys = MORE_FROM_CREDITS[m[1]] ?? []
       return json(res, { MediaContainer: { size: keys.length, Metadata: keys.map((k) => catalogByKey.get(k)) } })
     }
+    m = /^\/library\/metadata\/([\w-]+)\/children$/.exec(p)
+    if (req.method === 'GET' && m) {
+      const show = CATALOG_CHILDREN[m[1]]
+      const season = show ? undefined : seasonByKey.get(m[1])
+      const items = show ? show.map((s) => s.season) : season ? season.episodes : undefined
+      return items ? json(res, { MediaContainer: { size: items.length, Metadata: items } }) : json(res, { error: 'not found' }, 404)
+    }
+    m = /^\/actions\/(scrobble|unscrobble)$/.exec(p)
+    if (m) {
+      // Marks for the account (on metadata.provider.plex.tv for real; the same fake here).
+      const key = url.searchParams.get('key') ?? ''
+      if (state.scrobbleFail || url.searchParams.get('identifier') !== 'com.plexapp.plugins.library') return json(res, { error: 'refused' }, 500)
+      state.scrobbles.push([m[1], key])
+      const show = CATALOG_CHILDREN[key]
+      const season = seasonByKey.get(key)
+      const keys = show ? show.flatMap((s) => s.episodes.map((e) => e.ratingKey)) : season ? season.episodes.map((e) => e.ratingKey) : [key]
+      for (const k of keys) {
+        if (m[1] === 'scrobble') state.catalogMarks.add(k)
+        else state.catalogMarks.delete(k)
+      }
+      return text(res, '')
+    }
     m = /^\/library\/metadata\/([\w,-]+)\/userState$/.exec(p)
     if (req.method === 'GET' && m) {
       // Shaped like a real answer: movies with viewCount (0 when unwatched), shows with
-      // viewedLeafCount once an episode is watched.
+      // viewedLeafCount once an episode is watched; seasons count their marked episodes.
+      const marked = (k) => (state.catalogMarks.has(k) ? { viewCount: 1, viewState: 'complete' } : {})
       const states = m[1]
         .split(',')
-        .filter((k) => catalogByKey.has(k))
+        .filter((k) => catalogByKey.has(k) || childByKey.has(k))
         .map((k) => {
+          const season = seasonByKey.get(k)
+          if (season) {
+            const viewed = season.episodes.filter((e) => state.catalogMarks.has(e.ratingKey)).length
+            return { ratingKey: k, type: 'season', ...(viewed ? { viewedLeafCount: viewed } : {}), ...(viewed === season.episodes.length ? { viewState: 'complete' } : {}) }
+          }
+          if (childByKey.has(k)) return { ratingKey: k, type: 'episode', ...marked(k) }
           const type = catalogByKey.get(k).type
-          return { ratingKey: k, type, ...(type === 'movie' ? { viewCount: 0, viewOffset: 0 } : {}), ...USER_STATES[k], watchlistedAt: 1792598042 }
+          return { ratingKey: k, type, ...(type === 'movie' ? { viewCount: 0, viewOffset: 0 } : {}), ...USER_STATES[k], ...marked(k), watchlistedAt: 1792598042 }
         })
       return json(res, { MediaContainer: { identifier: 'tv.plex.provider.discover', size: states.length, UserState: states } })
     }

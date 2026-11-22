@@ -897,6 +897,76 @@ await step('«Обзор»: Plex collections, a new season stands for its show; 
   await nav().waitFor()
 })
 
+await step('all seasons and episodes: the catalog\'s greyed with the account\'s marks, marked for the account', async () => {
+  fake.state.resetCatalogMarks()
+  const scrobbles = () => fake.state.scrobbles.map((x) => x.join(' '))
+  const card = (label) => page.getByRole('button', { name: label, exact: true })
+  await page.goto(`${app}/#/show/100?season=110&episode=111`)
+  // Season 1: the server's three, then the catalog's E4 (marked on the account) and E5.
+  await card('4. Серия 4, Нет на сервере · 4 января 2025').waitFor({ timeout: 10000 })
+  await card('5. Серия 5, Нет на сервере · 5 января 2025').waitFor()
+  assert.deepEqual(await page.locator('.episode-row .card-title').allTextContents(), ['1. Начало', '2. Продолжение', '3. Финал', '4. Серия 4', '5. Серия 5'])
+  assert.equal(await page.locator('.landscape-card.not-downloaded', { hasText: '4. Серия 4' }).locator('.badge-watched').count(), 1, 'E4 watched on the account')
+  assert.equal(await page.locator('.landscape-card.not-downloaded', { hasText: '5. Серия 5' }).locator('.badge-watched').count(), 0)
+  assert.deepEqual(await page.getByRole('tab').evaluateAll((tabs) => tabs.map((t) => t.getAttribute('aria-label'))), ['Сезон 1', 'Сезон 2, не скачан'])
+  const asked = find((r) => r.server === 'discover' && /\/children$|\/userState$/.test(r.path)).map((r) => r.path)
+  for (const path of ['/library/metadata/cat-show-10/children', '/library/metadata/cat-show-10-s1/children']) assert.ok(asked.includes(path), `${path} in ${asked}`)
+  // A catalog episode: no play, no delete; only the account's mark.
+  await card('4. Серия 4, Нет на сервере · 4 января 2025').click()
+  const details = page.locator('.episode-details')
+  await details.getByRole('heading', { name: 'S1 · E4 — Серия 4' }).waitFor()
+  assert.equal(await details.getByRole('button', { name: /Смотреть|Удалить серию/ }).count(), 0)
+  await details.getByRole('button', { name: 'Отметить непросмотренной' }).click()
+  await until(() => scrobbles().includes('unscrobble cat-show-10-s1-e4'), { message: 'unscrobble sent' })
+  await until(async () => (await page.locator('.landscape-card.not-downloaded', { hasText: '4. Серия 4' }).locator('.badge-watched').count()) === 0, { message: 'mark gone' })
+  await card('5. Серия 5, Нет на сервере · 5 января 2025').click()
+  await details.getByRole('button', { name: 'Отметить просмотренной' }).click()
+  await until(() => scrobbles().includes('scrobble cat-show-10-s1-e5'), { message: 'scrobble sent' })
+  await details.getByText('Просмотрено').waitFor()
+  await settledShot('show-catalog')
+  // Season 2: only in the catalog, not out yet; marking it marks its episodes; nothing to delete.
+  await page.getByRole('tab', { name: 'Сезон 2, не скачан' }).click()
+  await page.waitForURL(/season=catalog%3Acat-show-10-s2|season=catalog:cat-show-10-s2/)
+  await card('1. Серия 1, Выйдет 15 января 2027').waitFor()
+  await page.getByRole('button', { name: 'Ещё' }).click()
+  await page.getByRole('menuitem', { name: 'Удалить сериал' }).waitFor()
+  assert.equal(await page.getByRole('menuitem', { name: /Сезон 2/ }).count(), 0, 'a season not downloaded can\'t be deleted')
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Отметить «Сезон 2» просмотренным' }).click()
+  await until(() => scrobbles().includes('scrobble cat-show-10-s2'), { message: 'season scrobble' })
+  await page.getByRole('tab', { name: 'Сезон 2, просмотрен, не скачан' }).waitFor()
+  assert.equal(await page.locator('.landscape-card.not-downloaded .badge-watched').count(), 2, 'its episodes too')
+  await page.getByRole('button', { name: 'Отметить «Сезон 2» непросмотренным' }).waitFor()
+  await settledShot('show-catalog-season')
+  // A reload: the marks come from the account.
+  await page.reload()
+  await page.getByRole('tab', { name: 'Сезон 2, просмотрен, не скачан' }).waitFor({ timeout: 10000 })
+
+  // A catalog show the server lacks: its seasons and episodes to mark.
+  await page.goto(`${app}/#/catalog/cat-new-2`)
+  await page.getByRole('tab', { name: 'Сезон 2' }).waitFor({ timeout: 10000 })
+  await card('2. Серия 2, Нет на сервере · 8 февраля 2025').click()
+  await page.locator('.episode-details').getByRole('button', { name: 'Отметить просмотренной' }).click()
+  await until(() => scrobbles().includes('scrobble cat-new-2-s1-e2'), { message: 'catalog show episode' })
+  await settledShot('catalog-show-seasons')
+  // A catalog movie: «Отметить просмотренным» ⇄ «Просмотрено»; a refusal goes back and says so.
+  await page.goto(`${app}/#/catalog/cat-new-3`)
+  await page.getByRole('button', { name: 'Отметить просмотренным' }).click({ timeout: 10000 })
+  await page.getByRole('button', { name: 'Просмотрено' }).waitFor()
+  await until(() => scrobbles().includes('scrobble cat-new-3'), { message: 'movie scrobble' })
+  await page.getByRole('button', { name: 'Просмотрено' }).click()
+  await until(() => scrobbles().includes('unscrobble cat-new-3'), { message: 'movie unscrobble' })
+  fake.state.scrobbleFail = true
+  await page.getByRole('button', { name: 'Отметить просмотренным' }).click()
+  const refused = page.getByRole('alertdialog', { name: 'Не удалось отметить' })
+  await refused.getByText('Plex не принял отметку «Ещё один новый фильм». Проверьте подключение к интернету.').waitFor()
+  await refused.getByRole('button', { name: 'OK' }).click()
+  await page.getByRole('button', { name: 'Отметить просмотренным' }).waitFor()
+  // Marks went to the catalog (the fake), never to a server.
+  assert.ok(find((r) => /\/actions\/(un)?scrobble$/.test(r.path)).every((r) => r.server === 'discover'))
+  fake.state.resetCatalogMarks()
+})
+
 await step('deleting downloads: a movie, an episode refused and why, watched episodes, a season, the show (fake PMS only)', async () => {
   const deletes = () => find((r) => r.method === 'DELETE')
   const confirm = () => page.getByRole('alertdialog').filter({ has: page.getByRole('button', { name: 'Удалить' }) })
@@ -937,7 +1007,7 @@ await step('deleting downloads: a movie, an episode refused and why, watched epi
   await settledShot('delete-refused')
   await refused.getByRole('button', { name: 'OK' }).click()
   await refused.waitFor({ state: 'detached' })
-  assert.equal(await page.locator('.episode-row .landscape-card').count(), 3)
+  assert.equal(await page.locator('.episode-row .landscape-card:not(.not-downloaded)').count(), 3)
   fake.state.deleteRefused = false
 
   // Watched episodes: asked again first, then the count confirmed is the count deleted.
@@ -958,7 +1028,7 @@ await step('deleting downloads: a movie, an episode refused and why, watched epi
   await until(() => deletes().length === before + count, { message: 'watched deleted' })
   const watched = deletes().slice(before).map((r) => r.path.split('/').pop())
   assert.ok(watched.every((k) => ['111', '112', '113'].includes(k)), `${watched}`)
-  await until(async () => (await page.locator('.episode-row .landscape-card').count()) === 3 - watched.length, { message: 'row updated' })
+  await until(async () => (await page.locator('.episode-row .landscape-card:not(.not-downloaded)').count()) === 3 - watched.length, { message: 'row updated' })
 
   // The open season, then the show (back to where it was opened from).
   await more('Удалить «Сезон 1»')

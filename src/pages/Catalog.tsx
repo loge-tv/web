@@ -4,10 +4,13 @@ import { appModel } from '../app/appModel'
 import { useApp, useOpenItem, useWatchlist } from '../app/hooks'
 import { isListed } from '../app/watchlist'
 import { CatalogText } from '../core/catalogMatch'
-import { discoverCaption, discoverTmdbID, type DiscoverItem } from '../core/plexDiscover'
+import { discoverCaption, discoverTmdbID, isWatchedInPlex, withUserState, type DiscoverItem, type PlexDiscoverAPI } from '../core/plexDiscover'
+import { CatalogShowText } from '../app/catalogShow'
+import { CatalogSeasons } from '../ui/catalogEpisodes'
+import { AlertDialog } from '../ui/dialog'
 import { TimeFormat } from '../core/progressTracker'
 import { CatalogImage, ErrorView, Spinner } from '../ui/common'
-import { BookmarkIcon, CheckIcon, PlayIcon } from '../ui/icons'
+import { BookmarkIcon, CheckIcon, EyeIcon, PlayIcon } from '../ui/icons'
 import { TrailerButton, useTrailers } from '../ui/trailers'
 
 /**
@@ -89,6 +92,7 @@ export function Catalog() {
                 {listed ? <CheckIcon size={18} /> : <BookmarkIcon size={18} />} {listed ? 'В списке' : 'Добавить в список'}
               </button>
               <TrailerButton videos={trailers} />
+              {missing && item.kind === 'movie' && api && <MovieWatchedButton item={item} api={api} />}
             </div>
             {missing && <p className="muted small">{CatalogText.notOnServer(server?.name)}</p>}
           </div>
@@ -96,6 +100,48 @@ export function Catalog() {
           {item.summary && <p className="summary">{item.summary}</p>}
         </div>
       </div>
+      {missing && item.kind === 'show' && <CatalogSeasons showKey={item.ratingKey} />}
     </div>
+  )
+}
+
+/**
+ * «Отметить просмотренным» on a catalog movie the server lacks: for the account, like Plex apps
+ * do for titles not on a server; back if Plex refuses.
+ */
+function MovieWatchedButton({ item, api }: { item: DiscoverItem; api: PlexDiscoverAPI }) {
+  const [watched, setWatched] = useState<{ key: string; value: boolean }>()
+  const [failure, setFailure] = useState<string>()
+  useEffect(() => {
+    let live = true
+    api.userStates([item.ratingKey]).then(
+      (states) => {
+        if (live) setWatched({ key: item.ratingKey, value: isWatchedInPlex(withUserState(item, states.get(item.ratingKey))) })
+      },
+      (error: unknown) => console.warn('movie watch state', error),
+    )
+    return () => {
+      live = false
+    }
+  }, [api, item])
+  const value = watched?.key === item.ratingKey ? watched.value : undefined
+  const toggle = async () => {
+    if (value === undefined) return
+    setWatched({ key: item.ratingKey, value: !value })
+    try {
+      await api.setWatched(item.ratingKey, !value)
+    } catch (error) {
+      console.warn('movie watched', error)
+      setWatched({ key: item.ratingKey, value })
+      setFailure(CatalogShowText.failed(item.title))
+    }
+  }
+  return (
+    <>
+      <button className="btn btn-secondary" disabled={value === undefined} title={value ? 'Снять отметку' : undefined} onClick={() => void toggle()}>
+        {value ? <CheckIcon size={18} /> : <EyeIcon size={18} />} {value ? 'Просмотрено' : 'Отметить просмотренным'}
+      </button>
+      {failure && <AlertDialog title={CatalogShowText.failedTitle} message={failure} onClose={() => setFailure(undefined)} />}
+    </>
   )
 }

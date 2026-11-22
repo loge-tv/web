@@ -954,8 +954,16 @@ await step('all seasons and episodes: the catalog\'s greyed with the account\'s 
   await page.getByRole('button', { name: 'Отметить просмотренным' }).click({ timeout: 10000 })
   await page.getByRole('button', { name: 'Просмотрено' }).waitFor()
   await until(() => scrobbles().includes('scrobble cat-new-3'), { message: 'movie scrobble' })
+  // Watched now: it leaves «Хочу посмотреть» on Home (no reload), and comes back once unmarked.
+  const wanted = async () => ((await shelfCards('Хочу посмотреть')) ?? []).join('|')
+  await page.getByRole('link', { name: 'Главная' }).click()
+  await until(async () => !(await wanted()).includes('Ещё один новый фильм'), { message: 'watched movie left the shelf' })
+  await page.goBack()
   await page.getByRole('button', { name: 'Просмотрено' }).click()
   await until(() => scrobbles().includes('unscrobble cat-new-3'), { message: 'movie unscrobble' })
+  await page.getByRole('link', { name: 'Главная' }).click()
+  await until(async () => (await wanted()).includes('Ещё один новый фильм'), { message: 'back on the shelf' })
+  await page.goBack()
   fake.state.scrobbleFail = true
   await page.getByRole('button', { name: 'Отметить просмотренным' }).click()
   const refused = page.getByRole('alertdialog', { name: 'Не удалось отметить' })

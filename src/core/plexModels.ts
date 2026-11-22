@@ -58,6 +58,8 @@ export interface PlexItem {
    * `com.plexapp.agents.…` or nothing.
    */
   guid?: string
+  /** Ids in other databases (`tmdb://38142`, `imdb://tt0983213`), asked with `includeGuids`. */
+  guids?: string[]
   summary?: string
   year?: number
   index?: number
@@ -150,6 +152,30 @@ function parseMedia(raw: unknown): PlexMedia | null {
   }
 }
 
+/** `Guid: [{id: "tmdb://1"}, …]` → ids. */
+export function parseGuids(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter(isRecord)
+    .map((g) => lossyString(g.id))
+    .filter((id): id is string => !!id)
+}
+
+/** TMDB id from `tmdb://…` guids (library items asked with `includeGuids`, catalog details). */
+export function tmdbIDFromGuids(guids: string[] | undefined): number | undefined {
+  for (const guid of guids ?? []) {
+    if (!guid.startsWith('tmdb://')) continue
+    const id = Number(guid.slice(7))
+    if (Number.isInteger(id) && id > 0) return id
+  }
+  return undefined
+}
+
+/** TMDB id of a library item, when the library was asked with `includeGuids`. */
+export function tmdbID(item: PlexItem): number | undefined {
+  return tmdbIDFromGuids(item.guids)
+}
+
 export function parseItem(raw: unknown): PlexItem | null {
   if (!isRecord(raw)) return null
   const ratingKey = lossyString(raw.ratingKey) ?? ''
@@ -160,6 +186,7 @@ export function parseItem(raw: unknown): PlexItem | null {
     type: itemTypes.find((t) => t === typeName) ?? 'other',
     title: lossyString(raw.title) ?? '',
     guid: lossyString(raw.guid),
+    guids: parseGuids(raw.Guid),
     summary: lossyString(raw.summary),
     year: lossyInt(raw.year),
     index: lossyInt(raw.index),

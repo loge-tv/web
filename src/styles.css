@@ -422,8 +422,15 @@ p {
 /* Pages without a hero start below the bar. */
 .library,
 .settings,
-.search {
+.search,
+.explore,
+.home-hint {
   padding-top: 88px;
+}
+
+.page-title {
+  font-size: clamp(26px, 4vw, 36px);
+  margin-bottom: 12px;
 }
 
 /* MARK: Hero (home) and detail backdrops */
@@ -1278,6 +1285,53 @@ a.settings-row:hover {
 .toggle {
   cursor: pointer;
   position: relative;
+}
+
+/* A home shelf: ↑ ↓ to move it, then its toggle. */
+.settings-row.shelf-setting {
+  padding: 0 0 0 8px;
+  gap: 4px;
+}
+
+.shelf-setting .toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 50px;
+  padding: 8px 16px 8px 4px;
+}
+
+.move-buttons {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.move-button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+}
+
+.move-button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface);
+}
+
+.move-button:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.settings-row.action:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
 }
 
 .toggle input {

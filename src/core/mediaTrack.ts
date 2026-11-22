@@ -50,6 +50,34 @@ export const Language = {
     return Language.names[code.toLowerCase()] ?? code
   },
 
+  /** Languages offered as the preferred one (ISO 639-1), in the settings' order. */
+  choices: ['ru', 'en', 'uk', 'de', 'fr', 'es', 'it', 'pt', 'pl', 'tr', 'ja', 'ko', 'zh'],
+
+  /** Other spellings files use for a language (ISO 639-2 and names). */
+  aliases: {
+    ru: ['rus', 'russian', 'ru-ru'],
+    en: ['eng', 'english', 'en-us', 'en-gb'],
+    uk: ['ukr', 'ukrainian', 'uk-ua'],
+    de: ['ger', 'deu', 'german'],
+    fr: ['fre', 'fra', 'french'],
+    es: ['spa', 'spanish'],
+    it: ['ita', 'italian'],
+    pt: ['por', 'portuguese', 'pt-br'],
+    pl: ['pol', 'polish'],
+    tr: ['tur', 'turkish'],
+    ja: ['jpn', 'japanese'],
+    ko: ['kor', 'korean'],
+    zh: ['chi', 'zho', 'chinese'],
+  } as Record<string, string[]>,
+
+  /** A track's language code is `preferred` (an ISO 639-1 code) in any spelling. */
+  matches(code: string | undefined | null, preferred: string): boolean {
+    const c = code?.toLowerCase()
+    if (!c) return false
+    const p = preferred.toLowerCase()
+    return c === p || (Language.aliases[p]?.includes(c) ?? false)
+  },
+
   /** "ru" and "rus" are the same language; unknown codes compare as written. */
   same(a: string | undefined | null, b: string | undefined | null): boolean {
     const x = a?.toLowerCase() ?? ''

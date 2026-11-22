@@ -2,6 +2,7 @@ import { fetchChecked, fetchJSON, fetchWithTimeout, joinURL, lossyInt, lossyStri
 import { jsonInit, plexParams, type PlexClientInfo } from './plexAccount'
 import { parseMetadata, parseSections, sectionKind, type PlexItem, type PlexLibrarySection, type PlexPart } from './plexModels'
 import type { PlaybackState } from './progressTracker'
+import { parseHistory, type PlexHistoryEntry } from './recommendations'
 
 /**
  * Plex's answer to a transcode decision. `code` (generalDecisionCode) 1000/1001: direct play or
@@ -82,7 +83,8 @@ export class PlexServerAPI {
 
   /** All movies or shows of a library section, sorted by title. */
   async items(section: PlexLibrarySection, signal?: AbortSignal): Promise<PlexItem[]> {
-    const query: Record<string, string> = { sort: 'titleSort' }
+    // Guids: TMDB ids for recommendations.
+    const query: Record<string, string> = { sort: 'titleSort', includeGuids: '1' }
     const kind = sectionKind(section)
     if (kind === 'movie') query.type = '1'
     if (kind === 'show') query.type = '2'
@@ -107,9 +109,29 @@ export class PlexServerAPI {
     return this.metadata(`/library/metadata/${ratingKeys.map(encodeURIComponent).join(',')}`, {}, signal)
   }
 
-  /** Full item with media parts and streams. */
+  /** Full item with media parts, streams and its other ids (`Guid`: TMDB for trailers). */
   async item(ratingKey: string, signal?: AbortSignal): Promise<PlexItem | undefined> {
-    return (await this.metadata(`/library/metadata/${ratingKey}`, {}, signal))[0]
+    return (await this.metadata(`/library/metadata/${ratingKey}`, { includeGuids: '1' }, signal))[0]
+  }
+
+  /** Plays, newest first. The server's owner sees everyone's: `accountID` 1 is the owner. */
+  async history(accountID?: number, limit = 200): Promise<PlexHistoryEntry[]> {
+    const query: Record<string, string> = {
+      sort: 'viewedAt:desc',
+      'X-Plex-Container-Start': '0',
+      'X-Plex-Container-Size': String(limit),
+    }
+    if (accountID !== undefined) query.accountID = String(accountID)
+    return parseHistory(await fetchJSON(this.fetchFn, this.url('/status/sessions/history/all', query), jsonInit))
+  }
+
+  /**
+   * Deletes a movie, show, season or episode with its files. The server allows it only to its
+   * owner with «Allow media deletion» on (Settings → Library); otherwise 401/403. A whole show
+   * takes the server a while: up to 3 minutes before it counts as a lost connection.
+   */
+  async delete(ratingKey: string) {
+    await fetchChecked(this.fetchFn, this.url(`/library/metadata/${encodeURIComponent(ratingKey)}`), { ...jsonInit, method: 'DELETE' }, 180_000)
   }
 
   /** Seasons of a show or episodes of a season. */

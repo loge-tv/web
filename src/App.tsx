@@ -3,6 +3,7 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { appModel } from './app/appModel'
 import { useApp } from './app/hooks'
 import { Catalog } from './pages/Catalog'
+import { Explore } from './pages/Explore'
 import { Home } from './pages/Home'
 import { Library } from './pages/Library'
 import { Movie } from './pages/Movie'
@@ -54,6 +55,7 @@ export function App() {
               <Route path="show/:key" element={<Show />} />
               <Route path="search" element={<Search />} />
               <Route path="catalog/:key" element={<Catalog />} />
+              <Route path="explore" element={<Explore />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="settings/:page" element={<SettingsSubpage />} />
             </Route>

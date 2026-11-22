@@ -3,12 +3,15 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { appModel } from '../app/appModel'
 import { useApp, useWatchlist } from '../app/hooks'
 import { APP_NAME } from '../config'
+import { showsExplore, useSettings } from '../settings'
 import { sectionKind } from '../core/plexModels'
 import { SearchIcon, SettingsIcon, Wordmark } from './icons'
 
 /** Top navigation and the page below it. */
 export function Layout() {
   const { sections } = useApp()
+  const { api: discover } = useWatchlist()
+  const settings = useSettings()
   const [scrolled, setScrolled] = useState(false)
   const location = useLocation()
   const nav = useNavEdges()
@@ -39,6 +42,8 @@ export function Layout() {
               {section.title}
             </NavLink>
           ))}
+          {/* Plex's collections: while any is on in settings and a Plex account is signed in. */}
+          {showsExplore(settings) && discover && <NavLink to="/explore">Обзор</NavLink>}
         </nav>
         <div className="topbar-actions">
           <NavLink to="/search" className="icon-link" aria-label="Поиск" title="Поиск">

@@ -331,8 +331,9 @@ await step('movie: ▶ plays from where it was left (no dialog), mark watched, l
   await page.getByRole('navigation').getByRole('link', { name: 'Фильмы' }).click()
   await page.waitForURL(/#\/library\/1/)
   await page.getByRole('tab', { name: 'Непросмотренные' }).click()
-  assert.equal(await page.locator('.poster-grid .card').count(), 1)
-  await page.locator('.poster-grid .card button.card-art').first().click({ position: { x: 20, y: 20 } })
+  // The movie in progress and the one never played.
+  assert.equal(await page.locator('.poster-grid .card').count(), 2)
+  await page.locator('.poster-grid .card', { hasText: 'Тестовый фильм' }).locator('button.card-art').click({ position: { x: 20, y: 20 } })
   await page.waitForURL(/#\/movie\/200/)
   await page.getByRole('button', { name: /Продолжить с 0:3\d/ }).waitFor()
   await shot('movie')
@@ -341,9 +342,10 @@ await step('movie: ▶ plays from where it was left (no dialog), mark watched, l
   assert.ok(pms('/:/scrobble', (r) => r.query.key === '200').length === 1)
   await page.goBack()
   await page.getByRole('tab', { name: 'Непросмотренные' }).click()
-  await page.getByText('Здесь пока ничего нет.').waitFor()
+  await until(async () => (await page.locator('.poster-grid .card').count()) === 1, { message: 'one unwatched left' })
+  assert.equal(await page.locator('.poster-grid .card .card-title').textContent(), 'Неначатый фильм')
   await page.getByRole('tab', { name: 'Все' }).click()
-  assert.equal(await page.locator('.poster-grid .card').count(), 1)
+  assert.equal(await page.locator('.poster-grid .card').count(), 2)
 })
 
 const settingsPages = () => page.getByRole('navigation', { name: 'Разделы настроек' }).getByRole('link')
@@ -352,7 +354,7 @@ await step('settings: a list of four pages, Back returns to it; detector reachab
   await page.getByRole('link', { name: 'Настройки' }).click()
   await page.waitForURL(/#\/settings$/)
   await settingsPages().first().waitFor()
-  assert.deepEqual(await settingsPages().allTextContents(), ['Воспроизведение', 'Главная', 'Детектор заставок', 'Сервер и аккаунт'])
+  assert.deepEqual(await settingsPages().allTextContents(), ['Воспроизведение', 'Главная и Обзор', 'Детектор заставок', 'Сервер и аккаунт'])
   await page.getByText(/^Loge /).waitFor()
   await settledShot('settings')
   // Browser Back from a page lands on the list.
@@ -469,9 +471,9 @@ await step('home: «Хочу посмотреть» and «Ещё не вышло
   const list = discover('/library/sections/watchlist/all').at(-1)
   assert.equal(list.query.includeUserState, undefined, 'the list carries no watch state anyway')
   assert.equal(list.headers['x-plex-language'], 'ru')
-  // Watch state of the whole list in one request.
-  const states = find((r) => r.server === 'discover' && /^\/library\/metadata\/[\w,-]+\/userState$/.test(r.path)).at(-1)
-  assert.equal(states?.path, `/library/metadata/${fake.state.watchlist.join(',')}/userState`)
+  // Watch state of the whole list in one request (the recommendations ask for theirs apart).
+  const listStates = `/library/metadata/${fake.state.watchlist.join(',')}/userState`
+  assert.ok(discover(listStates).length > 0, 'one request for the list')
   // The account token, in a header, never in a URL; the resizer gets no token at all.
   const api = find((r) => r.server === 'discover' && r.path !== '/photo')
   assert.ok(api.every((r) => r.headers['x-plex-token'] === USER_TOKEN && !r.query['X-Plex-Token']), 'Discover with the account token')
@@ -627,7 +629,7 @@ await step('settings «Главная»: «Ещё не вышло» off is gone 
   assert.ok((await wanted.isChecked()) && (await upcoming.isChecked()), 'both on by default')
   await page.getByText('Из списка Plex: вышло, но нет на сервере и ещё не просмотрено.').waitFor()
   await page.getByText('Из списка Plex: ещё не вышло, ближайшее первым.').waitFor()
-  await page.getByText('Полки главной из списка Plex. В пустом поиске список виден всегда.').waitFor()
+  await page.getByText('В пустом поиске список Plex виден всегда.', { exact: false }).waitFor()
   await settledShot('settings-home')
   await page.locator('label.toggle', { hasText: 'Ещё не вышло' }).click()
   await until(async () => !(await upcoming.isChecked()), { message: 'switched off' })
@@ -647,6 +649,146 @@ await step('settings «Главная»: «Ещё не вышло» off is gone 
   await until(async () => (await hidden()).length === 0, { message: 'switched back on' })
   await page.goto(`${app}/#/`)
   await page.getByRole('heading', { name: 'Ещё не вышло' }).waitFor({ timeout: 10000 })
+})
+
+const homeTitles = () => page.$$eval('section.shelf .shelf-title', (list) => list.map((h) => h.textContent))
+
+await step('home: TMDB recommendations through the detector, «Ещё с актёрами», cached catalog matches', async () => {
+  fake.state.resetWatchlist()
+  const started = Date.now()
+  await page.goto(`${app}/#/`)
+  await page.reload()
+  await page.getByRole('heading', { name: 'Похожее на сервере' }).waitFor({ timeout: 15000 })
+  await page.getByRole('heading', { name: 'Ещё с актёрами «Тестовый сериал»' }).waitFor({ timeout: 10000 })
+  // Seeds: the owner's last plays on the server (the show, then the movie), each once.
+  const history = pms('/status/sessions/history/all', (r) => r.at > started)
+  assert.ok(history.length > 0 && history.every((r) => r.query.accountID === '1' && r.query.sort === 'viewedAt:desc'), 'owner history')
+  const asked = find((r) => r.server === 'detector' && r.path === '/v1/recommendations' && r.at > started)
+  assert.equal(asked[0]?.query.seeds, 'tv:1100,movie:1200')
+  assert.equal(asked[0]?.query.language, 'ru-RU')
+  assert.equal(asked[0]?.headers['x-plex-token'], SERVER_TOKEN)
+  // The server's unplayed movie; seeds and begun titles are not recommended.
+  assert.deepEqual(await shelfCards('Похожее на сервере'), ['Неначатый фильм | 2022'])
+  // TMDB's (Russian) title, not the catalog's English one; the watched movie and the one Plex lacks are dropped.
+  assert.deepEqual(await shelfCards('Потому что вы смотрели «Тестовый сериал»'), ['Новый фильм | Фильм · 2026'])
+  assert.deepEqual(await shelfCards('Потому что вы смотрели «Тестовый фильм»'), ['Тестовая комедия | Фильм · 2023'])
+  // Plex's cast list of the show: without the show, the server's movie and the watched one.
+  assert.deepEqual(await shelfCards('Ещё с актёрами «Тестовый сериал»'), ['Фильм с теми же актёрами | Фильм · 2022', 'Сериал с теми же актёрами | Сериал · 2020'])
+  const titles = await homeTitles()
+  assert.deepEqual(titles.slice(-4), ['Похожее на сервере', 'Потому что вы смотрели «Тестовый сериал»', 'Потому что вы смотрели «Тестовый фильм»', 'Ещё с актёрами «Тестовый сериал»'])
+  // What the server has is never asked; the rest once (on the first visit of Home), then from storage.
+  const matches = discover('/library/metadata/matches').map((r) => `${r.query.type} ${r.query.guid}`).sort()
+  assert.deepEqual(matches, ['1 tmdb://5001', '1 tmdb://5003', '1 tmdb://5004', '1 tmdb://5009'])
+  await page.locator('section.shelf').last().scrollIntoViewIfNeeded()
+  await page.locator('section.shelf').last().locator('img.loaded').first().waitFor()
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: join(screens, 'home-recommendations.png'), fullPage: true })
+  const reloaded = Date.now()
+  await page.reload()
+  await page.getByRole('heading', { name: 'Потому что вы смотрели «Тестовый фильм»' }).waitFor({ timeout: 15000 })
+  assert.equal(discover('/library/metadata/matches', (r) => r.at > reloaded).length, 0, 'matches come from storage')
+  // A catalog recommendation opens its catalog page.
+  await page.getByRole('button', { name: 'Тестовая комедия, Фильм · 2023', exact: true }).click()
+  await page.waitForURL(/#\/catalog\/cat-test-1$/)
+})
+
+await step('settings «Главная и Обзор»: every shelf off and on, moved, default order back; no TMDB key', async () => {
+  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('settings') ?? '{}'))
+  await page.goto(`${app}/#/settings/home`)
+  await page.getByRole('heading', { name: 'Полки Главной' }).waitFor()
+  const rows = () => page.$$eval('.shelf-setting [role=switch]', (list) => list.map((s) => s.getAttribute('aria-label')))
+  assert.deepEqual(await rows(), [
+    'Продолжить просмотр',
+    'Хочу посмотреть',
+    'Ещё не вышло',
+    'Недавно добавлено · Фильмы',
+    'Недавно добавлено · Сериалы',
+    'Похожее на сервере',
+    'Потому что вы смотрели…',
+    'Ещё с этими актёрами',
+  ])
+  const reset = page.getByRole('button', { name: 'Вернуть порядок по умолчанию' })
+  assert.ok(await reset.isDisabled(), 'nothing to reset yet')
+  assert.ok(await page.getByRole('button', { name: '«Продолжить просмотр» выше' }).isDisabled())
+  // «Похожее на сервере» to the top, «Продолжить просмотр» off.
+  for (let i = 0; i < 5; i++) await page.getByRole('button', { name: '«Похожее на сервере» выше' }).click()
+  await page.locator('label.toggle', { hasText: 'Продолжить просмотр' }).click()
+  await until(async () => (await rows())[0] === 'Похожее на сервере', { message: 'moved to the top' })
+  assert.deepEqual((await stored()).shelfOrder.slice(0, 2), ['similarOnServer', 'continue'])
+  assert.deepEqual((await stored()).hiddenShelves, ['continue'])
+  await settledShot('settings-home-order')
+  await page.goto(`${app}/#/`)
+  await page.getByRole('heading', { name: 'Похожее на сервере' }).waitFor({ timeout: 10000 })
+  let titles = await homeTitles()
+  assert.equal(titles[0], 'Похожее на сервере')
+  assert.ok(!titles.includes('Продолжить просмотр'), `home: ${titles}`)
+  // Everything off: a hint, and nothing is asked of TMDB.
+  await page.goto(`${app}/#/settings/home`)
+  for (const name of await rows()) {
+    const toggle = page.getByRole('switch', { name, exact: true })
+    if (await toggle.isChecked()) await page.locator('label.toggle', { has: toggle }).click()
+  }
+  await until(async () => (await stored()).hiddenShelves.length === 8, { message: 'all off' })
+  const off = Date.now()
+  await page.goto(`${app}/#/`)
+  await page.reload()
+  await page.getByText('Все полки выключены. Включите нужные в Настройки → Главная и Обзор.').waitFor()
+  await settledShot('home-all-off')
+  assert.equal(find((r) => r.server === 'detector' && r.path === '/v1/recommendations' && r.at > off).length, 0, 'TMDB not asked')
+  // Back: all on, the default order.
+  await page.goto(`${app}/#/settings/home`)
+  for (const name of await rows()) await page.locator('label.toggle', { has: page.getByRole('switch', { name, exact: true }) }).click()
+  await until(async () => (await stored()).hiddenShelves.length === 0, { message: 'all on' })
+  await reset.click()
+  await until(async () => (await stored()).shelfOrder.length === 0, { message: 'order reset' })
+  assert.equal((await rows())[0], 'Продолжить просмотр')
+  assert.ok(await reset.isDisabled())
+  // A detector without a TMDB key: no TMDB shelves, settings say why.
+  fake.state.tmdbMissing = true
+  await page.goto(`${app}/#/`)
+  await page.reload()
+  await page.getByRole('heading', { name: 'Ещё с актёрами «Тестовый сериал»' }).waitFor({ timeout: 15000 })
+  titles = await homeTitles()
+  assert.ok(!titles.includes('Похожее на сервере') && !titles.some((t) => t.startsWith('Потому что')), `home: ${titles}`)
+  await page.getByRole('link', { name: 'Настройки' }).click()
+  await settingsPages().filter({ hasText: 'Главная и Обзор' }).click()
+  await page.getByText('Детектор ответил, что ключа TMDB на нём нет', { exact: false }).waitFor()
+  await settledShot('settings-home-no-tmdb')
+  fake.state.tmdbMissing = false
+})
+
+await step('«Обзор»: Plex collections, a new season stands for its show; each can be turned off', async () => {
+  const nav = () => page.getByRole('navigation').getByRole('link', { name: 'Обзор' })
+  await page.goto(`${app}/#/`)
+  await nav().click()
+  await page.waitForURL(/#\/explore$/)
+  await page.getByRole('heading', { name: 'Популярное в Plex' }).waitFor({ timeout: 10000 })
+  assert.deepEqual(await homeTitles(), ['Популярное в Plex', 'Чаще всего добавляют в список', 'Скоро выйдет', 'Самые ожидаемые фильмы'])
+  assert.deepEqual(await shelfCards('Популярное в Plex'), ['Новый фильм | Фильм · 2026', 'Тестовая комедия | Фильм · 2023', 'Тестовый сериал | Сериал · 2025'])
+  assert.deepEqual(await shelfCards('Скоро выйдет'), ['Тестовый сериал | Сезон 2 · 15 января 2027', 'Скоро фильм | 12 марта 2027'])
+  for (const hub of ['trending-plex', 'top_watchlisted', 'coming-soon', 'highly-anticipated-movies']) assert.ok(discover(`/hubs/sections/home/${hub}`).length > 0, hub)
+  await page.locator('section.shelf').nth(2).locator('img.loaded').first().waitFor()
+  await settledShot('explore')
+  // The new season of a show the server has opens the server's show.
+  await page.getByRole('button', { name: /^Тестовый сериал, Сезон 2/ }).click()
+  await page.waitForURL(/#\/show\/100/)
+  // Turned off one by one: gone from the page, then the page and its link are gone.
+  await page.goto(`${app}/#/settings/home`)
+  await page.locator('label.toggle', { hasText: 'Популярное в Plex' }).click()
+  await page.goto(`${app}/#/explore`)
+  await page.getByRole('heading', { name: 'Скоро выйдет' }).waitFor()
+  assert.ok(!(await homeTitles()).includes('Популярное в Plex'))
+  await page.goto(`${app}/#/settings/home`)
+  for (const title of ['Чаще всего добавляют в список', 'Скоро выйдет', 'Самые ожидаемые фильмы']) await page.locator('label.toggle', { hasText: title }).click()
+  await until(async () => (await nav().count()) === 0, { message: 'Обзор link gone' })
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('settings') ?? '{}').hiddenHubs), [
+    'trending-plex',
+    'top_watchlisted',
+    'coming-soon',
+    'highly-anticipated-movies',
+  ])
+  for (const title of ['Популярное в Plex', 'Чаще всего добавляют в список', 'Скоро выйдет', 'Самые ожидаемые фильмы']) await page.locator('label.toggle', { hasText: title }).click()
+  await nav().waitFor()
 })
 
 await step('phone layout: no horizontal scrolling on home, show and player', async () => {
@@ -689,6 +831,11 @@ await step('phone layout: no horizontal scrolling on home, show and player', asy
   await p.locator('.landscape-card.selected').waitFor()
   assert.ok((await overflow()) <= 0, `show overflows by ${await overflow()} px`)
   await p.screenshot({ path: join(screens, 'phone-show.png'), fullPage: true })
+  await p.goto(`${app}/#/explore`)
+  await p.getByRole('heading', { name: 'Скоро выйдет' }).waitFor({ timeout: 10000 })
+  await p.locator('section.shelf img.loaded').first().waitFor()
+  assert.ok((await overflow()) <= 0, `explore overflows by ${await overflow()} px`)
+  await p.screenshot({ path: join(screens, 'phone-explore.png'), fullPage: true })
   await p.goto(`${app}/#/play/112`)
   await p.locator('.scrub').waitFor()
   await p.waitForTimeout(1500)

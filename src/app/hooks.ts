@@ -6,7 +6,10 @@ import type { PlexItem } from '../core/plexModels'
 import type { PlexServerAPI } from '../core/plexServerAPI'
 import { ResumePolicy } from '../core/progressTracker'
 import { PINNED_TODAY } from '../config'
+import { useSettings, wantsRecommendations } from '../settings'
 import { appModel, type AppSnapshot } from './appModel'
+import type { ExploreSnapshot } from './explore'
+import type { RecommendationsSnapshot } from './recommendations'
 import { today, watchlistShelves, type WatchlistSnapshot } from './watchlist'
 
 export function useApp(): AppSnapshot {
@@ -30,6 +33,30 @@ export function useWatchlistRefresh() {
     void appModel.watchlist.load()
     void appModel.watchlist.refreshIndex()
   }, [refreshKey])
+}
+
+export function useRecommendations(): RecommendationsSnapshot {
+  return useSyncExternalStore(appModel.recommendations.subscribe, appModel.recommendations.getSnapshot)
+}
+
+/** Asks TMDB and Plex for the recommendation shelves while one of them is on in settings. */
+export function useRecommendationsRefresh() {
+  const { refreshKey } = useApp()
+  const wanted = wantsRecommendations(useSettings())
+  useEffect(() => {
+    if (wanted) void appModel.recommendations.refresh(appModel.watchlist)
+  }, [refreshKey, wanted])
+}
+
+export function useExplore(): ExploreSnapshot {
+  return useSyncExternalStore(appModel.explore.subscribe, appModel.explore.getSnapshot)
+}
+
+/** Loads the Plex list once (pages other than Home and search need it for the marks). */
+export function useWatchlistLoaded() {
+  useEffect(() => {
+    if (!appModel.watchlist.getSnapshot().loaded) void appModel.watchlist.load()
+  }, [])
 }
 
 /** The connected server API (screens behind the "ready" phase only). */

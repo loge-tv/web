@@ -1,8 +1,22 @@
-import { fetchChecked, fetchJSON, isRecord, joinURL, lossyDouble, lossyInt, lossyString, type FetchFn } from './http'
+import { fetchChecked, fetchJSON, HTTPError, isRecord, joinURL, lossyDouble, lossyInt, lossyString, type FetchFn } from './http'
 import type { PlexClientInfo } from './plexAccount'
-import { catalogKey, type PlexItem } from './plexModels'
+import { catalogKey, parseGuids, parseMetadata, tmdbIDFromGuids, type PlexItem } from './plexModels'
 
 export type DiscoverKind = 'movie' | 'show'
+
+/**
+ * Ready-made collections of Plex's catalog (`/hubs/sections/home/<id>`), the ones checked to
+ * have content: the «Обзор» page.
+ */
+export type CatalogHub = 'trending-plex' | 'top_watchlisted' | 'coming-soon' | 'highly-anticipated-movies'
+
+export const catalogHubs: { id: CatalogHub; title: string; detail: string; upcoming: boolean }[] = [
+  { id: 'trending-plex', title: 'Популярное в Plex', detail: 'Что смотрят на Plex сейчас.', upcoming: false },
+  { id: 'top_watchlisted', title: 'Чаще всего добавляют в список', detail: 'Что на этой неделе чаще всего добавляют в список Plex.', upcoming: false },
+  // Not out yet, mostly: the release date says more than the year.
+  { id: 'coming-soon', title: 'Скоро выйдет', detail: 'Фильмы и сериалы, которые скоро выходят.', upcoming: true },
+  { id: 'highly-anticipated-movies', title: 'Самые ожидаемые фильмы', detail: 'Фильмы, которых ждут больше всего.', upcoming: true },
+]
 
 /**
  * A movie or show from Plex's online catalog (Discover), whether or not it is on the server.
@@ -36,6 +50,15 @@ export interface DiscoverItem {
   viewedLeafCount?: number
   /** `complete` once a movie, or every episode of a show, is watched. */
   viewState?: string
+  /** A new season of the show (collections like «Coming Soon» list seasons): its number. */
+  season?: number
+  /** Other ids of the title (`tmdb://…`, `imdb://…`): catalog details carry them. */
+  guids?: string[]
+}
+
+/** TMDB id of a catalog title, from its `guids` (details only). */
+export function discoverTmdbID(item: DiscoverItem): number | undefined {
+  return tmdbIDFromGuids(item.guids)
 }
 
 /** Watch state of a catalog title for the account (`/library/metadata/<keys>/userState`). */
@@ -63,19 +86,25 @@ export function parseUserStates(json: unknown): DiscoverUserState[] {
   return raw.map(parseUserState).filter((s): s is DiscoverUserState => s !== null && s.ratingKey !== '')
 }
 
-/** A catalog movie or show; null for people, episodes, collections and entries without a key. */
+/**
+ * A catalog movie or show; null for people, episodes, collections and entries without a key.
+ * A season (collections list new seasons) stands for its show, with the season's number.
+ */
 export function parseDiscoverItem(raw: unknown): DiscoverItem | null {
   if (!isRecord(raw)) return null
-  const type = lossyString(raw.type)
-  const ratingKey = lossyString(raw.ratingKey)
+  const isSeason = lossyString(raw.type) === 'season'
+  const type = isSeason ? 'show' : lossyString(raw.type)
+  const ratingKey = lossyString(isSeason ? raw.parentRatingKey : raw.ratingKey)
   if ((type !== 'movie' && type !== 'show') || !ratingKey) return null
   // Watch state as attributes, or as a `UserState` child (one object or a list of one).
   const state = parseUserState(Array.isArray(raw.UserState) ? raw.UserState[0] : raw.UserState)
   return {
     ratingKey,
-    guid: lossyString(raw.guid) ?? `plex://${type}/${ratingKey}`,
+    guid: isSeason ? `plex://show/${ratingKey}` : (lossyString(raw.guid) ?? `plex://${type}/${ratingKey}`),
     kind: type,
-    title: lossyString(raw.title) ?? '',
+    title: (isSeason ? lossyString(raw.parentTitle) : undefined) ?? lossyString(raw.title) ?? '',
+    season: isSeason ? lossyInt(raw.index) : undefined,
+    guids: isSeason ? [] : parseGuids(raw.Guid),
     year: lossyInt(raw.year),
     summary: lossyString(raw.summary),
     thumb: lossyString(raw.thumb),
@@ -121,14 +150,16 @@ export function discoverItemFromLibrary(item: PlexItem): DiscoverItem | undefine
     childCount: item.childCount,
     originallyAvailableAt: item.originallyAvailableAt,
     genres: [],
+    guids: item.guids,
   }
 }
 
 const kindName = (item: DiscoverItem) => (item.kind === 'movie' ? 'Фильм' : 'Сериал')
 
-/** "Фильм · 2021" / "Сериал · 2000". */
+/** "Фильм · 2021" / "Сериал · 2000" / "Сезон 9 · 2027". */
 export function discoverCaption(item: DiscoverItem): string {
-  return item.year !== undefined ? `${kindName(item)} · ${item.year}` : kindName(item)
+  const kind = item.season !== undefined ? `Сезон ${item.season}` : kindName(item)
+  return item.year !== undefined ? `${kind} · ${item.year}` : kind
 }
 
 /**
@@ -173,15 +204,15 @@ export function russianDate(day: string): string | undefined {
 }
 
 /**
- * Under a poster of what is not out yet: "12 марта 2027", "2027", "Дата не объявлена". The
- * date alone: with the kind it doesn't fit under a phone poster.
+ * Under a poster of what is not out yet: "12 марта 2027", "2027", "Дата не объявлена"; a new
+ * season: "Сезон 9 · 12 марта 2027". The date alone: with the kind it doesn't fit under a phone
+ * poster.
  */
 export function upcomingCaption(item: DiscoverItem): string {
   const day = releaseDay(item)
-  const date = day ? russianDate(day) : undefined
-  if (date) return date
-  if (item.year !== undefined) return String(item.year)
-  return 'Дата не объявлена'
+  const date = (day ? russianDate(day) : undefined) ?? (item.year !== undefined ? String(item.year) : undefined)
+  if (item.season === undefined) return date ?? 'Дата не объявлена'
+  return `Сезон ${item.season} · ${date ?? 'дата не объявлена'}`
 }
 
 /** `yyyy-MM-dd` of a date in the browser's time zone (or `timeZone`), for `isReleased`. */
@@ -310,6 +341,62 @@ export class PlexDiscoverAPI {
       for (const state of parseUserStates(await fetchJSON(this.fetchFn, url, this.init()))) result.set(state.ratingKey, state)
     }
     return result
+  }
+
+  /**
+   * The catalog title with this TMDB id (`/library/metadata/matches`), undefined when Plex has
+   * none. One request per title: callers cache the answers.
+   */
+  async match(tmdbID: number, kind: DiscoverKind): Promise<DiscoverItem | undefined> {
+    const url = joinURL(this.base, '/library/metadata/matches', { type: kind === 'movie' ? '1' : '2', guid: `tmdb://${tmdbID}` })
+    try {
+      return parseDiscoverItems(await fetchJSON(this.fetchFn, url, this.init())).items[0]
+    } catch (error) {
+      if (error instanceof HTTPError && error.status === 404) return undefined
+      throw error
+    }
+  }
+
+  /** «More From This Cast & Crew»: other titles of the cast and crew of a catalog title. */
+  async moreFromCredits(ratingKey: string): Promise<DiscoverItem[]> {
+    const url = joinURL(this.base, `/library/metadata/${encodeURIComponent(ratingKey)}/more-from-credits`)
+    return parseDiscoverItems(await fetchJSON(this.fetchFn, url, this.init())).items
+  }
+
+  /** One of the catalog's ready-made collections (`/hubs/sections/home/<id>`). */
+  async hub(hub: CatalogHub): Promise<DiscoverItem[]> {
+    const url = joinURL(this.base, `/hubs/sections/home/${encodeURIComponent(hub)}`)
+    return parseDiscoverItems(await fetchJSON(this.fetchFn, url, this.init())).items
+  }
+
+  /** Seasons of a catalog show or episodes of a catalog season, in the server's format. */
+  async children(ratingKey: string, signal?: AbortSignal): Promise<PlexItem[]> {
+    const url = joinURL(this.base, `/library/metadata/${encodeURIComponent(ratingKey)}/children`)
+    return parseMetadata(await fetchJSON(this.fetchFn, url, this.init('GET', signal)))
+  }
+
+  /**
+   * Marks a catalog title, season or episode watched (or not) for the account, the way Plex
+   * apps do for titles not on a server.
+   */
+  async setWatched(ratingKey: string, watched: boolean) {
+    const url = joinURL(this.metadataBase, watched ? '/actions/scrobble' : '/actions/unscrobble', {
+      key: ratingKey,
+      identifier: 'com.plexapp.plugins.library',
+    })
+    await fetchChecked(this.fetchFn, url, this.init())
+  }
+
+  /** metadata.provider.plex.tv next to discover.provider.plex.tv; another base (the fakes) serves both. */
+  get metadataBase(): string {
+    try {
+      const url = new URL(this.base)
+      if (url.hostname !== 'discover.provider.plex.tv') return this.base
+      url.hostname = 'metadata.provider.plex.tv'
+      return url.toString().replace(/\/$/, '')
+    } catch {
+      return this.base
+    }
   }
 
   /** Full catalog entry: description, genres, rating. */

@@ -5,22 +5,28 @@ import { useApp } from '../app/hooks'
 import { APP_NAME, APP_VERSION } from '../config'
 import { DetectorClient, normalizeDetectorURL } from '../core/detectorClient'
 import { skipModes, skipModeTitle, type SkipMode } from '../core/skipPolicy'
+import { catalogHubs } from '../core/plexDiscover'
 import {
   countdownOptions,
   defaultDetectorURL,
-  homeShelves,
+  hasDefaultShelfOrder,
+  homeShelfOrder,
+  hubShown,
   seekBackOptions,
   seekForwardOptions,
   settingsStore,
+  shelfInfo,
   shelfShown,
   useSettings,
 } from '../settings'
-import { BackIcon, CheckIcon, ChevronRightIcon, ForwardEndIcon, HomeIcon, PlayIcon, ServerIcon } from '../ui/icons'
+import { useRecommendations } from '../app/hooks'
+import { BackIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, ChevronUpIcon, ForwardEndIcon, HomeIcon, PlayIcon, ServerIcon } from '../ui/icons'
 
 /** Pages of the settings screen, the same in every Loge app (ids as in the Apple app). */
 const settingsPages: { id: string; title: string; icon: ComponentType<{ size?: number }>; content: ComponentType }[] = [
   { id: 'playback', title: 'Воспроизведение', icon: PlayIcon, content: PlaybackSettings },
-  { id: 'home', title: 'Главная', icon: HomeIcon, content: HomeSettings },
+  // «Главная» and «Обзор» share a page, a section each.
+  { id: 'home', title: 'Главная и Обзор', icon: HomeIcon, content: HomeSettings },
   { id: 'detector', title: 'Детектор заставок', icon: ForwardEndIcon, content: DetectorSettings },
   { id: 'server', title: 'Сервер и аккаунт', icon: ServerIcon, content: ServerSettings },
 ]
@@ -259,20 +265,91 @@ function PlaybackSettings() {
   )
 }
 
+/** Texts of the «Главная и Обзор» page (same as the Apple apps, the moving hint is the web's). */
+export const HomeSettingsText = {
+  moveShelf: 'Порядок полок — как на Главной: переставьте полку стрелками ↑ и ↓ слева.',
+  footer: 'В пустом поиске список Plex виден всегда. Рекомендации TMDB приходят через детектор: без него или без ключа TMDB на нём их нет.',
+  tmdbMissing:
+    'Детектор ответил, что ключа TMDB на нём нет: полок «Похожее на сервере» и «Потому что вы смотрели…» не будет, пока на нём не задан TMDB_API_KEY.',
+  resetOrder: 'Вернуть порядок по умолчанию',
+  exploreFooter: 'Готовые подборки каталога Plex на странице «Обзор». Если выключить все, она пропадёт.',
+}
+
 function HomeSettings() {
   const settings = useSettings()
+  const { sections } = useApp()
+  const { unavailable } = useRecommendations()
+  const order = homeShelfOrder(settings, sections)
   return (
-    <Section title="Полки" footer="Полки главной из списка Plex. В пустом поиске список виден всегда.">
-      {homeShelves.map((shelf) => (
-        <Toggle
-          key={shelf.id}
-          label={shelf.title}
-          detail={shelf.detail}
-          checked={shelfShown(settings, shelf.id)}
-          onChange={(shown) => settingsStore.setShelfShown(shelf.id, shown)}
-        />
-      ))}
-    </Section>
+    <>
+      <Section
+        title="Полки Главной"
+        footer={
+          <>
+            {HomeSettingsText.moveShelf}
+            <br />
+            <br />
+            {HomeSettingsText.footer}
+            {unavailable && (
+              <>
+                <br />
+                <br />
+                {HomeSettingsText.tmdbMissing}
+              </>
+            )}
+          </>
+        }
+      >
+        {order.map((id, index) => {
+          const { title, detail } = shelfInfo(id, sections)
+          return (
+            <div key={id} className="settings-row shelf-setting">
+              <div className="move-buttons">
+                <button
+                  className="move-button"
+                  aria-label={`«${title}» выше`}
+                  title="Выше"
+                  disabled={index === 0}
+                  onClick={() => settingsStore.moveShelf(id, -1, sections)}
+                >
+                  <ChevronUpIcon size={18} />
+                </button>
+                <button
+                  className="move-button"
+                  aria-label={`«${title}» ниже`}
+                  title="Ниже"
+                  disabled={index === order.length - 1}
+                  onClick={() => settingsStore.moveShelf(id, 1, sections)}
+                >
+                  <ChevronDownIcon size={18} />
+                </button>
+              </div>
+              <Toggle label={title} detail={detail} checked={shelfShown(settings, id)} onChange={(shown) => settingsStore.setShelfShown(id, shown)} />
+            </div>
+          )
+        })}
+      </Section>
+      <Section>
+        <button
+          className="settings-row action"
+          disabled={hasDefaultShelfOrder(settings, sections)}
+          onClick={() => settingsStore.resetShelfOrder()}
+        >
+          {HomeSettingsText.resetOrder}
+        </button>
+      </Section>
+      <Section title="Подборки «Обзора»" footer={HomeSettingsText.exploreFooter}>
+        {catalogHubs.map((hub) => (
+          <Toggle
+            key={hub.id}
+            label={hub.title}
+            detail={hub.detail}
+            checked={hubShown(settings, hub.id)}
+            onChange={(shown) => settingsStore.setHubShown(hub.id, shown)}
+          />
+        ))}
+      </Section>
+    </>
   )
 }
 

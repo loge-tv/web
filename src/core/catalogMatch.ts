@@ -1,5 +1,5 @@
 import { isReleased, isWatchedInPlex, releaseDay, type DiscoverItem } from './plexDiscover'
-import { catalogKey, type PlexItem } from './plexModels'
+import { catalogKey, tmdbID, type PlexItem } from './plexModels'
 
 /** Case and diacritics folded, like Swift's `.caseInsensitive, .diacriticInsensitive` (ё = е, й = и). */
 export function foldTitle(text: string): string {
@@ -21,12 +21,22 @@ export class LibraryIndex {
 
   private readonly byCatalogKey: Map<string, PlexItem>
   private readonly byTitle: Map<string, PlexItem>
+  private readonly byTMDB: Map<string, PlexItem>
+  private readonly byRatingKey: Map<string, PlexItem>
   private readonly folded: string[]
 
   constructor(readonly items: PlexItem[]) {
     this.byCatalogKey = new Map()
     this.byTitle = new Map()
+    this.byTMDB = new Map()
+    this.byRatingKey = new Map()
     for (const item of items) {
+      this.byRatingKey.set(item.ratingKey, item)
+      const tmdb = tmdbID(item)
+      if (tmdb !== undefined && (item.type === 'movie' || item.type === 'show')) {
+        const k = `${item.type === 'movie' ? 'movie' : 'tv'}:${tmdb}`
+        if (!this.byTMDB.has(k)) this.byTMDB.set(k, item)
+      }
       const key = catalogKey(item)
       if (key) {
         if (!this.byCatalogKey.has(key)) this.byCatalogKey.set(key, item)
@@ -49,6 +59,21 @@ export class LibraryIndex {
     const exact = this.byCatalogKey.get(entry.ratingKey)
     if (exact || entry.year === undefined) return exact
     return this.byTitle.get(titleKey(entry.kind, entry.title, entry.year))
+  }
+
+  /** The library movie or show with this TMDB id (`movie` or `tv`). */
+  itemByTMDB(kind: string, id: number): PlexItem | undefined {
+    return this.byTMDB.get(`${kind}:${id}`)
+  }
+
+  /** The library movie or show with this server key. */
+  itemByKey(ratingKey: string): PlexItem | undefined {
+    return this.byRatingKey.get(ratingKey)
+  }
+
+  /** The index without these titles (deleted from the server). */
+  without(ratingKeys: Set<string>): LibraryIndex {
+    return new LibraryIndex(this.items.filter((i) => !ratingKeys.has(i.ratingKey)))
   }
 
   /** Library movies and shows whose title contains `query` (case and diacritics ignored). */

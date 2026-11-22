@@ -158,6 +158,46 @@ export const EyeIcon =({ off, ...p }: IconProps & { off?: boolean }) => (
   </Icon>
 )
 
+export const ChevronUpIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4.6 15.4a1 1 0 0 0 1.4 0l6-6 6 6a1 1 0 1 0 1.4-1.4l-6.7-6.7a1 1 0 0 0-1.4 0L4.6 14a1 1 0 0 0 0 1.4z" />
+  </Icon>
+)
+
+export const ChevronDownIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4.6 8.6a1 1 0 0 1 1.4 0l6 6 6-6a1 1 0 1 1 1.4 1.4l-6.7 6.7a1 1 0 0 1-1.4 0L4.6 10a1 1 0 0 1 0-1.4z" />
+  </Icon>
+)
+
+/** «Ещё»: three dots. */
+export const MoreIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="5" cy="12" r="2" />
+    <circle cx="12" cy="12" r="2" />
+    <circle cx="19" cy="12" r="2" />
+  </Icon>
+)
+
+export const TrashIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path
+      fillRule="evenodd"
+      d="M9 3h6a1 1 0 0 1 1 1v1h4a1 1 0 1 1 0 2h-1l-.9 12.2A2 2 0 0 1 16.1 21H7.9a2 2 0 0 1-2-1.8L5 7H4a1 1 0 0 1 0-2h4V4a1 1 0 0 1 1-1zm-2 4 .9 12h8.2L17 7H7zm3 2a1 1 0 0 1 1 1v6a1 1 0 1 1-2 0v-6a1 1 0 0 1 1-1zm4 0a1 1 0 0 1 1 1v6a1 1 0 1 1-2 0v-6a1 1 0 0 1 1-1z"
+    />
+  </Icon>
+)
+
+/** A film frame with a play triangle: «Трейлер». */
+export const TrailerIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path
+      fillRule="evenodd"
+      d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v12h14V6H5zm5 2.6 5 3.1a.4.4 0 0 1 0 .6l-5 3.1a.4.4 0 0 1-.6-.3V8.9a.4.4 0 0 1 .6-.3z"
+    />
+  </Icon>
+)
+
 /**
  * The Loge wordmark: DM Serif Display (SIL OFL) «L», «g», «e», the «o» is a play disc.
  * Same outline as app/brand/loge-wordmark.svg. `height` includes the descender of «g».

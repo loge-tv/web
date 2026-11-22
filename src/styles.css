@@ -433,23 +433,13 @@ p {
   margin-bottom: 12px;
 }
 
-/* MARK: Hero (home) and detail backdrops */
+/* MARK: Detail backdrops */
 
-.hero {
-  position: relative;
-  min-height: min(78vh, 56.25vw + 120px);
-  display: flex;
-  align-items: flex-end;
-  overflow: hidden;
-}
-
-.hero .hero-art,
 .detail-backdrop .img {
   position: absolute;
   inset: 0;
 }
 
-.hero-art img,
 .detail-backdrop img {
   width: 100%;
   height: 100%;
@@ -463,48 +453,6 @@ p {
   background:
     linear-gradient(to top, #000 0%, rgba(0, 0, 0, 0.75) 25%, rgba(0, 0, 0, 0) 60%),
     linear-gradient(to right, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0) 55%);
-}
-
-.hero-content {
-  position: relative;
-  z-index: 1;
-  max-width: 760px;
-  padding-bottom: 36px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.hero-title {
-  font-size: clamp(30px, 5vw, 56px);
-  line-height: 1.05;
-}
-
-.hero-subtitle {
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.hero-summary {
-  color: var(--text-secondary);
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  max-width: 620px;
-}
-
-.hero-progress {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 14px;
-}
-
-.progress-line.inline {
-  position: static;
-  width: 160px;
 }
 
 .shelves {
@@ -1950,9 +1898,6 @@ a.settings-row:hover {
   }
   .player-corner {
     bottom: calc(96px + env(safe-area-inset-bottom));
-  }
-  .hero {
-    min-height: 62vh;
   }
 }
 

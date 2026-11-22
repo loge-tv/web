@@ -134,6 +134,9 @@ await step('home: continue watching order, recently added collapsed to seasons',
     })),
   )
   assert.equal(shelves[0].title, 'Продолжить просмотр')
+  // No big card of the last show above the shelves.
+  assert.equal(await page.locator('.hero').count(), 0)
+  assert.equal(await page.getByRole('button', { name: 'Подробнее' }).count(), 0)
   assert.equal(shelves[0].cards.length, 5)
   // One list by recency: episode 3 and the movie by their own last view, next-up episodes by
   // when their show was last watched (the test show, then two others that Plex listed first).

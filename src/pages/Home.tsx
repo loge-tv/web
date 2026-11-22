@@ -14,21 +14,18 @@ import {
 import { upcomingCaption } from '../core/plexDiscover'
 import { RecommendationText } from '../core/recommendations'
 import {
-  backdropPath,
   collapseRecentlyAdded,
   displaySubtitle,
   displayTitle,
   orderContinueWatching,
   showsToLookUp,
-  progress,
   type PlexItem,
   type PlexLibrarySection,
 } from '../core/plexModels'
 import { TimeFormat } from '../core/progressTracker'
 import { useSettings, visibleHomeShelves, type HomeShelf } from '../settings'
 import { CatalogCard, LandscapeCard, PosterCard, Shelf } from '../ui/cards'
-import { ErrorView, PlexImage, Spinner } from '../ui/common'
-import { PlayIcon } from '../ui/icons'
+import { ErrorView, Spinner } from '../ui/common'
 
 interface HomeData {
   onDeck: PlexItem[]
@@ -75,8 +72,6 @@ export function Home() {
   if (order.length === 0) return <p className="muted page-inset home-hint">{SettingsHomeText.allShelvesOff}</p>
   if (!data && loading) return <Spinner />
   if (!data) return <ErrorView message={`Не удалось загрузить главную: ${error ?? ''}`} onRetry={reload} />
-
-  const hero = data.onDeck[0] ?? data.recent.find((r) => r.items.length > 0)?.items[0]
 
   /** One shelf of Home by its id (nothing when it has nothing). */
   const shelf = (id: HomeShelf): ReactNode => {
@@ -154,7 +149,6 @@ export function Home() {
 
   return (
     <div className="home">
-      {hero && <Hero item={hero} onOpen={() => open(hero)} onPlay={data.onDeck[0] === hero ? () => requestPlay(hero) : undefined} />}
       <div className="shelves">
         {rendered}
         {rendered.length === 0 && <p className="muted page-inset">Медиатека пуста.</p>}
@@ -165,37 +159,4 @@ export function Home() {
 
 export const SettingsHomeText = {
   allShelvesOff: 'Все полки выключены. Включите нужные в Настройки → Главная и Обзор.',
-}
-
-function Hero({ item, onOpen, onPlay }: { item: PlexItem; onOpen: () => void; onPlay?: () => void }) {
-  const p = progress(item)
-  return (
-    <section className="hero">
-      <PlexImage path={backdropPath(item)} width={1600} height={900} className="hero-art" eager />
-      <div className="hero-shade" />
-      <div className="hero-content page-inset">
-        <h1 className="hero-title">{displayTitle(item)}</h1>
-        {displaySubtitle(item) && <div className="hero-subtitle">{displaySubtitle(item)}</div>}
-        {item.summary && <p className="hero-summary">{item.summary}</p>}
-        <div className="row gap wrap">
-          {onPlay && (
-            <button className="btn btn-primary" onClick={onPlay}>
-              <PlayIcon size={18} /> {p !== undefined ? 'Продолжить' : 'Смотреть'}
-            </button>
-          )}
-          <button className="btn btn-secondary" onClick={onOpen}>
-            Подробнее
-          </button>
-        </div>
-        {p !== undefined && (
-          <div className="hero-progress">
-            <div className="progress-line inline">
-              <div style={{ width: `${Math.round(p * 100)}%` }} />
-            </div>
-            <span className="muted">{remaining(item)}</span>
-          </div>
-        )}
-      </div>
-    </section>
-  )
 }

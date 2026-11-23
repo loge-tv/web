@@ -227,8 +227,9 @@ await step('per-show correction in the tracks panel is pushed to the detector', 
   await page.locator('.tracks-panel').waitFor({ state: 'detached' })
 })
 
-await step('the bar hides after the tracks panel closes, also when its timer ran out meanwhile', async () => {
-  // The Apple apps had the bar stay until the next input here (910e0e7); the web never did.
+await step('closing the tracks panel starts the bar\'s 3 s over: it stays, then hides; input restarts them', async () => {
+  // As in the Apple apps (910e0e7), where the bar used to stay until the next input; the web used
+  // to hide it at once when its 3 s had run out while the panel was open.
   const hidden = () => page.evaluate(() => document.querySelector('.player-bottom')?.classList.contains('hidden'))
   await page.mouse.move(700, 400)
   await page.getByRole('button', { name: 'Дорожки и разметка' }).click()
@@ -236,9 +237,34 @@ await step('the bar hides after the tracks panel closes, also when its timer ran
   await page.mouse.move(300, 300) // over the video, away from the bar and the panel
   await page.waitForTimeout(3500) // past the bar's 3 s
   assert.equal(await hidden(), false, 'the bar stays while the panel is open')
-  await page.keyboard.press('Escape')
-  await page.locator('.tracks-panel').waitFor({ state: 'detached' })
-  await until(hidden, { timeout: 3500, message: 'the bar hidden without another input' })
+  const closePanel = async () => {
+    await page.keyboard.press('Escape')
+    await page.locator('.tracks-panel').waitFor({ state: 'detached' })
+    return Date.now()
+  }
+  const hiddenAfter = async (since) => {
+    await until(hidden, { timeout: 3500, message: 'the bar hidden 3 s after the last input' })
+    const after = Date.now() - since
+    assert.ok(after >= 2800 && after < 4500, `hidden ${after} ms after the last input`)
+  }
+  // No input after closing: it stays, then hides by itself.
+  let closed = await closePanel()
+  await page.waitForTimeout(2000)
+  assert.equal(await hidden(), false, 'the bar stays its usual 3 s after the panel closes')
+  await hiddenAfter(closed)
+  // A pointer move in between starts the 3 s over.
+  await page.mouse.move(700, 400)
+  await page.getByRole('button', { name: 'Дорожки и разметка' }).click()
+  await page.locator('.tracks-panel').waitFor()
+  await page.mouse.move(300, 300)
+  closed = await closePanel()
+  await page.waitForTimeout(2000)
+  await page.mouse.move(320, 320)
+  const moved = Date.now()
+  await page.waitForTimeout(2000)
+  assert.equal(await hidden(), false, 'a pointer move starts the 3 s over')
+  await hiddenAfter(moved)
+  assert.ok(Date.now() - closed >= 4800, 'not on the close\'s own 3 s')
 })
 
 await step('progress reported to Plex while playing', async () => {

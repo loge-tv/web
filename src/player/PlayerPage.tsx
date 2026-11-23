@@ -132,6 +132,13 @@ function PlayerOverlay({ session, api, onExit }: { session: PlayerSession; api: 
     return () => clearTimeout(hideTimer.current)
   }, [showControls])
 
+  // The bar stays while the panel is open; closing it starts the usual delay over, as in the
+  // Apple apps (910e0e7): the bar stays its 3 s, then hides.
+  const closePanel = useCallback(() => {
+    setPanel(false)
+    showControls()
+  }, [showControls])
+
   const visible = controls || s.paused || panel || scrubbing || s.loading || !!s.error
 
   useEffect(() => {
@@ -178,7 +185,7 @@ function PlayerOverlay({ session, api, onExit }: { session: PlayerSession; api: 
           break
         case 'Escape':
           e.preventDefault()
-          if (panel) setPanel(false)
+          if (panel) closePanel()
           else if (session.getSnapshot().nextCard) session.cancelNextEpisode()
           else if (session.getSnapshot().skipCountdown) session.cancelSkipCountdown()
           else if (!document.fullscreenElement) session.close()
@@ -197,12 +204,12 @@ function PlayerOverlay({ session, api, onExit }: { session: PlayerSession; api: 
       window.removeEventListener('keydown', onKeyDown, true)
       window.removeEventListener('keyup', onKeyUp, true)
     }
-  }, [session, panel, showControls, toggleFullscreen])
+  }, [session, panel, closePanel, showControls, toggleFullscreen])
 
   const onSurfacePointer = (e: React.PointerEvent) => {
     if (e.target !== e.currentTarget) return
     if (panel) {
-      setPanel(false)
+      closePanel()
       return
     }
     // Touch: the first tap shows the controls, the next one pauses.
@@ -330,7 +337,7 @@ function PlayerOverlay({ session, api, onExit }: { session: PlayerSession; api: 
               />
             </div>
           )}
-          <button className={`icon-button${panel ? ' active' : ''}`} onClick={() => setPanel((p) => !p)} aria-label="Дорожки и разметка" title="Дорожки и разметка">
+          <button className={`icon-button${panel ? ' active' : ''}`} onClick={() => (panel ? closePanel() : setPanel(true))} aria-label="Дорожки и разметка" title="Дорожки и разметка">
             <TracksIcon size={24} />
           </button>
           {fullscreenSupported() && (
@@ -341,7 +348,7 @@ function PlayerOverlay({ session, api, onExit }: { session: PlayerSession; api: 
         </div>
       </div>
 
-      {panel && <TracksPanel session={session} snapshot={s} onClose={() => setPanel(false)} />}
+      {panel && <TracksPanel session={session} snapshot={s} onClose={closePanel} />}
 
       {s.error && (
         <div className="player-error">

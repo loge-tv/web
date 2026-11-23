@@ -1045,7 +1045,9 @@ await step('settings «Главная и Обзор»: every shelf off and on, m
   assert.ok(!titles.includes('Похожее на сервере') && !titles.some((t) => t.startsWith('Потому что')), `home: ${titles}`)
   await page.getByRole('link', { name: 'Настройки' }).click()
   await settingsPages().filter({ hasText: 'Главная и Обзор' }).click()
-  await page.getByText('Детектор ответил, что ключа TMDB на нём нет', { exact: false }).waitFor()
+  await page.getByText('Loge Server ответил, что ключа TMDB на нём нет', { exact: false }).waitFor()
+  // The server is «Loge Server» in every text, never «детектор».
+  assert.doesNotMatch((await page.locator('body').textContent()) ?? '', /детектор/i)
   await settledShot('settings-home-no-tmdb')
   fake.state.tmdbMissing = false
 })

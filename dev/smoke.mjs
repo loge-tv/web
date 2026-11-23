@@ -1357,6 +1357,70 @@ await step('«Ещё» low on the screen (a phone turned sideways) opens upwards
   await phone.close()
 })
 
+await step('a phone turned sideways: nothing under the notch (the side safe areas, emulated)', async () => {
+  // An iPhone with a Dynamic Island in landscape: 59 pt on each side, 21 at the bottom. The page
+  // has viewport-fit=cover, so it is drawn under them and must keep its content out.
+  const inset = 59
+  const phone = await browser.newContext({
+    viewport: { width: 844, height: 390 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+    locale: 'ru-RU',
+    storageState: await context.storageState(),
+  })
+  recordHosts(phone)
+  const p = await phone.newPage()
+  p.on('pageerror', (e) => pageErrors.push(`phone: ${e}`))
+  const cdp = await phone.newCDPSession(p)
+  try {
+    await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: inset, bottom: 21, right: inset } })
+  } catch (error) {
+    console.log(`      (this Chrome can't emulate safe areas, not checked: ${String(error).split('\n')[0]})`)
+    await phone.close()
+    return
+  }
+  /** Content boxes (padding may be under the safe area) that start or end inside it. */
+  const underNotch = (selector) =>
+    p.$$eval(
+      selector,
+      (els, inset) =>
+        els
+          .map((el) => {
+            const r = el.getBoundingClientRect()
+            const st = getComputedStyle(el)
+            const left = r.left + parseFloat(st.paddingLeft)
+            const right = r.right - parseFloat(st.paddingRight)
+            return left < inset - 0.5 || right > window.innerWidth - inset + 0.5 ? `${el.className || el.tagName} [${Math.round(left)}..${Math.round(right)}]` : null
+          })
+          .filter(Boolean),
+      inset,
+    )
+  await p.goto(`${app}/#/`)
+  await p.getByRole('heading', { name: 'Продолжить просмотр' }).waitFor({ timeout: 15000 })
+  // The emulation took: env() gives the insets.
+  const envLeft = await p.evaluate(() => {
+    const probe = document.body.appendChild(document.createElement('div'))
+    probe.style.paddingLeft = 'env(safe-area-inset-left)'
+    const value = getComputedStyle(probe).paddingLeft
+    probe.remove()
+    return value
+  })
+  assert.equal(envLeft, `${inset}px`)
+  assert.deepEqual(await underNotch('.logo, .topnav, .topbar-actions, .shelf-title, .shelf-row > .card:first-child'), [], 'home')
+  await p.goto(`${app}/#/movie/200`)
+  await p.getByRole('heading', { name: 'Тестовый фильм' }).waitFor()
+  assert.deepEqual(await underNotch('.detail-poster, .detail-title, .title-actions'), [], 'movie page')
+  await p.goto(`${app}/#/play/111`)
+  await p.locator('.player-controls').waitFor()
+  assert.deepEqual(await underNotch('.player-top > *, .player-controls > *, .scrub-track'), [], 'player')
+  await p.getByRole('button', { name: 'Дорожки и разметка' }).click()
+  await p.waitForTimeout(400) // it slides in
+  assert.deepEqual(await underNotch('.tracks-panel > *'), [], 'tracks panel')
+  await p.screenshot({ path: join(screens, 'phone-landscape-safe-area-player.png') })
+  await phone.close()
+})
+
 await step('phone layout: no horizontal scrolling on home, show and player', async () => {
   const phone = await browser.newContext({
     viewport: { width: 390, height: 844 },

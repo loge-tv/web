@@ -1320,6 +1320,43 @@ await step('deleting downloads: a movie, an episode refused and why, watched epi
   fake.state.restoreLibrary()
 })
 
+await step('«Ещё» low on the screen (a phone turned sideways) opens upwards, inside the screen', async () => {
+  const phone = await browser.newContext({
+    viewport: { width: 844, height: 390 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+    locale: 'ru-RU',
+    storageState: await context.storageState(),
+  })
+  recordHosts(phone)
+  const p = await phone.newPage()
+  p.on('pageerror', (e) => pageErrors.push(`phone: ${e}`))
+  await p.goto(`${app}/#/movie/200`)
+  const more = p.getByRole('button', { name: 'Ещё', exact: true })
+  await more.waitFor({ timeout: 15000 })
+  const menuBox = async (screenshot) => {
+    await more.click()
+    await p.getByRole('menuitem', { name: 'Удалить фильм' }).waitFor()
+    const [button, menu] = await Promise.all([more.boundingBox(), p.getByRole('menu').boundingBox()])
+    if (screenshot) await p.waitForTimeout(200).then(() => p.screenshot({ path: join(screens, `${screenshot}.png`) }))
+    await p.keyboard.press('Escape')
+    await p.getByRole('menu').waitFor({ state: 'detached' })
+    return { button, menu }
+  }
+  // The button at the bottom edge: the menu goes above it.
+  await more.evaluate((b) => window.scrollBy(0, b.getBoundingClientRect().bottom - window.innerHeight + 4))
+  let { button, menu } = await menuBox('phone-landscape-menu')
+  assert.ok(menu.y >= 0 && menu.y + menu.height <= 390, `menu inside the screen: ${JSON.stringify(menu)}`)
+  assert.ok(menu.y + menu.height <= button.y, `menu above the button: ${JSON.stringify({ menu, button })}`)
+  // With room below, it stays under the button.
+  await p.setViewportSize({ width: 390, height: 844 })
+  await p.evaluate(() => window.scrollTo(0, 0))
+  ;({ button, menu } = await menuBox())
+  assert.ok(menu.y >= button.y + button.height && menu.y + menu.height <= 844, `menu under the button: ${JSON.stringify({ menu, button })}`)
+  await phone.close()
+})
+
 await step('phone layout: no horizontal scrolling on home, show and player', async () => {
   const phone = await browser.newContext({
     viewport: { width: 390, height: 844 },

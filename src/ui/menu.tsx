@@ -21,11 +21,16 @@ export function MoreMenu({ actions, disabled }: { actions: MenuAction[]; disable
   const button = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
 
+  // Under the button; above it when there is no room below (the button low on the screen, as on
+  // a phone turned sideways), so the menu is never off the screen. Measured before it is painted.
   useLayoutEffect(() => {
     if (!open || !button.current) return
     const rect = button.current.getBoundingClientRect()
     const width = Math.min(MENU_WIDTH, window.innerWidth - 16)
-    setPlace({ top: rect.bottom + 6, left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)) })
+    const height = menu.current?.offsetHeight ?? 0
+    const below = rect.bottom + 6
+    const top = below + height > window.innerHeight - 8 ? Math.max(8, rect.top - 6 - height) : below
+    setPlace({ top, left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)) })
   }, [open])
 
   useEffect(() => {
@@ -70,9 +75,15 @@ export function MoreMenu({ actions, disabled }: { actions: MenuAction[]; disable
         <MoreIcon size={20} />
       </button>
       {open &&
-        place &&
         createPortal(
-          <div ref={menu} className="menu glass-strong" role="menu" aria-label="Ещё" style={{ top: place.top, left: place.left, width: Math.min(MENU_WIDTH, window.innerWidth - 16) }}>
+          <div
+            ref={menu}
+            className="menu glass-strong"
+            role="menu"
+            aria-label="Ещё"
+            // Hidden for the moment it is measured, before its place is known.
+            style={{ top: place?.top ?? 0, left: place?.left ?? 0, visibility: place ? undefined : 'hidden', width: Math.min(MENU_WIDTH, window.innerWidth - 16) }}
+          >
             {actions.map((action) => (
               <button
                 key={action.title}

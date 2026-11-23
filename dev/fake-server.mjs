@@ -373,7 +373,7 @@ export async function startFake(options = {}) {
   const preferences = new Map()
   const pins = new Map()
   const requests = []
-  const state = { detectorDown: !!options.detectorDown, detectorDelayMs: 0, preferences, pins, library }
+  const state = { detectorDown: !!options.detectorDown, detectorDelayMs: 0, metadataDelayMs: 0, preferences, pins, library }
 
   const log = (server, req, url, body, res) => {
     const entry = {
@@ -522,6 +522,7 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
       }
       m = /^\/library\/metadata\/(\w+)$/.exec(p)
       if (m) {
+        if (state.metadataDelayMs) await new Promise((r) => setTimeout(r, state.metadataDelayMs))
         const item = findItem(m[1])
         return item ? json(res, container([item])) : json(res, { error: 'not found' }, 404)
       }

@@ -28,7 +28,8 @@ export function segmentsSummary(s: PlayerSnapshot): string {
     const name = segment.type === 'intro' ? 'Заставка' : segment.type === 'credits' ? 'Титры' : undefined
     return name ? [`${name} ${TimeFormat.clock(segment.start)}–${TimeFormat.clock(segment.end)}`] : []
   })
-  if (s.loading && parts.length === 0) return 'Загрузка разметки…'
+  // The segments come after the video has started.
+  if (!s.segmentSources && !s.error && parts.length === 0) return 'Загрузка разметки…'
   const note = s.segmentSources ? FoundSegments.note(s.segmentSources) : undefined
   if (parts.length === 0) return note ?? 'В этой серии Loge Server ничего не нашёл'
   return (note ? [...parts, note] : parts).join(' · ')

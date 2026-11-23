@@ -225,6 +225,14 @@ export class SkipController {
     this.countdown = null
   }
 
+  /**
+   * The next episode is known once the show's episode list loads, which may be after
+   * playback has started; only final credits depend on it.
+   */
+  setHasNextEpisode(hasNext: boolean) {
+    this.context.hasNextEpisode = hasNext
+  }
+
   /** Updates duration once the player knows it exactly. */
   setDuration(duration: number) {
     if (!(duration > 0)) return

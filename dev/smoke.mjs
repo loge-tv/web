@@ -381,14 +381,15 @@ await step('leaving the player while it still loads starts no media and no trans
   await page.goto(`${app}/#/`)
   await page.reload()
   await page.getByRole('heading', { name: 'Продолжить просмотр' }).waitFor({ timeout: 15000 })
-  fake.state.detectorDelayMs = 1500
+  // The video starts as soon as the item is known (segments come later): hold the item back.
+  fake.state.metadataDelayMs = 1500
   await page.goto(`${app}/#/play/113`)
   await page.waitForTimeout(300)
   await page.keyboard.press('Escape')
   const left = Date.now()
   await page.waitForURL((u) => !u.hash.startsWith('#/play'), { timeout: 5000 })
   await page.waitForTimeout(2500)
-  fake.state.detectorDelayMs = 0
+  fake.state.metadataDelayMs = 0
   const late = find((r) => r.server === 'pms' && r.at > left && (r.path.includes('/transcode/universal/') || (r.path.startsWith('/library/parts/') && r.method === 'PUT')))
   const stops = new Set(pms('/video/:/transcode/universal/stop').map((r) => r.query.session))
   const orphans = late.filter((r) => r.path.endsWith('start.m3u8') && !stops.has(r.query.session))

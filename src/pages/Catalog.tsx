@@ -59,6 +59,9 @@ export function Catalog() {
   const runtime = item.kind === 'movie' ? TimeFormat.runtime(item.duration) : undefined
   const seasons = item.kind === 'show' && item.childCount ? CatalogText.seasons(item.childCount) : undefined
   const toggle = () => void appModel.watchlist.toggle(item)
+  // The main action while the title is neither on the server nor on the list (once the server's
+  // titles are in: until then it may turn out to be «Открыть в библиотеке»); otherwise an icon.
+  const listIsMain = missing && !listed
 
   return (
     <div className="detail catalog">
@@ -85,8 +88,7 @@ export function Catalog() {
                     <PlayIcon size={18} /> Открыть в библиотеке
                   </button>
                 ) : (
-                  // The main action while the title is neither on the server nor on the list.
-                  !listed && (
+                  listIsMain && (
                     <button className="btn btn-primary" onClick={toggle}>
                       <BookmarkIcon size={18} /> Добавить в список
                     </button>
@@ -94,7 +96,7 @@ export function Catalog() {
                 )
               }
             >
-              {(library || listed) && (
+              {!listIsMain && (
                 <IconAction label={listed ? 'В списке' : 'Добавить в список'} hint={listed ? 'Убрать из списка' : undefined} active={listed} onClick={toggle}>
                   <BookmarkIcon filled={listed} size={20} />
                 </IconAction>

@@ -64,7 +64,9 @@ The interface is in Russian for now; the labels in quotes below are English tran
 - **Settings**: skip mode, autoplay of the next episode and a 5/10/15 s countdown, seek
   steps, the Loge Server address (with a check and a reset), "Always through the server"
   (forced transcoding), server and connection address, switching servers, sign out.
-- Loge Server is optional: if it doesn't answer, the video just plays without skipping.
+- Loge Server is optional: when it can't be asked (down, refuses the token, no CORS), segments come from the
+  file's own chapters ("Intro", "Credits", "Титры"…) and, for what they lack, from [TheIntroDB](https://theintrodb.org)
+  (a request of its own, without the Plex token); the tracks panel says where they came from. Nothing there — no skipping.
 
 ## Running
 
@@ -127,8 +129,8 @@ without rewrite rules.
 Every request to Loge Server carries the `X-Plex-Token` header, so the browser first sends a
 preflight `OPTIONS`. Loge Server sends CORS headers since version 0.1.9 (in `main`); checked on
 `https://loge-server.example.com`: the preflight gets 204 with the headers below. Without CORS
-(an old or a custom Loge Server) the video plays without segments, and a show's timing and dub live
-only in `localStorage`.
+(an old or a custom Loge Server) segments come only from the file's chapters and TheIntroDB, and a show's
+timing and dub live only in `localStorage`.
 
 - CORS: `Access-Control-Allow-Origin: *`, `Access-Control-Allow-Methods: GET, PUT, OPTIONS`,
   `Access-Control-Allow-Headers: X-Plex-Token, Content-Type, Accept`, an answer to the preflight

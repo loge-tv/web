@@ -58,12 +58,21 @@ export class DetectorClient implements PreferencesRemote {
   }
 
   async segments(ratingKey: string): Promise<Segment[]> {
+    return (await this.segmentsIfAvailable(ratingKey)) ?? []
+  }
+
+  /**
+   * The item's segments, or null when the server can't be asked: down, refuses the token
+   * (someone else's server), or isn't a Loge Server at all. An answer with no segments
+   * (nothing found, not analysed yet) is `[]`, not null.
+   */
+  async segmentsIfAvailable(ratingKey: string): Promise<Segment[] | null> {
     try {
       const url = joinURL(this.baseURL, `/v1/segments/${strictEncode(ratingKey)}`)
       const response = parseSegmentsResponse(await fetchJSON(this.fetchFn, url, this.init(), this.timeoutMs))
-      return sanitizeSegments(response?.segments ?? [])
+      return response ? sanitizeSegments(response.segments) : null
     } catch {
-      return []
+      return null
     }
   }
 

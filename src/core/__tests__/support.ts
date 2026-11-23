@@ -20,6 +20,7 @@ export interface RecordedRequest {
   headers: Headers
   body?: string
   keepalive?: boolean
+  credentials?: RequestCredentials
 }
 
 /** fetch returning canned responses by URL path; records requests. */
@@ -50,6 +51,7 @@ export class MockFetch {
       headers: new Headers(init.headers),
       body: typeof init.body === 'string' ? init.body : undefined,
       keepalive: init.keepalive,
+      credentials: init.credentials,
     })
     if (this.failing.has(path)) throw new TypeError('Failed to fetch')
     const stub = this.stubs.get(path) ?? { status: 404, body: '' }

@@ -353,7 +353,8 @@ await step('detector down: the episode still plays, without segments', async () 
   await page.goto(`${app}/#/play/112`)
   await until(async () => ((await video())?.time ?? 0) > 1, { timeout: 15000, message: 'playback without detector' })
   await page.getByRole('button', { name: 'Дорожки и разметка' }).click()
-  await page.getByText('В этой серии детектор ничего не нашёл').waitFor()
+  // The fakes have no chapters and no Guid, so TheIntroDB is never asked.
+  await page.getByText('Loge Server недоступен, а в главах файла и TheIntroDB разметки нет').waitFor()
   await page.keyboard.press('Escape')
   fake.state.detectorDown = false
 })
@@ -376,6 +377,10 @@ await step('keyboard: Space pauses (paused timeline) and resumes, F toggles full
 })
 
 await step('leaving the player while it still loads starts no media and no transcode', async () => {
+  // A fresh page: the app remembers for 5 minutes that the detector was down and wouldn't ask it.
+  await page.goto(`${app}/#/`)
+  await page.reload()
+  await page.getByRole('heading', { name: 'Продолжить просмотр' }).waitFor({ timeout: 15000 })
   fake.state.detectorDelayMs = 1500
   await page.goto(`${app}/#/play/113`)
   await page.waitForTimeout(300)

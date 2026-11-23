@@ -7,6 +7,7 @@ import { primaryPart, type PlexItem, type PlexPart } from '../core/plexModels'
 import type { PlexServerAPI } from '../core/plexServerAPI'
 import { ProgressTracker, ResumePolicy, type PlaybackState } from '../core/progressTracker'
 import type { Segment } from '../core/segment'
+import { SegmentFinder, type FoundSegments } from '../core/segmentFinder'
 import {
   audioPreferenceFor,
   preferencesKey,
@@ -47,6 +48,8 @@ export interface PlayerSnapshot {
   nextEpisode?: PlexItem
   /** Detected segments, corrected (shown on the progress bar). */
   segments: Segment[]
+  /** Where they came from: Loge Server, or without it the file's chapters and TheIntroDB. */
+  segmentSources?: FoundSegments
   /** Skip correction of the current show. */
   correction: SkipCorrection
   plan?: PlaybackPlan
@@ -272,6 +275,7 @@ export class PlayerSession {
       selectedAudio: undefined,
       selectedSubtitle: undefined,
       segments: [],
+      segmentSources: undefined,
       nextEpisode: undefined,
       plan: undefined,
       correction: this.deps.preferences.preferences(key).correction,
@@ -293,8 +297,9 @@ export class PlayerSession {
     this.set({ item: full, duration: full.duration ? full.duration / 1000 : this.snapshot.duration })
 
     const detector = this.deps.detector()
-    const [segments, next] = await Promise.all([
-      detector ? detector.segments(full.ratingKey) : Promise.resolve([]),
+    const [found, next] = await Promise.all([
+      // From Loge Server; without it, from the file's chapters and TheIntroDB.
+      new SegmentFinder({ detector, show: (key) => api.item(key).catch(() => undefined) }).find(full),
       this.findNextEpisode(full),
       // The show's correction and dub may have been changed on another device.
       this.deps.preferencesSync.pull(preferencesKey(full)),
@@ -303,7 +308,7 @@ export class PlayerSession {
 
     const preferences = this.deps.preferences.preferences(preferencesKey(full))
     const context = skipContextFor(this.deps.settings().skipMode, full, next !== undefined)
-    const controller = new SkipController(segments, context, preferences.correction)
+    const controller = new SkipController(found.segments, context, preferences.correction)
     this.skip = controller
     this.tracker = new ProgressTracker(controller.watchedThreshold)
 
@@ -317,6 +322,7 @@ export class PlayerSession {
       nextEpisode: next,
       correction: preferences.correction,
       segments: controller.segments,
+      segmentSources: found,
       audioTracks: this.tracks.filter((t) => t.kind === 'audio'),
       subtitleTracks: this.tracks.filter((t) => t.kind === 'sub'),
       selectedAudio: this.audio?.id,

@@ -107,9 +107,9 @@ export class PlexServerAPI {
     return this.metadata(`/library/metadata/${ratingKeys.map(encodeURIComponent).join(',')}`, {}, signal)
   }
 
-  /** Full item with media parts and streams. */
+  /** Full item with media parts, streams and chapters (skip segments without Loge Server). */
   async item(ratingKey: string, signal?: AbortSignal): Promise<PlexItem | undefined> {
-    return (await this.metadata(`/library/metadata/${ratingKey}`, {}, signal))[0]
+    return (await this.metadata(`/library/metadata/${ratingKey}`, { includeChapters: '1' }, signal))[0]
   }
 
   /** Seasons of a show or episodes of a season. */

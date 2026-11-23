@@ -1,5 +1,6 @@
 import { trackDisplayName } from '../core/mediaTrack'
 import { TimeFormat } from '../core/progressTracker'
+import { FoundSegments } from '../core/segmentFinder'
 import { correctionFields, type CorrectionField } from '../core/skipCorrection'
 import { CheckIcon, CloseIcon } from '../ui/icons'
 import type { PlayerSession, PlayerSnapshot } from './playerSession'
@@ -18,14 +19,19 @@ export function formatOffset(seconds: number): string {
   return value < 0 ? `−${-value} с` : `+${value} с`
 }
 
-/** "Заставка 0:20–0:45 · Титры 41:10–43:00", with the correction applied. */
+/**
+ * "Заставка 0:20–0:45 · Титры 41:10–43:00", with the correction applied; without Loge Server
+ * also where the markup comes from ("… · из глав файла").
+ */
 export function segmentsSummary(s: PlayerSnapshot): string {
   const parts = s.segments.flatMap((segment) => {
     const name = segment.type === 'intro' ? 'Заставка' : segment.type === 'credits' ? 'Титры' : undefined
     return name ? [`${name} ${TimeFormat.clock(segment.start)}–${TimeFormat.clock(segment.end)}`] : []
   })
   if (s.loading && parts.length === 0) return 'Загрузка разметки…'
-  return parts.length === 0 ? 'В этой серии Loge Server ничего не нашёл' : parts.join(' · ')
+  const note = s.segmentSources ? FoundSegments.note(s.segmentSources) : undefined
+  if (parts.length === 0) return note ?? 'В этой серии Loge Server ничего не нашёл'
+  return (note ? [...parts, note] : parts).join(' · ')
 }
 
 /** Side panel: audio, subtitles and the show's skip correction. */
@@ -84,7 +90,7 @@ export function TracksPanel({ session, snapshot: s, onClose }: { session: Player
         </div>
       ))}
       <p className="muted small">
-        Сдвиг относительно разметки Loge Server, для всех серий. Начало — когда срабатывает пропуск или отсчёт, конец — куда перематывается
+        Сдвиг относительно найденной разметки, для всех серий. Начало — когда срабатывает пропуск или отсчёт, конец — куда перематывается
         видео.
       </p>
       {s.plan && <p className="muted small plan-note">{s.plan.reason}</p>}

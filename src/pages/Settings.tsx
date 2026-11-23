@@ -42,7 +42,7 @@ function skipFooter(mode: SkipMode): string {
     case 'auto':
       return 'Заставки и титры пропускаются сами. В первой серии сезона вместо этого показывается кнопка «Пропустить».'
     case 'countdown':
-      return 'За 5 секунд до заставки появляется отсчёт с кнопкой «Не пропускать», и заставка пропускается, как только начнётся. Так же — в первой серии сезона. На финальных титрах — карточка «Следующая серия».'
+      return 'За 5 секунд до заставки появляется отсчёт с кнопкой «Не пропускать», и заставка пропускается, как только начнётся. Так же — в первой серии сезона. Перед финальными титрами — карточка «Следующая серия» с отсчётом.'
     case 'button':
       return 'Во время заставки и титров показывается кнопка «Пропустить».'
     case 'off':
@@ -242,7 +242,7 @@ function PlaybackSettings() {
         <Toggle label="Включать автоматически" checked={settings.autoplayNext} onChange={(autoplayNext) => settingsStore.update({ autoplayNext })} />
       </Section>
 
-      <Section title="Отсчёт до следующей серии">
+      <Section title="Отсчёт до следующей серии" footer={PlaybackSettingsText.nextEpisodeCountdownFooter}>
         <Choices
           name="Отсчёт"
           options={countdownOptions}
@@ -287,6 +287,12 @@ function PlaybackSettings() {
       </Section>
     </>
   )
+}
+
+/** Texts of the «Плеер» page (same as the Apple apps). */
+const PlaybackSettingsText = {
+  nextEpisodeCountdownFooter:
+    'Отсчёт идёт перед финальными титрами: как только они начинаются, включается следующая серия. «Титры» на карточке отменяет его. Без автоматического включения карточка ждёт на титрах.',
 }
 
 /** Texts of the «Главная и Обзор» page (same as the Apple apps, the moving hint is the web's). */

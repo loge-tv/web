@@ -220,14 +220,38 @@ await step('progress reported to Plex while playing', async () => {
   })
 })
 
-await step('final credits → "Следующая серия через N" card, scrobble at credits', async () => {
+await step('"Следующая серия через N" before the final credits: a pause freezes it, the next episode starts as they do', async () => {
+  // Credits 1:10–1:30, a 5 s countdown: the card from 1:05.
   await page.mouse.move(700, 420)
   const bar = await page.locator('.scrub').boundingBox()
-  await page.mouse.click(bar.x + (bar.width * 66) / 90, bar.y + bar.height / 2)
-  await until(async () => ((await video())?.time ?? 0) >= 65, { timeout: 8000, message: 'seek to 1:06' })
-  await page.getByText(/Следующая серия через \d/).waitFor({ timeout: 10000 })
-  assert.ok(pms('/:/scrobble', (r) => r.query.key === '112').length === 1, 'scrobbled at credits start')
+  await page.mouse.click(bar.x + (bar.width * 60) / 90, bar.y + bar.height / 2)
+  await until(async () => ((await video())?.time ?? 0) >= 59, { timeout: 8000, message: 'seek to 1:00' })
+  const card = page.getByText(/Следующая серия через \d/)
+  await card.waitFor({ timeout: 10000 })
+  const shownAt = (await video()).time
+  assert.ok(shownAt >= 64.5 && shownAt < 70, `the card came at ${shownAt}, not in the 5 s before the credits`)
+  assert.equal(pms('/:/scrobble', (r) => r.query.key === '112').length, 0, 'not watched before the credits')
   await shot('player-next')
+  // Space pauses (not the card's focused «Смотреть»): the countdown stays where it was.
+  await page.keyboard.press('Space')
+  await until(async () => (await video())?.paused, { timeout: 3000, message: 'paused' })
+  const frozen = await card.textContent()
+  await page.waitForTimeout(1600)
+  assert.equal(await card.textContent(), frozen, 'a pause freezes the countdown')
+  assert.match(page.url(), /#\/play\/112/)
+  await page.keyboard.press('Space')
+  // The next episode comes as the credits start, not N seconds into them.
+  let last = shownAt
+  await until(
+    async () => {
+      if (/#\/play\/113/.test(page.url())) return true
+      last = (await video())?.time ?? last
+      return false
+    },
+    { timeout: 12000, interval: 100, message: 'the next episode' },
+  )
+  assert.ok(last < 71.5, `episode 112 played to ${last} before the next one: the countdown ran into the credits`)
+  assert.equal(pms('/:/scrobble', (r) => r.query.key === '112').length, 1, 'scrobbled once, at the credits')
 })
 
 await step('autoplay of the next episode: MKV → Plex HLS transcode, resumed at 0:40', async () => {
@@ -412,6 +436,28 @@ await step('countdown mode: «Не пропускать» keeps the intro, then 
   await page.waitForURL((u) => !u.hash.startsWith('#/play'), { timeout: 5000 })
   await page.goto(`${app}/#/settings/playback`)
   await page.getByRole('radiogroup', { name: 'Пропуск' }).getByRole('radio', { name: 'Автоматически' }).click()
+  await page.getByText(/^Отсчёт идёт перед финальными титрами/).waitFor()
+})
+
+await step('«Титры» on the "Следующая серия" card: the credits play, with the «Следующая серия» button', async () => {
+  await page.goto(`${app}/#/play/112?t=62`)
+  await page.getByText(/Следующая серия через \d/).waitFor({ timeout: 15000 })
+  await page.getByRole('button', { name: 'Титры' }).click()
+  await page.locator('.next-card').waitFor({ state: 'detached' })
+  await until(async () => ((await video())?.time ?? 0) >= 71.5, { timeout: 12000, message: 'into the credits' })
+  await page.locator('.skip-button', { hasText: 'Следующая серия' }).waitFor({ timeout: 3000 })
+  assert.match(page.url(), /#\/play\/112/, 'no autoplay after «Титры»')
+  assert.equal(await page.locator('.next-card').count(), 0)
+  const stops = pms('/:/timeline', (r) => r.query.ratingKey === '112' && r.query.state === 'stopped').length
+  await page.keyboard.press('Escape')
+  await page.waitForURL((u) => !u.hash.startsWith('#/play'), { timeout: 5000 })
+  await page.locator('.player-page').waitFor({ state: 'detached' })
+  // Stopped in the credits: the end goes to Plex, no resume point is left for the next step.
+  const stop = await until(() => pms('/:/timeline', (r) => r.query.ratingKey === '112' && r.query.state === 'stopped')[stops], {
+    timeout: 5000,
+    message: 'stopped timeline',
+  })
+  assert.equal(stop.query.time, '90000')
 })
 
 await step('detector down: the episode still plays, without segments', async () => {

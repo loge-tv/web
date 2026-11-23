@@ -403,3 +403,78 @@ describe('PlayerSession start', () => {
     expect(s.api.selectStreams).not.toHaveBeenCalled()
   })
 })
+
+describe('PlayerSession next episode countdown', () => {
+  /** Playing with the segments and the next episode known. */
+  async function playing() {
+    const s = setup()
+    await started(s)
+    s.segments.resolve([intro, credits])
+    s.episodes.resolve([current, next])
+    await flush()
+    return s
+  }
+
+  it('counts down before the final credits and starts the next episode as they begin', async () => {
+    const s = await playing()
+    s.video.playTo(2900)
+    expect(s.session.getSnapshot().nextCard).toBeNull()
+    s.video.playTo(2904.2)
+    expect(s.session.getSnapshot().nextCard).toEqual({ item: next, secondsLeft: 5 })
+    expect(s.session.getSnapshot().skipPrompt).toBeNull()
+    s.video.playTo(2907)
+    expect(s.session.getSnapshot().nextCard?.secondsLeft).toBe(3)
+
+    const timelines = s.api.reportTimeline.mock.calls.length
+    s.video.playTo(2909.1)
+    // Not N seconds into the credits: at their start.
+    expect(s.session.getSnapshot().item.ratingKey).toBe('103')
+    expect(s.session.getSnapshot().nextCard).toBeNull()
+    expect(s.api.markWatched).toHaveBeenCalledWith('102')
+    // The last report of this episode is its stop; nothing of the next one rides on this tick.
+    const reported = s.api.reportTimeline.mock.calls.slice(timelines) as unknown as [PlexItem, string][]
+    expect(reported.map(([item, state]) => `${item.ratingKey} ${state}`)).toEqual(['102 stopped'])
+  })
+
+  it('a pause freezes it', async () => {
+    const s = await playing()
+    s.video.playTo(2905)
+    expect(s.session.getSnapshot().nextCard?.secondsLeft).toBe(5)
+    s.video.pause()
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(s.session.getSnapshot().nextCard).toEqual({ item: next, secondsLeft: 5 })
+    expect(s.session.getSnapshot().item.ratingKey).toBe('102')
+  })
+
+  it('«Титры» cancels it: the credits play with the «Следующая серия» button', async () => {
+    const s = await playing()
+    s.video.playTo(2905)
+    expect(s.session.getSnapshot().nextCard).not.toBeNull()
+    s.session.cancelNextEpisode()
+    expect(s.session.getSnapshot().nextCard).toBeNull()
+    s.video.playTo(2906)
+    expect(s.session.getSnapshot().nextCard, 'stays cancelled').toBeNull()
+    s.video.playTo(2912)
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(s.session.getSnapshot().item.ratingKey).toBe('102')
+    expect(s.session.getSnapshot().skipPrompt?.title).toBe('Следующая серия')
+  })
+
+  it('a seek away takes the card down; back in, it counts again', async () => {
+    const s = await playing()
+    s.video.playTo(2905)
+    expect(s.session.getSnapshot().nextCard).not.toBeNull()
+    s.session.seekTo(1000)
+    expect(s.session.getSnapshot().nextCard).toBeNull()
+    s.session.seekTo(2950)
+    expect(s.session.getSnapshot().nextCard).toEqual({ item: next, secondsLeft: 5 })
+  })
+
+  it('the file ending before the countdown runs out starts the next episode', async () => {
+    const s = await playing()
+    s.video.playTo(2985)
+    expect(s.session.getSnapshot().nextCard?.secondsLeft).toBe(3)
+    s.video.dispatchEvent(new Event('ended'))
+    expect(s.session.getSnapshot().item.ratingKey).toBe('103')
+  })
+})

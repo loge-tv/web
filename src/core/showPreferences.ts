@@ -92,7 +92,7 @@ export function preferencesBody(p: ShowPreferences): string {
   return isEmptyPreferences(p) ? '{}' : JSON.stringify(encodePreferences(p))
 }
 
-function audioEqual(a: AudioPreference | undefined, b: AudioPreference | undefined): boolean {
+export function audioPreferencesEqual(a: AudioPreference | undefined, b: AudioPreference | undefined): boolean {
   if (!a || !b) return !a && !b
   return (
     a.language === b.language &&
@@ -104,7 +104,7 @@ function audioEqual(a: AudioPreference | undefined, b: AudioPreference | undefin
 }
 
 export function preferencesEqual(a: ShowPreferences, b: ShowPreferences): boolean {
-  return correctionsEqual(a.correction, b.correction) && audioEqual(a.audio, b.audio)
+  return correctionsEqual(a.correction, b.correction) && audioPreferencesEqual(a.audio, b.audio)
 }
 
 export function audioPreferenceFor(t: MediaTrack, tracks: MediaTrack[]): AudioPreference {

@@ -1,6 +1,6 @@
 import type { DiscoverUserState } from './plexDiscover'
 import { russianDate } from './plexDiscover'
-import { isWatched, type PlexItem } from './plexModels'
+import { isWatched, makeItem, type PlexItem } from './plexModels'
 
 // Port of SkipTVKit's ShowCatalog.swift.
 
@@ -25,7 +25,7 @@ export function entryID(entry: ShowEntry): string {
 
 /** What the page shows: the server's item when there is one. */
 export function entryItem(entry: ShowEntry): PlexItem {
-  return entry.server ?? entry.catalog ?? { ratingKey: '', key: '', type: 'other', title: '', media: [] }
+  return entry.server ?? entry.catalog ?? makeItem({ ratingKey: '', key: '', type: 'other' })
 }
 
 export function isDownloaded(entry: ShowEntry): boolean {

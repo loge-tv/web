@@ -28,7 +28,7 @@ const settingsPages: { id: string; title: string; icon: ComponentType<{ size?: n
   { id: 'playback', title: 'Плеер', icon: PlayIcon, content: PlaybackSettings },
   // «Главная» and «Обзор» share a page, a section each.
   { id: 'home', title: 'Главная и Обзор', icon: HomeIcon, content: HomeSettings },
-  { id: 'detector', title: 'Детектор заставок', icon: ForwardEndIcon, content: DetectorSettings },
+  { id: 'detector', title: 'Loge Server', icon: ForwardEndIcon, content: DetectorSettings },
   { id: 'server', title: 'Сервер и аккаунт', icon: ServerIcon, content: ServerSettings },
 ]
 
@@ -133,7 +133,7 @@ function DetectorStatus({ url, token }: { url: string; token?: string }) {
       clearTimeout(timer)
     }
   }, [url, token])
-  const text = status === 'checking' ? 'Проверяю…' : status === 'ok' ? 'Детектор отвечает' : 'Детектор недоступен'
+  const text = status === 'checking' ? 'Проверяю…' : status === 'ok' ? 'Loge Server отвечает' : 'Loge Server недоступен'
   return <span className={`status status-${status}`}>{text}</span>
 }
 
@@ -393,7 +393,7 @@ function DetectorSettings() {
       >
         <input
           type="url"
-          aria-label="Адрес детектора"
+          aria-label="Адрес Loge Server"
           value={detectorDraft}
           onChange={(e) => setDetectorDraft(e.target.value)}
           onBlur={() => settingsStore.update({ detectorURL: normalizeDetectorURL(detectorDraft) })}
@@ -410,7 +410,7 @@ function DetectorSettings() {
             settingsStore.update({ detectorURL: defaultDetectorURL })
           }}
         >
-          Сбросить адрес детектора
+          Сбросить адрес Loge Server
         </button>
       </div>
     </Section>

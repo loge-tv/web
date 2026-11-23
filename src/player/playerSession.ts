@@ -7,16 +7,21 @@ import { primaryPart, type PlexItem, type PlexPart } from '../core/plexModels'
 import type { PlexServerAPI } from '../core/plexServerAPI'
 import { ProgressTracker, ResumePolicy, type PlaybackState } from '../core/progressTracker'
 import type { Segment } from '../core/segment'
+import { SegmentFinder, type FoundSegments } from '../core/segmentFinder'
 import {
   audioPreferenceFor,
+  audioPreferencesEqual,
   preferencesKey,
   preferredAudio,
+  type AudioPreference,
   type ShowPreferencesStore,
   type ShowPreferencesSync,
 } from '../core/showPreferences'
-import { adjustCorrection, NO_CORRECTION, type CorrectionField, type SkipCorrection } from '../core/skipCorrection'
+import { adjustCorrection, correctionsEqual, NO_CORRECTION, type CorrectionField, type SkipCorrection } from '../core/skipCorrection'
 import { SkipController, skipContextFor, type SkipAction, type SkipCountdown, type SkipMode, type SkipPrompt } from '../core/skipPolicy'
 import { activeCues, decodeSubtitleBytes, parseSubtitles, type Cue } from '../core/subtitles'
+import { TheIntroDBClient } from '../core/theIntroDB'
+import { THEINTRODB_URL } from '../config'
 import { newSessionId } from '../platform'
 
 export interface NextEpisodeCard {
@@ -47,6 +52,8 @@ export interface PlayerSnapshot {
   nextEpisode?: PlexItem
   /** Detected segments, corrected (shown on the progress bar). */
   segments: Segment[]
+  /** Where they came from: Loge Server, or without it the file's chapters and TheIntroDB. */
+  segmentSources?: FoundSegments
   /** Skip correction of the current show. */
   correction: SkipCorrection
   plan?: PlaybackPlan
@@ -128,6 +135,8 @@ export class PlayerSession {
   /** Text subtitle streams Plex could not serve: burned in instead. */
   private failedTextSubtitles = new Set<number>()
   private loadToken = 0
+  /** Bumped by every teardown: a media start still in progress then stops (no orphaned transcode). */
+  private mediaAttempt = 0
 
   // Media state
   private mode?: MediaMode
@@ -274,6 +283,7 @@ export class PlayerSession {
       selectedAudio: undefined,
       selectedSubtitle: undefined,
       segments: [],
+      segmentSources: undefined,
       nextEpisode: undefined,
       plan: undefined,
       correction: this.deps.preferences.preferences(key).correction,
@@ -294,38 +304,89 @@ export class PlayerSession {
     }
     this.set({ item: full, duration: full.duration ? full.duration / 1000 : this.snapshot.duration })
 
-    const detector = this.deps.detector()
-    const [segments, next] = await Promise.all([
-      detector ? detector.segments(full.ratingKey) : Promise.resolve([]),
-      this.findNextEpisode(full),
-      // The show's correction and dub may have been changed on another device.
-      this.deps.preferencesSync.pull(preferencesKey(full)),
-    ])
-    if (token !== this.loadToken) return
-
-    const preferences = this.deps.preferences.preferences(preferencesKey(full))
-    const context = skipContextFor(this.deps.settings().skipMode, full, next !== undefined)
-    const controller = new SkipController(segments, context, preferences.correction)
-    this.skip = controller
-    this.tracker = new ProgressTracker(controller.watchedThreshold)
-
+    // Opening the media is the slow part: start it with what is cached here, the rest loads
+    // meanwhile. Loge Server alone may take seconds (its timeout, then the fallback), the
+    // episode list of a long show about a second.
+    const fullKey = preferencesKey(full)
+    const preferences = this.deps.preferences.preferences(fullKey)
     this.tracks = tracksFromPart(part)
     // The dub chosen earlier in this show, if this file has it; else the usual default.
     const remembered = preferences.audio ? preferredAudio(this.tracks, preferences.audio) : undefined
     const language = this.deps.settings().preferredLanguage ?? 'ru'
     this.audio = remembered ?? TrackSelector.defaultAudio(this.tracks, language)
     this.subtitle = TrackSelector.defaultSubtitle(this.tracks, this.audio, language)
-
     this.set({
-      nextEpisode: next,
       correction: preferences.correction,
-      segments: controller.segments,
       audioTracks: this.tracks.filter((t) => t.kind === 'audio'),
       subtitleTracks: this.tracks.filter((t) => t.kind === 'sub'),
       selectedAudio: this.audio?.id,
       selectedSubtitle: this.subtitle?.id,
     })
-    await this.startMedia(startAt ?? 0, true)
+    void this.startMedia(startAt ?? 0, true)
+
+    // The show's correction and dub may have been changed on another device.
+    void this.deps.preferencesSync.pull(fullKey).then(() => {
+      if (token === this.loadToken) this.applyPulledPreferences(fullKey, preferences.audio)
+    })
+    // From Loge Server; without it, from the file's chapters and TheIntroDB.
+    const detector = this.deps.detector()
+    const theIntroDB = THEINTRODB_URL ? new TheIntroDBClient(THEINTRODB_URL) : undefined
+    void new SegmentFinder({ detector, theIntroDB, show: (ratingKey) => api.item(ratingKey).catch(() => undefined) })
+      .find(full)
+      .catch((): FoundSegments => ({ segments: [], sources: [] }))
+      .then((found) => {
+        if (token === this.loadToken) this.applySegments(full, found)
+      })
+    // Only final credits depend on it, far from the start.
+    void this.findNextEpisode(full).then((next) => {
+      if (token === this.loadToken) this.applyNextEpisode(next)
+    })
+  }
+
+  /**
+   * The segments arrived, possibly after playback has started: until then the session only
+   * reports progress. The current position is judged at once, so an intro the playback is
+   * already in (one from 0:00, a resume inside it) is still skipped or counted down.
+   */
+  private applySegments(item: PlexItem, found: FoundSegments) {
+    const context = skipContextFor(this.deps.settings().skipMode, item, this.snapshot.nextEpisode !== undefined)
+    const controller = new SkipController(found.segments, context, this.snapshot.correction)
+    if (this.snapshot.duration > 0) controller.setDuration(this.snapshot.duration)
+    this.skip = controller
+    this.set({ segments: controller.segments, segmentSources: found })
+    this.tracker.creditsStart = controller.watchedThreshold
+    // While the media still opens, its first time update does it (and nothing is reported yet).
+    if (!this.snapshot.loading) this.tick()
+  }
+
+  private applyNextEpisode(next: PlexItem | undefined) {
+    this.set({ nextEpisode: next })
+    this.skip?.setHasNextEpisode(next !== undefined)
+  }
+
+  /**
+   * Loge Server's copy of the show's preferences came after the start. A changed correction
+   * applies at once; a changed dub switches the track (it is not a new choice of the user,
+   * so nothing is pushed). Nothing changed, nothing is reloaded.
+   */
+  private applyPulledPreferences(key: string, cachedAudio: AudioPreference | undefined) {
+    const preferences = this.deps.preferences.preferences(key)
+    if (!correctionsEqual(preferences.correction, this.snapshot.correction)) {
+      this.setCorrection(preferences.correction)
+      // As if the segments had come with it: the watched point follows the corrected credits.
+      if (this.skip) this.tracker.creditsStart = this.skip.watchedThreshold
+    }
+    if (!audioPreferencesEqual(preferences.audio, cachedAudio)) this.applyRememberedAudio(preferences.audio)
+  }
+
+  /** The show's dub from another device, when this file has it and it isn't the one playing. */
+  private applyRememberedAudio(preference: AudioPreference | undefined) {
+    const track = preference ? preferredAudio(this.tracks, preference) : undefined
+    if (!track || track.id === this.audio?.id) return
+    this.audio = track
+    this.subtitle = TrackSelector.defaultSubtitle(this.tracks, track, this.deps.settings().preferredLanguage ?? 'ru')
+    this.set({ selectedAudio: track.id, selectedSubtitle: this.subtitle?.id })
+    this.applyTrackChange()
   }
 
   private async findNextEpisode(item: PlexItem): Promise<PlexItem | undefined> {
@@ -363,12 +424,13 @@ export class PlayerSession {
     const plan = this.currentPlan()
     this.set({ plan, loading: true, buffering: true, error: undefined })
     this.teardownMedia()
+    const attempt = this.mediaAttempt
     this.pendingSeekTarget = fileTime > 0 ? fileTime : undefined
     this.mode = plan.mode
     void this.loadSubtitles(plan)
 
     const ready = () => {
-      if (token !== this.loadToken || this.snapshot.finished) return
+      if (token !== this.loadToken || attempt !== this.mediaAttempt || this.snapshot.finished) return
       this.onMetadata(fileTime)
       if (autoplay || !this.snapshot.paused) this.play()
       this.set({ loading: false })
@@ -393,7 +455,7 @@ export class PlayerSession {
     } catch {
       // Older servers or shared libraries: the transcoder uses the file defaults.
     }
-    if (token !== this.loadToken || this.mode !== 'transcode') return
+    if (token !== this.loadToken || attempt !== this.mediaAttempt) return
     const session = newSessionId()
     this.transcodeSession = session
     this.streamOffset = Math.max(0, Math.floor(fileTime))
@@ -500,6 +562,7 @@ export class PlayerSession {
   }
 
   private teardownMedia() {
+    this.mediaAttempt++
     clearTimeout(this.restartTimer)
     const video = this.video
     if (this.hls) {
@@ -520,6 +583,9 @@ export class PlayerSession {
       }
     }
     this.mode = undefined
+    // Until the next stream says otherwise, file time is the element's own time.
+    this.streamOffset = 0
+    this.relativeStream = false
   }
 
   private onMetadata(fileTime: number) {
@@ -889,13 +955,18 @@ export class PlayerSession {
     const key = preferencesKey(this.snapshot.item)
     this.deps.preferences.update(key, (p) => ({ ...p, correction }))
     this.deps.preferencesSync.schedulePush()
+    this.setCorrection(correction)
+  }
+
+  /** Skips by `correction` from now on (the segments may not be here yet). */
+  private setCorrection(correction: SkipCorrection) {
     this.set({ correction })
     const skip = this.skip
     if (!skip) return
     skip.setCorrection(correction)
     this.set({ segments: skip.segments })
     // Paused playback sends no ticks: refresh the button and countdown now.
-    this.tick()
+    if (!this.snapshot.loading) this.tick()
   }
 
   // MARK: Countdown

@@ -24,3 +24,8 @@ export const DEFAULT_DETECTOR: string | undefined = import.meta.env.VITE_DETECTO
  * must not reach the real YouTube.
  */
 export const YOUTUBE_URL: string = import.meta.env.VITE_YOUTUBE_URL || 'https://www.youtube.com'
+/**
+ * TheIntroDB, asked for segments when Loge Server can't be. Overridable for the fakes only:
+ * the smoke test must not reach the real one.
+ */
+export const THEINTRODB_URL: string | undefined = import.meta.env.VITE_THEINTRODB_URL || undefined

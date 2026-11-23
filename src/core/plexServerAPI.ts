@@ -109,9 +109,12 @@ export class PlexServerAPI {
     return this.metadata(`/library/metadata/${ratingKeys.map(encodeURIComponent).join(',')}`, {}, signal)
   }
 
-  /** Full item with media parts, streams and its other ids (`Guid`: TMDB for trailers). */
+  /**
+   * Full item with media parts, streams, its other ids (`Guid`: TMDB for trailers, TVDB/TMDB/IMDb
+   * for TheIntroDB) and chapters (skip segments without Loge Server).
+   */
   async item(ratingKey: string, signal?: AbortSignal): Promise<PlexItem | undefined> {
-    return (await this.metadata(`/library/metadata/${ratingKey}`, { includeGuids: '1' }, signal))[0]
+    return (await this.metadata(`/library/metadata/${ratingKey}`, { includeGuids: '1', includeChapters: '1' }, signal))[0]
   }
 
   /** Plays, newest first. The server's owner sees everyone's: `accountID` 1 is the owner. */

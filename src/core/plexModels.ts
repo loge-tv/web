@@ -47,6 +47,19 @@ export interface PlexMedia {
   parts: PlexPart[]
 }
 
+/**
+ * A chapter of a media file as Plex reads it:
+ * `{"tag":"Credits","index":2,"startTimeOffset":2655450,"endTimeOffset":2932580}`.
+ */
+export interface PlexChapter {
+  tag?: string
+  index?: number
+  /** Seconds. */
+  start: number
+  /** Seconds; undefined when Plex doesn't give it. */
+  end?: number
+}
+
 /** A Plex metadata item: movie, show, season or episode. */
 export interface PlexItem {
   ratingKey: string
@@ -58,8 +71,6 @@ export interface PlexItem {
    * `com.plexapp.agents.…` or nothing.
    */
   guid?: string
-  /** Ids in other databases (`tmdb://38142`, `imdb://tt0983213`), asked with `includeGuids`. */
-  guids?: string[]
   summary?: string
   year?: number
   index?: number
@@ -88,6 +99,13 @@ export interface PlexItem {
   /** Unix seconds of the last playback. */
   lastViewedAt?: number
   media: PlexMedia[]
+  /** Chapters of the file, only when asked with `includeChapters=1` (the full item). */
+  chapters: PlexChapter[]
+  /**
+   * Ids in other databases, e.g. "tvdb://415239", "tmdb://203857", "imdb://tt17491088";
+   * the library gives them when asked with `includeGuids`.
+   */
+  guids: string[]
 }
 
 export interface PlexLibrarySection {
@@ -152,6 +170,17 @@ function parseMedia(raw: unknown): PlexMedia | null {
   }
 }
 
+function parseChapter(raw: unknown): PlexChapter | null {
+  if (!isRecord(raw)) return null
+  const end = lossyInt(raw.endTimeOffset)
+  return {
+    tag: lossyString(raw.tag),
+    index: lossyInt(raw.index),
+    start: (lossyInt(raw.startTimeOffset) ?? 0) / 1000,
+    end: end !== undefined ? end / 1000 : undefined,
+  }
+}
+
 /** `Guid: [{id: "tmdb://1"}, …]` → ids. */
 export function parseGuids(raw: unknown): string[] {
   if (!Array.isArray(raw)) return []
@@ -212,6 +241,7 @@ export function parseItem(raw: unknown): PlexItem | null {
     addedAt: lossyInt(raw.addedAt),
     lastViewedAt: lossyInt(raw.lastViewedAt),
     media: Array.isArray(raw.Media) ? raw.Media.map(parseMedia).filter((m): m is PlexMedia => m !== null) : [],
+    chapters: Array.isArray(raw.Chapter) ? raw.Chapter.map(parseChapter).filter((c): c is PlexChapter => c !== null) : [],
   }
 }
 
@@ -244,8 +274,17 @@ export function makeItem(fields: Partial<PlexItem> & { ratingKey: string; type: 
     key: `/library/metadata/${fields.ratingKey}`,
     title: '',
     media: [],
+    chapters: [],
+    guids: [],
     ...fields,
   }
+}
+
+/** The id of an external database from `guids`: `externalID(item, 'tvdb')` → "415239". */
+export function externalID(item: PlexItem, scheme: string): string | undefined {
+  const prefix = `${scheme}://`
+  const id = item.guids.find((guid) => guid.startsWith(prefix))?.slice(prefix.length)
+  return id ? id : undefined
 }
 
 // MARK: Derived

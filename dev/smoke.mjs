@@ -357,13 +357,13 @@ await step('settings: a list of four pages, Back returns to it; detector reachab
   await page.getByRole('link', { name: 'Настройки' }).click()
   await page.waitForURL(/#\/settings$/)
   await settingsPages().first().waitFor()
-  assert.deepEqual(await settingsPages().allTextContents(), ['Плеер', 'Главная и Обзор', 'Детектор заставок', 'Сервер и аккаунт'])
-  await page.getByText(/^Loge /).waitFor()
+  assert.deepEqual(await settingsPages().allTextContents(), ['Плеер', 'Главная и Обзор', 'Loge Server', 'Сервер и аккаунт'])
+  await page.getByText(/^Loge \d/).waitFor()
   await settledShot('settings')
   // Browser Back from a page lands on the list.
-  await settingsPages().filter({ hasText: 'Детектор заставок' }).click()
+  await settingsPages().filter({ hasText: 'Loge Server' }).click()
   await page.waitForURL(/#\/settings\/detector$/)
-  await page.getByText('Детектор отвечает').waitFor({ timeout: 8000 })
+  await page.getByText('Loge Server отвечает').waitFor({ timeout: 8000 })
   await page.getByText('Сервис, который находит заставки и титры. Если он недоступен, видео просто играет без пропуска.').waitFor()
   await page.goBack()
   await page.waitForURL(/#\/settings$/)
@@ -419,7 +419,11 @@ await step('detector down: the episode still plays, without segments', async () 
   await page.goto(`${app}/#/play/112`)
   await until(async () => ((await video())?.time ?? 0) > 1, { timeout: 15000, message: 'playback without detector' })
   await page.getByRole('button', { name: 'Дорожки и разметка' }).click()
-  await page.getByText('В этой серии детектор ничего не нашёл').waitFor()
+  // The fake files have no chapters; the fake TheIntroDB is asked by the show's TVDB id and knows nothing.
+  await page.getByText('Loge Server недоступен, а в главах файла и TheIntroDB разметки нет').waitFor()
+  const introDB = find((r) => r.server === 'theintrodb' && r.query.tvdb_id === '100')
+  assert.ok(introDB.length > 0, 'TheIntroDB asked by the show\'s TVDB id')
+  assert.equal(introDB.at(-1).headers['x-plex-token'], undefined, 'no Plex token to TheIntroDB')
   await page.keyboard.press('Escape')
   fake.state.detectorDown = false
 })
@@ -442,14 +446,19 @@ await step('keyboard: Space pauses (paused timeline) and resumes, F toggles full
 })
 
 await step('leaving the player while it still loads starts no media and no transcode', async () => {
-  fake.state.detectorDelayMs = 1500
+  // A fresh page: the app remembers for 5 minutes that the detector was down and wouldn't ask it.
+  await page.goto(`${app}/#/`)
+  await page.reload()
+  await page.getByRole('heading', { name: 'Продолжить просмотр' }).waitFor({ timeout: 15000 })
+  // The video starts as soon as the item is known (segments come later): hold the item back.
+  fake.state.metadataDelayMs = 1500
   await page.goto(`${app}/#/play/113`)
   await page.waitForTimeout(300)
   await page.keyboard.press('Escape')
   const left = Date.now()
   await page.waitForURL((u) => !u.hash.startsWith('#/play'), { timeout: 5000 })
   await page.waitForTimeout(2500)
-  fake.state.detectorDelayMs = 0
+  fake.state.metadataDelayMs = 0
   const late = find((r) => r.server === 'pms' && r.at > left && (r.path.includes('/transcode/universal/') || (r.path.startsWith('/library/parts/') && r.method === 'PUT')))
   const stops = new Set(pms('/video/:/transcode/universal/stop').map((r) => r.query.session))
   const orphans = late.filter((r) => r.path.endsWith('start.m3u8') && !stops.has(r.query.session))
@@ -1136,7 +1145,7 @@ await step('phone layout: no horizontal scrolling on home, show and player', asy
   for (const id of ['playback', 'home', 'detector', 'server']) {
     await p.goto(`${app}/#/settings/${id}`)
     await p.getByRole('button', { name: 'Настройки' }).waitFor({ timeout: 8000 })
-    if (id === 'detector') await p.getByText('Детектор отвечает').waitFor({ timeout: 8000 })
+    if (id === 'detector') await p.getByText('Loge Server отвечает').waitFor({ timeout: 8000 })
     assert.ok((await overflow()) <= 0, `settings/${id} overflows by ${await overflow()} px`)
     await p.screenshot({ path: join(screens, `phone-settings-${id}.png`), fullPage: true })
   }
@@ -1152,7 +1161,7 @@ await step('no uncaught errors in the page', async () => {
   assert.deepEqual(pageErrors, [])
 })
 
-const failures = fake.requests.filter((r) => r.status >= 400 && !(r.server === 'detector' && fake.state.detectorDown))
+const failures = fake.requests.filter((r) => r.status >= 400 && r.server !== 'theintrodb' && !(r.server === 'detector' && fake.state.detectorDown))
 if (failures.length) console.log(`non-2xx responses:\n  ${failures.map((r) => `${r.status} ${r.server} ${r.method} ${r.path}`).join('\n  ')}`)
 if (consoleErrors.length) console.log(`console errors (${consoleErrors.length}):\n  ${[...new Set(consoleErrors)].slice(0, 10).join('\n  ')}`)
 console.log(`requests: ${fake.requests.length}, screenshots: ${screens}`)

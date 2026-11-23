@@ -132,6 +132,13 @@ describe('SkipController', () => {
     expect(controller.prompt?.title).toBe('Следующая серия')
   })
 
+  it('next episode learned after the start', () => {
+    const controller = new SkipController([intro, credits], context('auto', { next: false }))
+    expect(controller.update(2000)).toBeNull()
+    controller.setHasNextEpisode(true)
+    expect(controller.update(2909.5)).toEqual(startNext)
+  })
+
   it('credits start the next-episode countdown', () => {
     const controller = new SkipController([intro, credits], context())
     expect(controller.update(2909.5)).toEqual(startNext)

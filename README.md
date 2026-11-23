@@ -1,347 +1,354 @@
-# Loge для браузера
+# Loge for the browser
 
-Веб-версия Loge: свой клиент Plex с пропуском заставок и титров по данным детектора из
-[loge-tv/detector](https://github.com/loge-tv/detector). React + TypeScript + Vite, статическая сборка без бэкенда.
-Работает на компьютере и адаптирована под телефон. Эталон поведения — приложение для
-Apple TV ([loge-tv/apple](https://github.com/loge-tv/apple)); логика пропуска, выбора дорожек и навигации по
-сериям перенесена из SkipTVKit вместе с тестами.
+The web version of Loge: a custom Plex client that skips intros and credits using data from Loge Server
+from [loge-tv/server](https://github.com/loge-tv/server). React + TypeScript + Vite, a static build with no backend.
+Works on a computer and is adapted for phones. The reference for behaviour is the
+Apple TV app; the logic of skipping, track selection and moving between
+episodes is ported from SkipTVKit together with its tests.
 
-## Что умеет
+## What it does
 
-- **Вход** через аккаунт Plex: PIN (`plex.tv/api/v2/pins`, strong) → страница
-  `app.plex.tv/auth` → возврат на `forwardUrl` → опрос PIN (до 90 с). Список серверов из
-  `plex.tv/api/v2/resources`, адреса проверяются параллельно (`/identity`), берётся самый
-  предпочтительный отвечающий (локальный → внешний → relay). На HTTPS-странице — только
-  HTTPS-адреса (plex.direct), иначе браузер заблокирует mixed content. Токен — в
-  `localStorage`.
-- **Главная**: «Продолжить просмотр» (onDeck: сначала начатое по `lastViewedAt`, потом
-  следующие серии начатых сериалов — первым сериал, который смотрели последним; его
-  `lastViewedAt` берётся одним запросом `/library/metadata/a,b,c`, без него — порядок Plex), «Недавно добавлено · <медиатека>» — новые серии
-  схлопываются в одну карточку сезона. Карточка серии открывает её сезон с этой серией;
-  кнопка ▶ поверх обложки (при наведении, на телефоне — всегда) включает сразу. Большой
-  карточки последнего сериала нет.
-  Рекомендации (как в приложениях Apple): «Похожее на сервере» и «Потому что вы смотрели
-  «…»» — по рекомендациям TMDB через детектор (`/v1/recommendations?seeds=movie:1,tv:2`):
-  семена — три последних просмотренных тайтла с TMDB id (история владельца
-  `/status/sessions/history/all`, без неё — `lastViewedAt` медиатеки), тайтлы TMDB
-  сопоставляются с каталогом Plex (`/library/metadata/matches`, кэш в `localStorage` на 30 дней,
-  «нет» — на 7); что есть на сервере и не начато — в «Похожее на сервере», остальное
-  (без просмотренного по истории Plex) — полкой на каждое семя. Без ключа TMDB на детекторе
-  (404) этих полок нет, в Настройках об этом сказано. «Ещё с актёрами «…»» — «More From This
-  Cast & Crew» каталога Plex для недавнего тайтла, работает и без детектора. Обновление — не
-  чаще раза в 15 минут и после удаления.
-  Каждую полку («Продолжить просмотр», «Хочу посмотреть», «Ещё не вышло», «Недавно добавлено»
-  каждой медиатеки, три полки рекомендаций) можно выключить и переставить в Настройки →
-  «Главная и Обзор»; «Вернуть порядок по умолчанию». Новые полки встают после своей соседки
-  по порядку по умолчанию. Все выключены — подсказка, где включить.
-- **Обзор** (ссылка в шапке): готовые подборки каталога Plex — «Популярное в Plex»,
-  «Чаще всего добавляют в список», «Скоро выйдет», «Самые ожидаемые фильмы»
-  (`/hubs/sections/home/<id>`); сезон в подборке открывает свой сериал. Каждую подборку можно
-  выключить; все выключены — ссылки «Обзор» нет. Обновляется раз в 30 минут.
-- **Медиатеки** фильмов и сериалов с фильтрами «Все / Непросмотренные / Новые». Страница
-  фильма, страница сериала с сезонами и сериями. Выбранная серия: начатая, иначе первая
-  непросмотренная после последней просмотренной, иначе первая. Отметки
-  «Просмотрено / Не просмотрено». На постерах и страницах скачанных фильмов и сериалов —
-  отметка «в списке Plex», как у тайтлов каталога («В списке» / «Добавить в список»).
-  - **Все сезоны и серии**: страница сериала берёт из каталога Plex сезоны сериала и серии
-    открытого сезона (`/library/metadata/<ключ>/children`) и сводит их с серверными по номеру.
-    Чего нет на сервере — серое, с «Нет на сервере · 4 января 2025» или «Выйдет 15 января 2027»
-    и отметкой просмотра аккаунта (`/userState`); сезон, досмотренный целиком, — с ✓; сезон
-    только из каталога — «Сезон 2, не скачан». Нескачанную серию нельзя включить и удалить,
-    только «Отметить просмотренной», сезон — «Отметить «Сезон 2» просмотренным» (с сериями).
-    Отметки уходят в Plex на аккаунт (`/actions/scrobble|unscrobble` на
-    `metadata.provider.plex.tv`), меняются сразу и откатываются с «Не удалось отметить», если
-    Plex отказал. Страница сериала каталога, которого нет на сервере, показывает его сезоны и
-    серии так же; у фильма каталога — «Отметить просмотренным» ⇄ «Просмотрено». Сериал
-    старого агента (без ключа каталога) — как раньше.
-  - **Удаление загрузок** (кнопка «⋯» «Ещё»): фильм; сериал, открытый сезон, все просмотренные
-    серии («Удалить просмотренные серии (N)»: список берётся с сервера заново перед вопросом);
-    серия — «Удалить серию» под ней. Каждое — после подтверждения в окне страницы (не
-    `window.confirm`) со словами, что удалится («С диска сервера удалятся 3 серии. Отменить это
-    нельзя.»). Удаляет Plex: `DELETE /library/metadata/<ключ>` по одному. Отказ объясняется:
-    удалять может только владелец, и в Plex Media Server должно быть включено «Библиотека →
-    Разрешить удаление медиафайлов» (Library → Allow media deletion). Удалённый тайтл сразу
-    уходит из индекса медиатеки (и снова «Хочу посмотреть», если в списке), рекомендации
-    пересчитываются; после фильма или сериала — назад.
-  - **Трейлер** у фильма и сериала (скачанного и нет): YouTube-ролики TMDB через детектор
-    (`/v1/videos?item=movie:<tmdb>&language=ru`), сначала на предпочитаемом языке. Кнопка
-    появляется, когда ролики есть; открывает окно со встроенным плеером YouTube (`hl` и
-    `cc_lang_pref` — предпочитаемый язык), списком остальных роликов и «Открыть в YouTube».
-    В URL попадают только настоящие id YouTube. TMDB id — из `Guid` тайтла (сервер отдаёт их
-    с `includeGuids=1`, каталог — в подробностях).
-- **Плеер**:
-  - Direct play в `<video>`, если браузер умеет контейнер и кодеки (MP4/M4V/MOV/WebM +
-    `canPlayType`) и выбранная озвучка — та, что браузер играет по умолчанию (в Safari
-    дорожку можно переключить через `audioTracks`). Иначе — универсальный транскодер Plex
-    (`/video/:/transcode/universal/start.m3u8`, HLS через hls.js, в Safari — нативно) с
-    `directStream=1`, `directStreamAudio=1`: видео H.264 копируется, остальное
-    перекодируется. Если direct play всё-таки падает с ошибкой — автоматически переходит
-    на транскодер.
-  - Вне дома (адрес не из локальных подключений сервера) файл для direct play отдаёт
-    детектор (`/v1/files`, токен в query: `<video>` не шлёт заголовков): Plex без Plex Pass
-    там на сам файл отвечает 403 «Downloading requires a Remote Watch Pass or Plex Pass».
-    Если детектор файл не дал — direct play от Plex, затем транскодер. Транскодер Plex
-    снаружи без Plex Pass, скорее всего, тоже закрыт (не проверено), так что MKV вне дома
-    в браузере может не заиграть.
-  - Аудио и субтитры: правила TrackSelector (озвучка на предпочитаемом языке, по умолчанию
-    русском; из нескольких — лучшая: не комментарий, больше каналов, лучше кодек, затем
-    дорожка по умолчанию — 5.1 лучше стерео; при ней — только форсированные субтитры этого
-    языка, иначе — полные). Выбранная вручную озвучка
-    запоминается для сериала. Текстовые субтитры (SRT/VTT/ASS) берутся из
-    `/library/streams/{id}` (UTF-8 или Windows-1251) и рисуются поверх видео по времени
-    файла; графические (PGS/VobSub) и те, что Plex не отдал, — вжигаются транскодером.
-  - Прогресс в Plex: `/:/timeline` каждые 10 с, при паузе и остановке; «просмотрено» — в
-    начале финальных титров или на 90 %. Начатое запускается сразу с места остановки, без
-    вопроса; «С начала» — кнопкой на странице фильма.
-  - Клавиши: Пробел (и K) — пауза, ← / → — перемотка (шаг в настройках, по умолчанию
-    5 / 5 с), F — во весь экран, M — звук, Esc — закрыть панель / карточку / отсчёт,
-    потом выйти из плеера.
-  - Перемотка перетаскиванием (мышь и палец) с превью-кадром из BIF Plex
-    (`/library/parts/{id}/indexes/sd`, если у файла `indexes="sd"`), иначе только время.
-- **Пропуск** — режимы «Автоматически / С отсчётом (по умолчанию) / Кнопкой / Выключено» с той же
-  логикой SkipController, что на Apple TV. Финальные титры → карточка «Следующая серия
-  через N» с кнопками «Смотреть» и «Титры»; в режиме с отсчётом — «Не пропускать»;
-  перемотка назад до заставки снова её пропускает.
-- **Разметка сериала** в плеере (кнопка дорожек): сдвиг начала и конца заставки и титров
-  на любое число секунд, применяется сразу. Поправка и озвучка хранятся в `localStorage` и
-  синхронизируются с детектором (`/v1/preferences/{showRatingKey}`) в том же JSON, что у
-  Apple TV; несохранённые изменения не перезаписываются данными детектора; детектор
-  недоступен — работает локальная копия, отправится позже.
-- **Поиск и список Plex** (лупа в шапке): ищет на сервере и во всём каталоге Plex
-  (Discover, `discover.provider.plex.tv`, с паузой 350 мс после ввода). Результаты —
-  «На сервере» (постеры медиатеки → её страница) и «Нет на сервере» (постеры каталога).
-  Тайтл сервера узнаётся по `guid` `plex://movie|show/<ключ каталога>` (современные агенты
-  Plex), у старых агентов — по типу, названию (без учёта регистра и диакритики, ё = е) и году;
-  такой тайтл в каталожной части не повторяется. В «На сервере» добавляются и тайтлы сервера,
-  совпавшие с запросом по названию. Закладка на постере каталога добавляет в список Plex (Watchlist — тот же, что
-  в приложениях Plex) и убирает из него. Страница тайтла каталога: фон, постер, тип и год,
-  длительность или число сезонов, возрастной рейтинг, оценка, жанры, описание, «Добавить в
-  список» / «В списке», «Открыть в библиотеке», если сервер его уже знает.
-  На главной (после «Продолжить просмотр»; каждую можно выключить в Настройки → Главная) и
-  в пустом поиске (всегда) список Plex показан двумя полками: «Хочу посмотреть» — вышло, нет на сервере, не просмотрено по истории Plex
-  (`/library/metadata/<ключи>/userState`, по 50 за запрос: в самом списке её нет; сериал —
-  если не начат); «Ещё не вышло» — сначала ближайшие (дата раньше «только года»), без
-  даты в конце, с датой выхода под постером. Тайтлы, которые есть на сервере, на эти полки не
-  попадают (они в «Недавно добавлено»); полки появляются только когда загружены и список, и
-  индекс медиатеки. Пустые полки в поиске — подсказка «Найдите фильм или сериал».
-  Изменение списка видно сразу; если Plex отказал, оно откатывается и всплывает «Список
-  Plex» с причиной. Overseerr / Seerr не нужен и ни на что не влияет. Тексты — те же, что в
-  приложениях Apple. Каталог берёт токен аккаунта plex.tv, не токен сервера; картинки
-  каталога идут через ресайзер Plex `images.plex.tv/photo` (без токена), а не напрямую с
+The interface is in Russian for now; the labels in quotes below are English translations.
+
+- **Sign-in** with a Plex account: a PIN (`plex.tv/api/v2/pins`, strong) → the
+  `app.plex.tv/auth` page → return to `forwardUrl` → polling the PIN (up to 90 s). The server list
+  comes from `plex.tv/api/v2/resources`, the addresses are checked in parallel (`/identity`), and the
+  most preferred one that answers is used (local → remote → relay). On an HTTPS page only
+  HTTPS addresses (plex.direct) are used, otherwise the browser blocks mixed content. The token is
+  kept in `localStorage`.
+- **Home**: "Continue Watching" (onDeck: started items first by `lastViewedAt`, then
+  the next episodes of shows in progress — the show watched last comes first; its
+  `lastViewedAt` comes from one request, `/library/metadata/a,b,c`, without it the Plex order is kept), "Recently Added · \<library>" — new episodes
+  collapse into one season card. An episode card opens its season with that episode;
+  the ▶ button over the artwork (on hover, always on a phone) plays it right away. There is no
+  big card of the last show.
+  Recommendations (as in the Apple apps): "Similar on the server" and "Because you watched
+  "…"" — from TMDB recommendations through Loge Server (`/v1/recommendations?seeds=movie:1,tv:2`):
+  the seeds are the three titles with a TMDB id watched last (the owner's history
+  `/status/sessions/history/all`, without it the library's `lastViewedAt`); TMDB titles
+  are matched with the Plex catalog (`/library/metadata/matches`, cached in `localStorage` for 30 days,
+  "no match" for 7); what is on the server and not started goes to "Similar on the server", the rest
+  (minus what Plex history says was watched) makes a shelf per seed. Without a TMDB key on Loge Server
+  (404) these shelves are missing, and Settings say so. "More with the cast of "…"" — the Plex catalog's
+  "More From This Cast & Crew" for a recent title, works without Loge Server too. They refresh at most
+  every 15 minutes and after a deletion.
+  Every shelf ("Continue Watching", "Want to watch", "Not out yet", "Recently Added" of
+  each library, the three recommendation shelves) can be turned off and moved in Settings →
+  "Home and Explore"; "Restore the default order". New shelves take their place after their
+  neighbour in the default order. With all of them off, a hint says where to turn them on.
+- **Explore** (a link in the header): ready-made collections of the Plex catalog — "Popular on Plex",
+  "Most added to watchlists", "Coming soon", "Most anticipated movies"
+  (`/hubs/sections/home/<id>`); a season in a collection opens its show. Each collection can be
+  turned off; with all of them off there is no "Explore" link. Refreshed every 30 minutes.
+- **Libraries** of movies and shows with "All / Unwatched / New" filters. A movie
+  page, a show page with seasons and episodes. The selected episode: the started one, otherwise
+  the first unwatched one after the last watched, otherwise the first. "Watched / Unwatched"
+  marks. Posters and pages of downloaded movies and shows carry the "on the Plex watchlist" mark,
+  like catalog titles ("In the list" / "Add to the list").
+  - **All seasons and episodes**: the show page takes the show's seasons and the open season's
+    episodes from the Plex catalog (`/library/metadata/<key>/children`) and merges them with the
+    server's by number. What is not on the server is greyed out, with "Not on the server · 4 January 2025"
+    or "Out 15 January 2027" and the account's watched mark (`/userState`); a season watched in full
+    has a ✓; a season only in the catalog says "Season 2, not downloaded". An episode that is not
+    downloaded can't be played or deleted, only "Mark watched"; a season — "Mark "Season 2" watched"
+    (with its episodes). The marks go to Plex on the account (`/actions/scrobble|unscrobble` on
+    `metadata.provider.plex.tv`), change at once and roll back with "Couldn't mark" if
+    Plex refused. The page of a catalog show that is not on the server shows its seasons and
+    episodes the same way; a catalog movie has "Mark watched" ⇄ "Watched". A show
+    of an old agent (without a catalog key) is as before.
+  - **Deleting downloads** (the "⋯" "More" button): a movie; a show, the open season, all watched
+    episodes ("Delete watched episodes (N)": the list is asked from the server again before the question);
+    an episode — "Delete episode" under it. Each one after a confirmation in a dialog of the page (not
+    `window.confirm`) that says what goes ("3 episodes will be deleted from the server's disk. This
+    can't be undone."). Plex deletes: `DELETE /library/metadata/<key>`, one at a time. A refusal is explained:
+    only the owner can delete, and Plex Media Server must have "Library → Allow media deletion" on.
+    A deleted title leaves the library index at once (and is "Want to watch" again if on the list),
+    recommendations are recomputed; after a movie or a show — back.
+  - **Trailer** of a movie and a show (downloaded or not): TMDB's YouTube videos through Loge Server
+    (`/v1/videos?item=movie:<tmdb>&language=ru`), the preferred language first. The button
+    appears when there are videos; it opens a dialog with the embedded YouTube player (`hl` and
+    `cc_lang_pref` are the preferred language), a list of the other videos and "Open in YouTube".
+    Only real YouTube ids go into the URL. The TMDB id comes from the title's `Guid` (the server gives
+    them with `includeGuids=1`, the catalog in its details).
+- **Player**:
+  - Direct play in `<video>` if the browser supports the container and codecs (MP4/M4V/MOV/WebM +
+    `canPlayType`) and the chosen dub is the one the browser plays by default (in Safari
+    the track can be switched through `audioTracks`). Otherwise the Plex universal transcoder
+    (`/video/:/transcode/universal/start.m3u8`, HLS through hls.js, natively in Safari) with
+    `directStream=1`, `directStreamAudio=1`: H.264 video is copied, everything else
+    is re-encoded. If direct play fails after all, the player switches
+    to the transcoder automatically.
+  - Outside the home network (an address that is not among the server's local connections) the file for
+    direct play is served by Loge Server (`/v1/files`, the token in the query: `<video>` sends no
+    headers): there Plex without Plex Pass answers the file itself with 403 "Downloading requires a
+    Remote Watch Pass or Plex Pass". If Loge Server didn't serve the file — direct play from Plex,
+    then the transcoder. The Plex transcoder from outside without Plex Pass is most likely closed too
+    (not tested), so an MKV away from home may not play in the browser.
+  - Audio and subtitles: the TrackSelector rules (audio in the preferred language, Russian by
+    default; of several, the best: not a commentary, more channels, a better codec, then
+    the default track — 5.1 beats stereo; with it only forced subtitles in that
+    language, otherwise full ones). A dub chosen by hand is
+    remembered for the show. Text subtitles (SRT/VTT/ASS) are taken from
+    `/library/streams/{id}` (UTF-8 or Windows-1251) and drawn over the video by file
+    time; image-based ones (PGS/VobSub) and the ones Plex didn't serve are burned in by the transcoder.
+  - Progress in Plex: `/:/timeline` every 10 s, on pause and stop; "watched" is set when
+    the final credits start or at 90 %. A started item plays right away from where it was left,
+    without asking; "Start over" is a button on the movie page.
+  - Keys: Space (and K) pause, ← / → seek (the step is in settings, 5 / 5 s by
+    default), F goes full screen, M toggles sound, Esc closes the panel / card / countdown,
+    then exits the player.
+  - Seeking by dragging (mouse and finger) with a preview frame from the Plex BIF
+    (`/library/parts/{id}/indexes/sd`, if the file has `indexes="sd"`), otherwise just the time.
+- **Skipping** — "Automatic / With countdown (default) / With a button / Off" modes with the same
+  SkipController logic as on Apple TV. Final credits → a "Next episode
+  in N" card with "Play" and "Credits" buttons; in countdown mode, "Don't skip";
+  seeking back before the intro skips it again.
+- **Show timing** in the player (the tracks button): shifts the start and end of the intro and
+  credits by any number of seconds, applied at once. The adjustment and the dub are stored in
+  `localStorage` and synced with Loge Server (`/v1/preferences/{showRatingKey}`) in the same JSON as
+  Apple TV; unsaved changes are not overwritten by data from Loge Server; when Loge Server
+  is unreachable the local copy works and is sent later.
+- **Search and the Plex watchlist** (the magnifier in the header): searches the server and the whole Plex
+  catalog (Discover, `discover.provider.plex.tv`, 350 ms after typing stops). Results —
+  "On the server" (library posters → its page) and "Not on the server" (catalog posters).
+  A server title is recognised by its `guid` `plex://movie|show/<catalog key>` (modern Plex agents),
+  old agents' titles by type, title (ignoring case and diacritics, ё = е) and year;
+  such a title isn't repeated in the catalog part. "On the server" also gets server titles
+  whose name matches the query. The bookmark on a catalog poster adds to the Plex watchlist (the
+  same one as in the Plex apps) and removes from it. A catalog title page: backdrop, poster, type and year,
+  duration or number of seasons, content rating, score, genres, summary, "Add to the
+  list" / "In the list", "Open in the library" if the server already has it.
+  On Home (after "Continue Watching"; each can be turned off in Settings → Home) and
+  in an empty search (always) the watchlist is two shelves: "Want to watch" — out, not on the
+  server, not watched by Plex history (`/library/metadata/<keys>/userState`, 50 per request: the
+  list itself doesn't have it; a show — if not started); "Not out yet" — nearest first (a date before
+  "year only"), undated last, with the release date under the poster. Titles that are on the server
+  don't go to these shelves (they are in "Recently Added"); the shelves appear only once both the
+  list and the library index are loaded. Empty shelves in search — the hint "Find a movie or show".
+  A change of the list shows at once; if Plex refused, it rolls back and a "Plex watchlist" note
+  pops up with the reason. Overseerr / Seerr is not needed and affects nothing. The texts are the same as
+  in the Apple apps. The catalog uses the plex.tv account token, not the server token; catalog
+  pictures go through the Plex resizer `images.plex.tv/photo` (without a token), not straight from
   image.tmdb.org.
-- **Настройки** — список разделов, у каждого своя страница (`#/settings/<раздел>`; «Назад»
-  браузера и «‹ Настройки» возвращают к списку), версия — под списком:
-  - **Плеер** — «Предпочитаемый язык» (озвучка, субтитры и язык трейлера; 13 языков),
-    режим пропуска, автозапуск следующей серии и отсчёт 5/10/15 с, шаги перемотки,
-    «Всегда через сервер» (принудительный транскодинг);
-  - **Главная и Обзор** — полки главной: выключатель и ↑/↓ у каждой, «Вернуть порядок по
-    умолчанию» (хранятся набор скрытых `hiddenShelves` и порядок `shelfOrder`: будущие полки
-    включены сами); подборки «Обзора» (`hiddenHubs`). В пустом поиске список Plex виден
-    целиком;
-  - **Детектор заставок** — адрес (с проверкой и сбросом);
-  - **Сервер и аккаунт** — сервер и адрес подключения, переподключение, смена сервера, выход.
-- Детектор необязателен: если он не отвечает, видео просто играет без пропуска.
+- **Settings** — a list of sections, each with its own page (`#/settings/<section>`; the browser's
+  "Back" and "‹ Settings" return to the list), the version under the list:
+  - **Player** — "Preferred language" (audio, subtitles and the trailer language; 13 languages),
+    skip mode, autoplay of the next episode and a 5/10/15 s countdown, seek steps,
+    "Always through the server" (forced transcoding);
+  - **Home and Explore** — Home shelves: a switch and ↑/↓ on each, "Restore the default
+    order" (stored as the set of hidden ones `hiddenShelves` and the order `shelfOrder`: future shelves
+    are on by themselves); the "Explore" collections (`hiddenHubs`). In an empty search the watchlist
+    is always shown in full;
+  - **Loge Server** — the address (with a check and a reset);
+  - **Server and account** — server and connection address, reconnecting, switching servers, sign out.
+- Loge Server is optional: when it can't be asked (down, refuses the token, no CORS), segments come from the
+  file's own chapters ("Intro", "Credits", "Титры"…) and, for what they lack, from [TheIntroDB](https://theintrodb.org)
+  (a request of its own, without the Plex token); the tracks panel says where they came from. Nothing there — no skipping.
 
-## Запуск
+## Running
 
-Нужен Node 20+.
+You need Node 20+.
 
 ```sh
 git clone https://github.com/loge-tv/web.git
 cd web
 npm ci
-npm run dev          # http://localhost:5173, настоящий plex.tv
-npm test             # Vitest: логика из src/core (перенесённые тесты SkipTVKit + веб)
+npm run dev          # http://localhost:5173, real plex.tv
+npm test             # Vitest: logic from src/core (ported SkipTVKit tests + web)
 npm run lint         # tsc + ESLint
-npm run build        # dist/ — статика
+npm run build        # dist/ — static files
 ```
 
-### Без настоящего Plex
+### Without a real Plex
 
-`dev/fake-server.mjs` — фейковые plex.tv (PIN, страница входа, список серверов), Plex Media
-Server (медиатеки, метаданные, timeline/scrobble, файлы с Range, BIF, SRT в cp1251,
-HLS-транскодер на ffmpeg), каталог Plex (поиск, список Plex постранично, история просмотров
-`/userState`, описание тайтла, `PUT /actions/*`, ресайзер `/photo`; отказ списка, отказ
-поиска и сброс — `state.watchlistFail`, `state.searchFail`, `state.resetWatchlist()`) и
-детектор (сегменты, preferences, CORS). Сборка `--mode fake` направляет туда же каталог и ресайзер и фиксирует «сегодня»
-(`VITE_TODAY=2026-11-22`), чтобы даты выхода в фейке не устаревали. Видео генерируется
-ffmpeg в `dev/.media` (в git не попадает).
+`dev/fake-server.mjs` is a fake plex.tv (PIN, sign-in page, server list), Plex Media
+Server (libraries, metadata, timeline/scrobble, files with Range, BIF, SRT in cp1251,
+an ffmpeg HLS transcoder), the Plex catalog (search, the watchlist page by page, watch history
+`/userState`, title details, `PUT /actions/*`, the `/photo` resizer; a refused list, a refused
+search and a reset — `state.watchlistFail`, `state.searchFail`, `state.resetWatchlist()`) and
+Loge Server (segments, preferences, CORS). The `--mode fake` build points the catalog and the resizer there too and pins "today"
+(`VITE_TODAY=2026-11-22`), so release dates in the fake don't go stale. The video is generated by
+ffmpeg into `dev/.media` (not in git).
 
 ```sh
-npm run build:fake && npm run fake   # приложение на http://127.0.0.1:5180
-npm run dev:fake                     # или Vite dev server против фейков (fake тоже должен быть запущен)
-npm run smoke                        # сборка + headless Chrome + проверки, скриншоты в dev/.out/screens
-FAKE_HLS=absolute npm run smoke      # HLS-таймлайн от начала файла вместо «от offset»
+npm run build:fake && npm run fake   # the app at http://127.0.0.1:5180
+npm run dev:fake                     # or the Vite dev server against the fakes (fake must be running too)
+npm run smoke                        # build + headless Chrome + checks, screenshots in dev/.out/screens
+FAKE_HLS=absolute npm run smoke      # HLS timeline from the start of the file instead of "from offset"
 ```
 
-Smoke-тест использует установленный Google Chrome (`CHROME_PATH` — другой путь) и
-`ffmpeg` из PATH. Он проходит: вход по PIN → главная (порядок, схлопывание) → серия из
-«Продолжить» → direct play MP4 с SRT в cp1251 → автопропуск заставки → BIF-превью →
-поправка разметки уходит в детектор → timeline → карточка следующей серии и scrobble на
-титрах → автозапуск следующей серии (MKV → HLS, продолжение с 0:40) → перемотка назад до
-offset перезапускает транскодер → смена озвучки (PUT streams, перезапуск, озвучка в
-детекторе) → Esc (stopped, stop транскода) → выбор начатой серии → фильм: ▶ включает с
-места остановки без вопроса, отметка просмотренным, фильтры → настройки (список из четырёх
-страниц, «Назад» к списку, детектор, режим пропуска) → режим с отсчётом
-(«Не пропускать», кнопка внутри заставки) → детектор выключен → клавиши → выход из плеера,
-пока он ещё загружается (ничего не запускается, транскод не остаётся) → список Plex на
-главной («Хочу посмотреть» / «Ещё не вышло»: порядок, даты; просмотренный фильм, начатый
-сериал (по `/userState`) и тайтлы сервера, в т. ч. старого агента, — ни на одной полке; токен
-аккаунта в заголовке, у ресайзера без токена) → пустой поиск (полки, подсказка при пустом
-списке) → поиск «тест» (один запрос после ввода, «На сервере» и «Нет на сервере» без повторов) → закладка в поиске добавляет → отказ
-Plex: откат и «Список Plex» → страница тайтла (описание из каталога, добавить / убрать) →
-страница тайтла с сервера, в т. ч. старого агента («Открыть в библиотеке») → каталог
-недоступен (тайтлы сервера с пометкой, «Ничего не нашлось») → удаление с полки главной и
-откат отказа → «Ещё не вышло» выключена в настройках: на главной её нет, в пустом поиске
-есть → вёрстка телефона без горизонтальной прокрутки (в т. ч. поиск и страница
-тайтла, страницы настроек) → браузер обращался только к фейкам.
+The smoke test uses the installed Google Chrome (`CHROME_PATH` for another path) and
+`ffmpeg` from PATH. It goes through: PIN sign-in → home (order, collapsing) → an episode from
+"Continue Watching" → direct play of MP4 with SRT in cp1251 → automatic intro skip → BIF preview →
+the timing adjustment goes to Loge Server → timeline → the next episode card and scrobble on
+the credits → autoplay of the next episode (MKV → HLS, resuming from 0:40) → seeking back before
+the offset restarts the transcoder → switching the dub (PUT streams, restart, the dub stored in
+Loge Server) → Esc (stopped, transcode stopped) → choosing the started episode → movie: ▶ plays
+from where it was left without asking, marking as watched, filters → settings (a list of four
+pages, "Back" to the list, Loge Server, skip mode) → countdown mode ("Don't
+skip", the button inside the intro) → Loge Server off → keys → leaving the player while
+it is still loading (nothing starts, no transcode is left behind) → the watchlist on
+Home ("Want to watch" / "Not out yet": order, dates; a watched movie, a started
+show (by `/userState`) and server titles, old agents' too, are on neither shelf; the account
+token in a header, none for the resizer) → empty search (shelves, the hint with an empty
+list) → searching "тест" (one request after typing, "On the server" and "Not on the server" without repeats) → the bookmark in search adds → Plex
+refuses: rollback and "Plex watchlist" → a title page (catalog details, add / remove) →
+a title page from the server, an old agent's too ("Open in the library") → the catalog
+down (server titles with a note, "Nothing found") → deleting from a Home shelf and
+rolling back a refusal → "Not out yet" off in settings: not on Home, still in an empty
+search → the phone layout without horizontal scrolling (search and the title page, the settings
+pages included) → the browser talked only to the fakes.
 
-## Деплой
+## Deployment
 
-Сборка `npm run build` → `dist/`. Пути относительные (`base: './'`), роутинг через `#`,
-поэтому подходит любой статический хостинг и любой подкаталог (GitHub Pages, nginx, S3, …),
-без настройки rewrite.
+`npm run build` → `dist/`. Paths are relative (`base: './'`), routing goes through `#`,
+so any static hosting and any subdirectory works (GitHub Pages, nginx, S3, …),
+without rewrite rules.
 
-- **Нужен HTTPS** (или `http://localhost`): с HTTPS-страницы доступны только HTTPS-адреса
-  сервера — `*.plex.direct` из списка plex.tv. Если страница открыта по HTTP в локальной
-  сети, можно и `http://192.168.…:32400`.
-- Адрес детектора по умолчанию — `https://loge-server.example.com`, меняется в
-  настройках или при сборке: `VITE_DETECTOR_URL=https://… npm run build`. Детектор должен
-  отдавать CORS (см. ниже) и быть на HTTPS, если на HTTPS само приложение.
+- **HTTPS is required** (or `http://localhost`): from an HTTPS page only the server's HTTPS
+  addresses are reachable — `*.plex.direct` from the plex.tv list. If the page is opened over HTTP
+  on the local network, `http://192.168.…:32400` works too.
+- The default Loge Server address is `https://loge-server.example.com`; it can be changed in
+  settings or at build time: `VITE_DETECTOR_URL=https://… npm run build`. Loge Server must
+  send CORS headers (see below) and be on HTTPS if the app itself is on HTTPS.
 - `VITE_PLEX_TV_URL`, `VITE_PLEX_AUTH_URL`, `VITE_PLEX_DISCOVER_URL`, `VITE_PLEX_IMAGES_URL`,
-  `VITE_TODAY` — только для фейков.
-- Название приложения — одна константа `APP_NAME` в `src/config.ts` (и `<title>` в
+  `VITE_YOUTUBE_URL`, `VITE_TODAY` — for the fakes only.
+- The app name is a single constant, `APP_NAME` in `src/config.ts` (and `<title>` in
   `index.html`).
 
-## Что нужно от детектора
+## What Loge Server needs to provide
 
-Каждый запрос к детектору несёт заголовок `X-Plex-Token`, поэтому браузер сначала шлёт
-preflight `OPTIONS`. Детектор отдаёт CORS с версии 0.1.9 (в `main`), на
-`https://loge-server.example.com` проверено: preflight — 204 с заголовками ниже. Без CORS
-(старый или свой детектор) видео играет без сегментов, а разметка и озвучка сериала живут
-только в `localStorage`.
+Every request to Loge Server carries the `X-Plex-Token` header, so the browser first sends a
+preflight `OPTIONS`. Loge Server sends CORS headers since version 0.1.9 (in `main`); checked on
+`https://loge-server.example.com`: the preflight gets 204 with the headers below. Without CORS
+(an old or a custom Loge Server) segments come only from the file's chapters and TheIntroDB, and a show's
+timing and dub live only in `localStorage`.
 
 - CORS: `Access-Control-Allow-Origin: *`, `Access-Control-Allow-Methods: GET, PUT, OPTIONS`,
-  `Access-Control-Allow-Headers: X-Plex-Token, Content-Type, Accept`, ответ на preflight
-  `OPTIONS` без проверки токена. Запросы: `GET /v1/segments/{ratingKey}`,
-  `GET/PUT /v1/preferences/{key}`, `GET /healthz`; заголовок `X-Plex-Token` — токен доступа
-  к серверу Plex (как у Apple TV).
-- Для рекомендаций и трейлеров — `GET /v1/recommendations?seeds=…&language=ru-RU` и
-  `GET /v1/videos?item=…&language=…` (детектор с ключом TMDB, ветка `recommendations`;
-  без ключа они отвечают 404, и этих полок и кнопки нет). TMDB браузер не трогает.
+  `Access-Control-Allow-Headers: X-Plex-Token, Content-Type, Accept`, an answer to the preflight
+  `OPTIONS` without a token check. Requests: `GET /v1/segments/{ratingKey}`,
+  `GET/PUT /v1/preferences/{key}`, `GET /healthz`; the `X-Plex-Token` header is the access token
+  for the Plex server (as on Apple TV).
+- For recommendations and trailers — `GET /v1/recommendations?seeds=…&language=ru-RU` and
+  `GET /v1/videos?item=…&language=…` (Loge Server with a TMDB key, branch `recommendations`;
+  without the key they answer 404, and those shelves and the button are missing). The browser never talks to TMDB.
 
-## Устройство
+## Layout
 
 ```
-src/core/      чистая логика без DOM: модели Plex, клиенты plex.tv/PMS/детектора и каталога
-               Plex (plexDiscover), сопоставление каталога с медиатекой и полки списка
-               (catalogMatch), SkipPolicy/SkipController, поправка, предпочтения сериала и
-               их синхронизация, выбор дорожек, план воспроизведения, BIF, субтитры.
-               Тесты — src/core/__tests__
-src/app/       состояние сессии (вход, сервер, подключение), список Plex и индекс медиатеки
-               (watchlist.ts), рекомендации (recommendations.ts), «Обзор» (explore.ts),
-               сезоны каталога (catalogShow.ts); тесты — src/app/__tests__; хуки загрузки
-src/player/    PlayerSession (движок: <video>/hls.js, время файла, пропуск, прогресс,
-               следующая серия), PlayerPage, ScrubBar, TracksPanel
-src/pages/     главная, медиатеки, фильм, сериал, поиск, тайтл каталога, настройки, экраны входа
-src/ui/        карточки, полки, иконки, общий layout, окна (dialog), меню «Ещё», удаление,
-               трейлеры, сезоны и серии каталога
-dev/           фейковые серверы и smoke-тест
+src/core/      pure logic without the DOM: Plex models, plex.tv/PMS/Loge Server and Plex
+               catalog (plexDiscover) clients, matching the catalog with the library and the
+               watchlist shelves (catalogMatch), SkipPolicy/SkipController, adjustment, show
+               preferences and their sync, track selection, playback plan, BIF, subtitles,
+               segments without Loge Server (chapters, TheIntroDB). Tests are in src/core/__tests__
+src/app/       session state (sign-in, server, connection), the watchlist and the library index
+               (watchlist.ts), recommendations (recommendations.ts), "Explore" (explore.ts),
+               catalog seasons (catalogShow.ts); tests in src/app/__tests__; loading hooks
+src/player/    PlayerSession (engine: <video>/hls.js, file time, skipping, progress,
+               next episode), PlayerPage, ScrubBar, TracksPanel
+src/pages/     home, libraries, movie, show, search, catalog title, settings, sign-in screens
+src/ui/        cards, shelves, icons, shared layout, dialogs, the "More" menu, deletion,
+               trailers, catalog seasons and episodes
+dev/           fake servers and the smoke test
 ```
 
-## Решения
+## Decisions
 
-- **Авторизация Plex — в query** (`X-Plex-Token`, `X-Plex-Client-Identifier` и т. д.), а не
-  заголовками: так GET к plex.tv и PMS — «простые» CORS-запросы без preflight, и те же
-  URL работают в `<video src>` и `<img src>`. Единственный заголовок — `Accept`.
-  Исключение — PUT выбора дорожек (`/library/parts/{id}`), у него preflight.
-- **Вход редиректом**, а не всплывающим окном: попапы блокируются на телефонах. PIN
-  сохраняется перед переходом и дожидается токена после возврата.
-- **Direct play только для MP4/M4V/MOV/WebM.** MKV браузеры не открывают — сразу транскодер
-  (видео при этом обычно копируется). HEVC идёт напрямую только там, где `canPlayType`
-  его подтверждает (Safari, часть Chrome/Edge), в HLS он всегда перекодируется в H.264.
-- **Профиль транскодера**: к запросу добавляется
+- **Plex auth goes in the query** (`X-Plex-Token`, `X-Plex-Client-Identifier` and so on), not in
+  headers: that way GETs to plex.tv and PMS are "simple" CORS requests without a preflight, and the same
+  URLs work in `<video src>` and `<img src>`. The only header is `Accept`.
+  The exception is the track selection PUT (`/library/parts/{id}`), which has a preflight.
+- **Sign-in by redirect**, not a popup: popups are blocked on phones. The PIN
+  is saved before leaving and waits for the token after the return.
+- **Direct play only for MP4/M4V/MOV/WebM.** Browsers don't open MKV, so it goes straight to the
+  transcoder (the video is usually copied then). HEVC plays directly only where `canPlayType`
+  confirms it (Safari, some Chrome/Edge); in HLS it is always re-encoded to H.264.
+- **Transcoder profile**: the request gets
   `X-Plex-Client-Profile-Extra=add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264&audioCodec=aac,mp3&replace=true)`
-  — то, что гарантированно играет hls.js и Safari.
-- **Время файла под HLS.** Транскод начинается с `offset`; плеер сам читает media-плейлист
-  до старта hls.js и по его длине решает, считает ли поток время от начала файла или от
-  offset (`время файла = currentTime + offset`). Перемотка за пределы того, что отдаёт
-  транскодер, перезапускает его с нового места (с задержкой 400 мс, чтобы серия нажатий ←
-  дала один перезапуск). Все позиции для пропуска, прогресса и субтитров — во времени файла.
-- **Субтитры рисуются своим слоем**, а не `<track>`: так они одинаково работают в direct
-  play и в HLS с offset, понимают ASS и cp1251. Форсированные определяются и по флагу, и
-  по слову «forced/форс» в названии.
-- **Остановка в финальных титрах** отправляет в timeline конец файла, а не позицию: иначе
-  Plex оставил бы «Продолжить с 41:10» у серии, которую только что отметил просмотренной
-  (титры начинаются раньше 90 %). Это отличие от Apple TV (там уходит позиция) и расчёт на
-  правило PMS «после 90 % — просмотрено, без точки продолжения», которое проверено только
-  на фейке. Цена: если остановиться в титрах, чтобы досмотреть их позже, точки продолжения
-  не будет.
-- **Каталог Plex — авторизация заголовками** (`X-Plex-Token` аккаунта,
-  `X-Plex-Client-Identifier`, `X-Plex-Product`, `X-Plex-Language`), как в приложении Apple, а
-  не в query, как у PMS и plex.tv: этот путь проверен на настоящем Discover, а токен аккаунта
-  не попадает в URL. Цена — preflight на каждый новый URL (кешируется браузером).
-- **Индекс медиатеки** для сопоставления — все фильмы и сериалы разделов
-  (`/library/sections/{id}/all`), обновляется не чаще раза в 10 минут; список Plex — до 500
-  тайтлов, по 100 за запрос.
-- **Старые агенты Plex** (без `plex://` в `guid`) сопоставляются с каталогом по типу, названию
-  и году (в приложении Apple — только по ключу каталога, и такой тайтл остаётся и в «Нет на
-  сервере», и в «Хочу посмотреть»). Только для таких тайтлов: у тайтла с ключом то же
-  название и год — другой тайтл (ремейк).
-- **Повторное нажатие закладки, пока Plex не ответил на прошлое, игнорируется** (в
-  приложении Apple — уходит второй запрос): так запросы не обгоняют друг друга.
-- **hls.js грузится лениво** — только когда нужен транскодер (это большая часть бандла).
-- **Карточка сезона** в «Недавно добавлено» — одна на сезон, порядок по самой новой серии.
-- Настройка **«Всегда через сервер»** — на случай файлов, которые браузер объявляет
-  поддерживаемыми, но играет плохо.
+  — what hls.js and Safari are sure to play.
+- **File time under HLS.** The transcode starts at `offset`; before starting hls.js the player
+  reads the media playlist itself and decides by its length whether the stream counts time from the
+  start of the file or from the offset (`file time = currentTime + offset`). Seeking beyond what the
+  transcoder serves restarts it from the new position (with a 400 ms delay, so that a series of ←
+  presses gives one restart). All positions for skipping, progress and subtitles are in file time.
+- **Subtitles are drawn by a layer of our own**, not `<track>`: that way they work the same in direct
+  play and in HLS with an offset, and understand ASS and cp1251. Forced ones are detected both by the
+  flag and by the word "forced/форс" in the title.
+- **Stopping during the final credits** sends the end of the file to the timeline, not the position:
+  otherwise Plex would keep "Resume from 41:10" on an episode it has just marked watched
+  (credits start before 90 %). This differs from Apple TV (which sends the position) and relies
+  on the PMS rule "after 90 % it's watched, with no resume point", which has been checked only
+  against the fake. The cost: if you stop in the credits to finish them later, there will be no
+  resume point.
+- **The Plex catalog — auth in headers** (the account's `X-Plex-Token`,
+  `X-Plex-Client-Identifier`, `X-Plex-Product`, `X-Plex-Language`), as in the Apple app, and
+  not in the query as for PMS and plex.tv: this path is tested on the real Discover, and the account
+  token stays out of URLs. The cost is a preflight for every new URL (cached by the browser).
+- **The library index** for matching — all movies and shows of the sections
+  (`/library/sections/{id}/all`), refreshed at most every 10 minutes; the watchlist — up to 500
+  titles, 100 per request.
+- **Old Plex agents** (no `plex://` in `guid`) are matched with the catalog by type, title
+  and year (the Apple app matches only by the catalog key, and such a title stays both in "Not on the
+  server" and in "Want to watch"). Only for such titles: a title with a key and the same
+  name and year is a different title (a remake).
+- **Pressing the bookmark again before Plex answered the last press is ignored** (the
+  Apple app sends a second request): that way requests don't overtake each other.
+- **hls.js is loaded lazily** — only when the transcoder is needed (it's most of the bundle).
+- **The season card** in "Recently Added" — one per season, ordered by the newest episode.
+- The **"Always through the server"** setting is for files the browser claims to
+  support but plays badly.
 
-## Известные ограничения и что не проверено
+## Known limitations and what's not tested
 
-Проверено только против фейков (`npm run smoke`, Chrome 157, macOS) и юнит-тестами.
-На настоящем Plex Media Server и plex.tv не запускалось. В smoke перемотка — наведение и
-клик по полосе; перетаскивание и касания, Safari и Firefox не прогонялись. Не проверено:
+Tested only against the fakes (`npm run smoke`, Chrome 157, macOS) and with unit tests.
+It has not been run against a real Plex Media Server and plex.tv. In the smoke test seeking is
+hovering and clicking on the bar; dragging and touch, Safari and Firefox were not run. Not tested:
 
-- CORS у настоящего PMS (в т. ч. preflight PUT `/library/parts/{id}`). Plex Web работает
-  кросс-доменно, так что ожидается, что заголовки есть. У plex.tv проверено curl-ом
-  (2026-11-22): preflight и POST `/api/v2/pins`, preflight `/api/v2/resources` отвечают
-  `Access-Control-Allow-Origin: *` и разрешают заголовки `X-Plex-*`.
-- Поведение настоящего транскодера: принимает ли он `X-Plex-Client-Profile-Extra` и
-  профиль `X-Plex-Platform=Chrome/Safari/…`, вид плейлиста при `offset` (от начала файла
-  или от offset — плеер умеет оба), требует ли токен у сегментов (передаётся всегда),
-  вжигание субтитров `subtitles=burn`.
-- Отдаёт ли PMS встроенные (не внешние) текстовые субтитры через `/library/streams/{id}`.
-  Если нет — они вжигаются транскодером (медленнее, без переключения на лету).
-- Chrome 142+ (Local Network Access): страница из интернета, обращающаяся к адресу
-  plex.direct с локальным IP, вызывает запрос разрешения «доступ к устройствам в локальной
-  сети» — его нужно разрешить один раз.
-- Safari: нативный HLS и переключение `audioTracks` написаны, но не запускались.
-- Firefox: без HEVC и AC3/EAC3 — такие файлы идут через транскодер.
-- Dolby Vision / HDR в браузере не воспроизводится как есть: Plex перекодирует (с
-  тонмаппингом, если сервер умеет), направо идёт только то, что подтверждает `canPlayType`.
-- DTS/TrueHD — всегда перекодирование звука.
-- Каталог Plex (Discover): CORS проверен curl-ом (2026-11-22) — preflight GET и PUT
-  отвечает `Access-Control-Allow-Origin: *`, методы с PUT, разрешает заголовки
+- CORS on a real PMS (including the preflight of PUT `/library/parts/{id}`). Plex Web works
+  cross-origin, so the headers are expected to be there. On plex.tv it was checked with curl
+  (2026-11-22): the preflight and POST `/api/v2/pins`, and the preflight of `/api/v2/resources` answer
+  with `Access-Control-Allow-Origin: *` and allow the `X-Plex-*` headers.
+- The behaviour of the real transcoder: whether it accepts `X-Plex-Client-Profile-Extra` and
+  the `X-Plex-Platform=Chrome/Safari/…` profile, what the playlist looks like with `offset` (from the
+  start of the file or from the offset — the player handles both), whether segments need the token
+  (it is always passed), burning in subtitles with `subtitles=burn`.
+- Whether PMS serves embedded (not external) text subtitles through `/library/streams/{id}`.
+  If not, they are burned in by the transcoder (slower, no switching on the fly).
+- Chrome 142+ (Local Network Access): a page from the internet that talks to a plex.direct
+  address with a local IP triggers a permission prompt for access to devices on the local
+  network — it has to be allowed once.
+- Safari: native HLS and `audioTracks` switching are written but have not been run.
+- Firefox: no HEVC and no AC3/EAC3 — such files go through the transcoder.
+- Dolby Vision / HDR are not played as is in the browser: Plex re-encodes them (with
+  tone mapping, if the server can), and only what `canPlayType` confirms plays directly.
+- DTS/TrueHD — the audio is always re-encoded.
+- The Plex catalog (Discover): CORS checked with curl (2026-11-22) — the preflight of GET and PUT
+  answers `Access-Control-Allow-Origin: *`, methods with PUT, allows the headers
   `X-Plex-Token`, `X-Plex-Client-Identifier`, `X-Plex-Product`, `X-Plex-Language`, `Accept`
-  (в т. ч. для `/library/metadata/a,b/userState`); GET с токеном проверялся отдельно только
-  с `X-Plex-Token`, `X-Plex-Client-Identifier`, `Accept`. Сам поиск, список, `/userState`
-  и `PUT /actions/*` из веба с токеном не вызывались — только на фейке; форматы ответов
-  взяты из приложения Apple (список и `/userState` сверены там с настоящим аккаунтом).
-- Новое этой ночи (2026-11-23) — только на фейках: рекомендации детектора (на домашнем
-  детекторе есть `/v1/recommendations`; `/v1/videos` — в ветке детектора, ещё не выкачен, до
-  этого кнопки «Трейлер» не будет), `DELETE` у настоящего PMS (CORS preflight для DELETE и
-  ответ при выключенном «Разрешить удаление» — не проверены; тексты отказа подходят к любому
-  статусу), `children` каталога и `/actions/scrobble` на `metadata.provider.plex.tv` из
-  браузера (CORS не проверен; Plex Web делает то же со своего домена), встроенный плеер
-  YouTube (в smoke его заменяет фейковая страница; некоторые ролики запрещают встраивание —
-  на этот случай «Открыть в YouTube»), подборки `/hubs/sections/home/*`.
-- Тайтл старого агента Plex, у которого год на сервере не совпал с годом в каталоге (или
-  название переведено иначе), сервер не «узнаёт»: он остаётся в «Нет на сервере» и в «Хочу
-  посмотреть».
-- На телефоне (до 560 px) разделы — Главная, медиатеки, Обзор — внизу экрана, как вкладки
-  приложения на iPhone; в шапке остаются логотип, лупа и шестерёнка. При многих медиатеках
-  нижняя панель прокручивается вбок. На компьютере разделы — в шапке, их ссылки прокручиваются
-  с затуханием у края, если не помещаются.
-- Нет: управляемых пользователей Plex (Plex Home), плейлистов, PiP-кнопки, выбора качества
-  (всегда максимальное, `videoQuality=100`).
-- Автовоспроизведение: если браузер не дал запустить видео без жеста, показывается большая
-  кнопка ▶.
+  (`/library/metadata/a,b/userState` included); a GET with a token was checked separately only
+  with `X-Plex-Token`, `X-Plex-Client-Identifier`, `Accept`. Search, the list, `/userState`
+  and `PUT /actions/*` were not called from the web with a token — only against the fake; the response
+  formats come from the Apple app (the list and `/userState` checked there against a real account).
+- New on the night of 2026-11-23 — only against the fakes: Loge Server's recommendations (the home
+  Loge Server has `/v1/recommendations`; `/v1/videos` is on a Loge Server branch, not deployed yet, until
+  then there is no "Trailer" button), `DELETE` on a real PMS (the CORS preflight for DELETE and
+  the answer with "Allow media deletion" off are not tested; the refusal texts fit any
+  status), the catalog's `children` and `/actions/scrobble` on `metadata.provider.plex.tv` from
+  the browser (CORS not tested; Plex Web does the same from its own domain), the embedded YouTube
+  player (in the smoke test a fake page stands in for it; some videos forbid embedding —
+  for that there is "Open in YouTube"), the `/hubs/sections/home/*` collections.
+- A title of an old Plex agent whose year on the server differs from the catalog's (or whose
+  title is translated differently) is not "recognised": it stays in "Not on the server" and in "Want
+  to watch".
+- On a phone (up to 560 px) the sections — Home, libraries, Explore — are at the bottom of the screen, like
+  the tabs of the iPhone app; the header keeps the logo, the magnifier and the gear. With many libraries
+  the bottom bar scrolls sideways. On a computer the sections are in the header; their links scroll
+  with a fade at the edge if they don't fit.
+- Missing: Plex managed users (Plex Home), playlists, a PiP button, quality selection
+  (always the maximum, `videoQuality=100`).
+- Autoplay: if the browser doesn't allow starting the video without a gesture, a large
+  ▶ button is shown.
+
+## License
+
+MIT, see [LICENSE](LICENSE).

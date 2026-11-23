@@ -562,6 +562,7 @@ export async function startFake(options = {}) {
   const state = {
     detectorDown: !!options.detectorDown,
     detectorDelayMs: 0,
+    metadataDelayMs: 0,
     preferences,
     pins,
     library,
@@ -780,6 +781,7 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
       }
       m = /^\/library\/metadata\/(\w+)$/.exec(p)
       if (m) {
+        if (state.metadataDelayMs) await new Promise((r) => setTimeout(r, state.metadataDelayMs))
         const item = findItem(m[1])
         return item ? json(res, container([item])) : json(res, { error: 'not found' }, 404)
       }
@@ -872,6 +874,11 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
     cors(res, 'GET, PUT, OPTIONS', 'X-Plex-Token, Content-Type, Accept')
     if (req.method === 'OPTIONS') return res.writeHead(204).end()
     const body = req.method === 'PUT' ? await readBody(req) : undefined
+    // Stands in for TheIntroDB (segments when Loge Server is down); it knows nothing here.
+    if (url.pathname.startsWith('/theintrodb/')) {
+      log('theintrodb', req, url, body, res)
+      return json(res, { error: 'not found' }, 404)
+    }
     log('detector', req, url, body, res)
     if (state.detectorDown) return text(res, 'down', 503)
     // A slow detector (smoke test: leaving the player while it still loads).

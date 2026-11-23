@@ -35,6 +35,8 @@ export interface Settings {
   shelfOrder: HomeShelf[]
   /** Collections of «Обзор» turned off. */
   hiddenHubs: CatalogHub[]
+  /** Order of the «Обзор» collections set in settings (hub ids); empty — the default. */
+  hubOrder: CatalogHub[]
   /**
    * Language of the audio picked by default (the best track in it) and of trailers: an ISO
    * 639-1 code from `Language.choices`.
@@ -68,6 +70,10 @@ const fixedShelves: { id: HomeShelf; title: string; detail: string }[] = [
 function isShelfID(id: unknown): id is HomeShelf {
   if (typeof id !== 'string') return false
   return fixedShelves.some((s) => s.id === id) || (id.startsWith('recent:') && id.length > 7)
+}
+
+function isHubID(id: unknown): id is CatalogHub {
+  return catalogHubs.some((h) => h.id === id)
 }
 
 /** The order before the user changes it. */
@@ -118,6 +124,7 @@ const defaults: Settings = {
   hiddenShelves: [],
   shelfOrder: [],
   hiddenHubs: [],
+  hubOrder: [],
   // Russian until changed: the apps always picked Russian audio first.
   preferredLanguage: 'ru',
 }
@@ -134,6 +141,7 @@ export function parseSettings(raw: unknown): Settings {
   s.hiddenShelves = Array.isArray(s.hiddenShelves) ? canonical(s.hiddenShelves.filter(isShelfID)) : []
   s.shelfOrder = Array.isArray(s.shelfOrder) ? [...new Set(s.shelfOrder.filter(isShelfID))] : []
   s.hiddenHubs = Array.isArray(s.hiddenHubs) ? catalogHubs.map((h) => h.id).filter((id) => s.hiddenHubs.includes(id)) : []
+  s.hubOrder = Array.isArray(s.hubOrder) ? [...new Set(s.hubOrder.filter(isHubID))] : []
   if (typeof s.preferredLanguage !== 'string' || !Language.choices.includes(s.preferredLanguage)) s.preferredLanguage = defaults.preferredLanguage
   return s
 }
@@ -178,6 +186,16 @@ export function hubShown(settings: Settings, hub: CatalogHub): boolean {
   return !settings.hiddenHubs.includes(hub)
 }
 
+/** Every «Обзор» collection, on or off, in the user's order. */
+export function exploreHubOrder(settings: Settings): CatalogHub[] {
+  return ShelfOrder.arrange(settings.hubOrder, catalogHubs.map((h) => h.id)) as CatalogHub[]
+}
+
+/** The collections are in their default order (nothing to reset). */
+export function hasDefaultHubOrder(settings: Settings): boolean {
+  return exploreHubOrder(settings).join('|') === catalogHubs.map((h) => h.id).join('|')
+}
+
 /** «Обзор» is there while any of its collections is on. */
 export function showsExplore(settings: Settings): boolean {
   return catalogHubs.some((h) => hubShown(settings, h.id))
@@ -207,6 +225,16 @@ export const settingsStore = {
   },
   resetShelfOrder() {
     settingsStore.update({ shelfOrder: [] })
+  },
+  /** Moves `hub` one place up (−1) or down (+1). */
+  moveHub(hub: CatalogHub, offset: number) {
+    const order = exploreHubOrder(current)
+    const index = order.indexOf(hub)
+    if (index < 0) return
+    settingsStore.update({ hubOrder: ShelfOrder.move(order, index, offset) as CatalogHub[] })
+  },
+  resetHubOrder() {
+    settingsStore.update({ hubOrder: [] })
   },
   setHubShown(hub: CatalogHub, shown: boolean) {
     const hidden = shown ? current.hiddenHubs.filter((h) => h !== hub) : [...current.hiddenHubs, hub]

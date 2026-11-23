@@ -3,6 +3,8 @@ import { emptyShelves } from '../core/catalogMatch'
 import { makeDiscoverItem } from '../core/plexDiscover'
 import {
   defaultShelfOrder,
+  exploreHubOrder,
+  hasDefaultHubOrder,
   hasDefaultShelfOrder,
   homeShelfOrder,
   hubShown,
@@ -68,7 +70,7 @@ describe('every home shelf in settings: off, order, «Обзор»', () => {
     { key: '1', title: 'Фильмы', type: 'movie' },
     { key: '2', title: 'Сериалы', type: 'show' },
   ]
-  afterEach(() => settingsStore.update({ hiddenShelves: [], shelfOrder: [], hiddenHubs: [] }))
+  afterEach(() => settingsStore.update({ hiddenShelves: [], shelfOrder: [], hiddenHubs: [], hubOrder: [] }))
 
   it('the default order: continue, the list, a «Недавно добавлено» per library, recommendations', () => {
     expect(defaultShelfOrder(sections)).toEqual([
@@ -90,11 +92,15 @@ describe('every home shelf in settings: off, order, «Обзор»', () => {
       hiddenShelves: ['moreWithCast', 'recent:7', 'continue', 'junk', 'recent:'],
       shelfOrder: ['recent:7', 'because', 'because', 7, 'junk'],
       hiddenHubs: ['coming-soon', 'junk', 'trending-plex'],
+      hubOrder: ['coming-soon', 'junk', 'coming-soon', 3, 'trending-plex'],
       preferredLanguage: 'xx',
     })
     expect(settings.hiddenShelves).toEqual(['continue', 'recent:7', 'moreWithCast'])
     expect(settings.shelfOrder).toEqual(['recent:7', 'because'])
     expect(settings.hiddenHubs).toEqual(['trending-plex', 'coming-soon'])
+    expect(settings.hubOrder).toEqual(['coming-soon', 'trending-plex'])
+    expect(parseSettings({ hubOrder: 'coming-soon' }).hubOrder).toEqual([])
+    expect(parseSettings(undefined).hubOrder).toEqual([])
     expect(settings.preferredLanguage).toBe('ru')
     expect(parseSettings({ preferredLanguage: 'en' }).preferredLanguage).toBe('en')
   })
@@ -129,5 +135,25 @@ describe('every home shelf in settings: off, order, «Обзор»', () => {
     expect(showsExplore(settingsStore.get())).toBe(false)
     settingsStore.setHubShown('trending-plex', true)
     expect(settingsStore.get().hiddenHubs).toEqual(['top_watchlisted', 'coming-soon', 'highly-anticipated-movies'])
+  })
+
+  it('«Обзор» collections: the default order, moved, a saved order with gaps, reset', () => {
+    const all = ['trending-plex', 'top_watchlisted', 'coming-soon', 'highly-anticipated-movies']
+    expect(exploreHubOrder(settingsStore.get())).toEqual(all)
+    expect(hasDefaultHubOrder(settingsStore.get())).toBe(true)
+    settingsStore.moveHub('coming-soon', -1)
+    settingsStore.moveHub('coming-soon', -1)
+    settingsStore.moveHub('coming-soon', -1) // already first: stays
+    expect(exploreHubOrder(settingsStore.get())).toEqual(['coming-soon', 'trending-plex', 'top_watchlisted', 'highly-anticipated-movies'])
+    expect(readJSON<{ hubOrder: string[] }>(StorageKey.settings)?.hubOrder).toEqual(exploreHubOrder(settingsStore.get()))
+    expect(hasDefaultHubOrder(settingsStore.get())).toBe(false)
+    // The shelves' order is a list of its own.
+    expect(settingsStore.get().shelfOrder).toEqual([])
+    // A collection missing from the saved order follows its default predecessor.
+    settingsStore.update({ hubOrder: ['highly-anticipated-movies', 'trending-plex'] })
+    expect(exploreHubOrder(settingsStore.get())).toEqual(['highly-anticipated-movies', 'trending-plex', 'top_watchlisted', 'coming-soon'])
+    settingsStore.resetHubOrder()
+    expect(exploreHubOrder(settingsStore.get())).toEqual(all)
+    expect(hasDefaultHubOrder(settingsStore.get())).toBe(true)
   })
 })

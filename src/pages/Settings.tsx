@@ -10,6 +10,8 @@ import { catalogHubs } from '../core/plexDiscover'
 import {
   countdownOptions,
   defaultDetectorURL,
+  exploreHubOrder,
+  hasDefaultHubOrder,
   hasDefaultShelfOrder,
   homeShelfOrder,
   hubShown,
@@ -302,6 +304,8 @@ export const HomeSettingsText = {
   tmdbMissing:
     'Детектор ответил, что ключа TMDB на нём нет: полок «Похожее на сервере» и «Потому что вы смотрели…» не будет, пока на нём не задан TMDB_API_KEY.',
   resetOrder: 'Вернуть порядок по умолчанию',
+  moveHub: 'Порядок подборок — как в «Обзоре»: переставьте подборку стрелками ↑ и ↓ слева.',
+  resetHubOrder: 'Вернуть порядок подборок по умолчанию',
   exploreFooter: 'Готовые подборки каталога Plex на странице «Обзор». Если выключить все, она пропадёт.',
 }
 
@@ -310,6 +314,7 @@ function HomeSettings() {
   const { sections } = useApp()
   const { unavailable } = useRecommendations()
   const order = homeShelfOrder(settings, sections)
+  const hubs = exploreHubOrder(settings)
   return (
     <>
       <Section
@@ -333,29 +338,17 @@ function HomeSettings() {
         {order.map((id, index) => {
           const { title, detail } = shelfInfo(id, sections)
           return (
-            <div key={id} className="settings-row shelf-setting">
-              <div className="move-buttons">
-                <button
-                  className="move-button"
-                  aria-label={`«${title}» выше`}
-                  title="Выше"
-                  disabled={index === 0}
-                  onClick={() => settingsStore.moveShelf(id, -1, sections)}
-                >
-                  <ChevronUpIcon size={18} />
-                </button>
-                <button
-                  className="move-button"
-                  aria-label={`«${title}» ниже`}
-                  title="Ниже"
-                  disabled={index === order.length - 1}
-                  onClick={() => settingsStore.moveShelf(id, 1, sections)}
-                >
-                  <ChevronDownIcon size={18} />
-                </button>
-              </div>
-              <Toggle label={title} detail={detail} checked={shelfShown(settings, id)} onChange={(shown) => settingsStore.setShelfShown(id, shown)} />
-            </div>
+            <MovableRow
+              key={id}
+              className="shelf-setting"
+              title={title}
+              detail={detail}
+              first={index === 0}
+              last={index === order.length - 1}
+              onMove={(offset) => settingsStore.moveShelf(id, offset, sections)}
+              checked={shelfShown(settings, id)}
+              onChange={(shown) => settingsStore.setShelfShown(id, shown)}
+            />
           )
         })}
       </Section>
@@ -368,18 +361,75 @@ function HomeSettings() {
           {HomeSettingsText.resetOrder}
         </button>
       </Section>
-      <Section title="Подборки «Обзора»" footer={HomeSettingsText.exploreFooter}>
-        {catalogHubs.map((hub) => (
-          <Toggle
-            key={hub.id}
-            label={hub.title}
-            detail={hub.detail}
-            checked={hubShown(settings, hub.id)}
-            onChange={(shown) => settingsStore.setHubShown(hub.id, shown)}
-          />
-        ))}
+      <Section
+        title="Подборки «Обзора»"
+        footer={
+          <>
+            {HomeSettingsText.moveHub}
+            <br />
+            <br />
+            {HomeSettingsText.exploreFooter}
+          </>
+        }
+      >
+        {hubs.map((id, index) => {
+          const hub = catalogHubs.find((h) => h.id === id)!
+          return (
+            <MovableRow
+              key={id}
+              className="hub-setting"
+              title={hub.title}
+              detail={hub.detail}
+              first={index === 0}
+              last={index === hubs.length - 1}
+              onMove={(offset) => settingsStore.moveHub(id, offset)}
+              checked={hubShown(settings, id)}
+              onChange={(shown) => settingsStore.setHubShown(id, shown)}
+            />
+          )
+        })}
+      </Section>
+      <Section>
+        <button className="settings-row action" disabled={hasDefaultHubOrder(settings)} onClick={() => settingsStore.resetHubOrder()}>
+          {HomeSettingsText.resetHubOrder}
+        </button>
       </Section>
     </>
+  )
+}
+
+/** A shelf or a collection: ↑ and ↓ move it among its own list, the switch turns it on or off. */
+function MovableRow({
+  className,
+  title,
+  detail,
+  first,
+  last,
+  onMove,
+  checked,
+  onChange,
+}: {
+  className: string
+  title: string
+  detail: string
+  first: boolean
+  last: boolean
+  onMove: (offset: number) => void
+  checked: boolean
+  onChange: (shown: boolean) => void
+}) {
+  return (
+    <div className={`settings-row movable-setting ${className}`}>
+      <div className="move-buttons">
+        <button className="move-button" aria-label={`«${title}» выше`} title="Выше" disabled={first} onClick={() => onMove(-1)}>
+          <ChevronUpIcon size={18} />
+        </button>
+        <button className="move-button" aria-label={`«${title}» ниже`} title="Ниже" disabled={last} onClick={() => onMove(1)}>
+          <ChevronDownIcon size={18} />
+        </button>
+      </div>
+      <Toggle label={title} detail={detail} checked={checked} onChange={onChange} />
+    </div>
   )
 }
 

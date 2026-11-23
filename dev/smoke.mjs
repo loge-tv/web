@@ -111,6 +111,20 @@ const shownTime = async () => {
   return m * 60 + s
 }
 const shot = (name) => page.screenshot({ path: join(screens, `${name}.png`) })
+/**
+ * The page narrowed to a phone's width and back: no horizontal scrolling either way, and
+ * `check(width)` holds at both widths.
+ */
+async function narrowAndBack(name, check) {
+  const wide = page.viewportSize()
+  const overflowX = () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+  for (const size of [{ width: 375, height: 812 }, wide]) {
+    await page.setViewportSize(size)
+    await page.waitForTimeout(300)
+    assert.ok((await overflowX()) <= 0, `${name} at ${size.width} px overflows by ${await overflowX()} px`)
+    await check(size.width)
+  }
+}
 
 // MARK: Steps
 
@@ -933,6 +947,38 @@ await step('«Обзор»: Plex collections, a new season stands for its show; 
   // The new season of a show the server has opens the server's show.
   await page.getByRole('button', { name: /^Тестовый сериал, Сезон 2/ }).click()
   await page.waitForURL(/#\/show\/100/)
+  // Their order is the user's, apart from the shelves': «Самые ожидаемые фильмы» first, then back.
+  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('settings') ?? '{}'))
+  const defaultHubs = ['Популярное в Plex', 'Чаще всего добавляют в список', 'Скоро выйдет', 'Самые ожидаемые фильмы']
+  await page.goto(`${app}/#/settings/home`)
+  const hubRows = () => page.$$eval('.hub-setting [role=switch]', (list) => list.map((s) => s.getAttribute('aria-label')))
+  await page.getByRole('heading', { name: 'Подборки «Обзора»' }).waitFor()
+  assert.deepEqual(await hubRows(), defaultHubs)
+  const resetHubs = page.getByRole('button', { name: 'Вернуть порядок подборок по умолчанию' })
+  assert.ok(await resetHubs.isDisabled(), 'no collection order to reset yet')
+  assert.ok(await page.getByRole('button', { name: '«Самые ожидаемые фильмы» ниже' }).isDisabled())
+  await page.getByText('Порядок подборок — как в «Обзоре»: переставьте подборку стрелками ↑ и ↓ слева.').waitFor()
+  for (let i = 0; i < 3; i++) await page.getByRole('button', { name: '«Самые ожидаемые фильмы» выше' }).click()
+  await until(async () => (await hubRows())[0] === 'Самые ожидаемые фильмы', { message: 'collection moved to the top' })
+  assert.deepEqual((await stored()).hubOrder, ['highly-anticipated-movies', 'trending-plex', 'top_watchlisted', 'coming-soon'])
+  assert.ok(await page.getByRole('button', { name: 'Вернуть порядок по умолчанию', exact: true }).isDisabled(), 'the shelves keep their order')
+  assert.ok(await resetHubs.isEnabled())
+  await narrowAndBack('settings «Главная и Обзор»', async () => {
+    assert.ok(await page.getByRole('button', { name: '«Скоро выйдет» выше' }).isVisible())
+    assert.ok(await resetHubs.isVisible())
+  })
+  await settledShot('settings-explore-order')
+  await page.goto(`${app}/#/explore`)
+  await page.getByRole('heading', { name: 'Самые ожидаемые фильмы' }).waitFor({ timeout: 10000 })
+  assert.deepEqual(await homeTitles(), ['Самые ожидаемые фильмы', 'Популярное в Plex', 'Чаще всего добавляют в список', 'Скоро выйдет'])
+  await page.goto(`${app}/#/settings/home`)
+  await resetHubs.click()
+  await until(async () => (await stored()).hubOrder.length === 0, { message: 'collection order reset' })
+  assert.ok(await resetHubs.isDisabled())
+  assert.deepEqual(await hubRows(), defaultHubs)
+  await page.goto(`${app}/#/explore`)
+  await page.getByRole('heading', { name: 'Популярное в Plex' }).waitFor({ timeout: 10000 })
+  assert.deepEqual(await homeTitles(), defaultHubs)
   // Turned off one by one: gone from the page, then the page and its link are gone.
   await page.goto(`${app}/#/settings/home`)
   await page.locator('label.toggle', { hasText: 'Популярное в Plex' }).click()

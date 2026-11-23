@@ -39,7 +39,8 @@ The interface is in Russian for now; the labels in quotes below are English tran
 - **Explore** (a link in the header): ready-made collections of the Plex catalog — "Popular on Plex",
   "Most added to watchlists", "Coming soon", "Most anticipated movies"
   (`/hubs/sections/home/<id>`); a season in a collection opens its show. Each collection can be
-  turned off; with all of them off there is no "Explore" link. Refreshed every 30 minutes.
+  turned off and moved in Settings → "Home and Explore", the page shows them in that order;
+  with all of them off there is no "Explore" link. Refreshed every 30 minutes.
 - **Libraries** of movies and shows with "All / Unwatched / New" filters. A movie
   page, a show page with seasons and episodes. The selected episode: the started one, otherwise
   the first unwatched one after the last watched, otherwise the first. "Watched / Unwatched"
@@ -142,8 +143,10 @@ The interface is in Russian for now; the labels in quotes below are English tran
     "Always through the server" (forced transcoding);
   - **Home and Explore** — Home shelves: a switch and ↑/↓ on each, "Restore the default
     order" (stored as the set of hidden ones `hiddenShelves` and the order `shelfOrder`: future shelves
-    are on by themselves); the "Explore" collections (`hiddenHubs`). In an empty search the watchlist
-    is always shown in full;
+    are on by themselves); the "Explore" collections the same way: a switch and ↑/↓ on each,
+    "Restore the default collection order" (`hiddenHubs`, `hubOrder`). In an empty search the
+    watchlist is always shown in full. Settings stay in this browser (`localStorage`): unlike the
+    Apple apps' iCloud, nothing syncs them;
   - **Loge Server** — the address (with a check and a reset);
   - **Server and account** — server and connection address, reconnecting, switching servers, sign out.
 - Loge Server is optional: when it can't be asked (down, refuses the token, no CORS), segments come from the
@@ -203,7 +206,8 @@ refuses: rollback and "Plex watchlist" → a title page (catalog details, add / 
 a title page from the server, an old agent's too ("Open in the library") → the catalog
 down (server titles with a note, "Nothing found") → deleting from a Home shelf and
 rolling back a refusal → "Not out yet" off in settings: not on Home, still in an empty
-search → the phone layout without horizontal scrolling (search and the title page, the settings
+search → "Explore" collections moved in settings (the page follows, the shelves keep their order,
+narrowed to a phone and back) and reset → the phone layout without horizontal scrolling (search and the title page, the settings
 pages included) → the browser talked only to the fakes.
 
 ## Deployment

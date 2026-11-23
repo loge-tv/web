@@ -1256,12 +1256,12 @@ a.settings-row:hover {
 }
 
 /* A home shelf: ↑ ↓ to move it, then its toggle. */
-.settings-row.shelf-setting {
+.settings-row.movable-setting {
   padding: 0 0 0 8px;
   gap: 4px;
 }
 
-.shelf-setting .toggle {
+.movable-setting .toggle {
   flex: 1;
   min-width: 0;
   display: flex;

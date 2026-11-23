@@ -3,7 +3,7 @@ import { appModel } from '../app/appModel'
 import { useApp, useExplore, useOpenCatalog, useWatchlistRefresh } from '../app/hooks'
 import { ExploreText } from '../app/explore'
 import { catalogHubs, upcomingCaption } from '../core/plexDiscover'
-import { hubShown, useSettings } from '../settings'
+import { exploreHubOrder, hubShown, useSettings } from '../settings'
 import { CatalogCard, Shelf } from '../ui/cards'
 import { ErrorView, Spinner } from '../ui/common'
 
@@ -23,7 +23,10 @@ export function Explore() {
     void appModel.explore.load()
   }, [refreshKey])
 
-  const shown = collections.filter((c) => hubShown(settings, c.hub))
+  // In the order set in settings, the ones turned off left out.
+  const shown = exploreHubOrder(settings)
+    .filter((id) => hubShown(settings, id))
+    .flatMap((id) => collections.filter((c) => c.hub === id))
   let body
   if (!loaded) body = <Spinner />
   else if (shown.length === 0 && failed) body = <ErrorView message={ExploreText.failed} onRetry={() => void appModel.explore.load(true)} />

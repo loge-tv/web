@@ -438,7 +438,7 @@ function DetectorSettings() {
   const { api } = useApp()
   const [detectorDraft, setDetectorDraft] = useState(settings.detectorURL)
   return (
-    <Section footer="Сервис, который находит заставки и титры. Если он недоступен, видео просто играет без пропуска.">
+    <Section footer="Сервис, который находит заставки и титры. Если он недоступен, разметка для пропуска берётся из глав файла и TheIntroDB, где она есть.">
       <form
         className="settings-row input-row"
         onSubmit={(e) => {

@@ -442,7 +442,7 @@ await step('settings: a list of four pages, Back returns to it; detector reachab
   await settingsPages().filter({ hasText: 'Loge Server' }).click()
   await page.waitForURL(/#\/settings\/detector$/)
   await page.getByText('Loge Server отвечает').waitFor({ timeout: 8000 })
-  await page.getByText('Сервис, который находит заставки и титры. Если он недоступен, видео просто играет без пропуска.').waitFor()
+  await page.getByText('Сервис, который находит заставки и титры. Если он недоступен, разметка для пропуска берётся из глав файла и TheIntroDB, где она есть.').waitFor()
   await page.goBack()
   await page.waitForURL(/#\/settings$/)
   // So does the page's own «Настройки».

@@ -25,7 +25,7 @@ export function segmentsSummary(s: PlayerSnapshot): string {
     return name ? [`${name} ${TimeFormat.clock(segment.start)}–${TimeFormat.clock(segment.end)}`] : []
   })
   if (s.loading && parts.length === 0) return 'Загрузка разметки…'
-  return parts.length === 0 ? 'В этой серии детектор ничего не нашёл' : parts.join(' · ')
+  return parts.length === 0 ? 'В этой серии Loge Server ничего не нашёл' : parts.join(' · ')
 }
 
 /** Side panel: audio, subtitles and the show's skip correction. */
@@ -84,7 +84,7 @@ export function TracksPanel({ session, snapshot: s, onClose }: { session: Player
         </div>
       ))}
       <p className="muted small">
-        Сдвиг относительно детектора, для всех серий. Начало — когда срабатывает пропуск или отсчёт, конец — куда перематывается
+        Сдвиг относительно разметки Loge Server, для всех серий. Начало — когда срабатывает пропуск или отсчёт, конец — куда перематывается
         видео.
       </p>
       {s.plan && <p className="muted small plan-note">{s.plan.reason}</p>}

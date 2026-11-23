@@ -95,7 +95,7 @@ function DetectorStatus({ url, token }: { url: string; token?: string }) {
       clearTimeout(timer)
     }
   }, [url, token])
-  const text = status === 'checking' ? 'Проверяю…' : status === 'ok' ? 'Детектор отвечает' : 'Детектор недоступен'
+  const text = status === 'checking' ? 'Проверяю…' : status === 'ok' ? 'Loge Server отвечает' : 'Loge Server недоступен'
   return <span className={`status status-${status}`}>{text}</span>
 }
 
@@ -168,7 +168,7 @@ export function SettingsPage() {
       </Section>
 
       <Section
-        title="Детектор заставок"
+        title="Loge Server"
         footer="Сервис, который находит заставки и титры. Если он недоступен, видео просто играет без пропуска."
       >
         <form
@@ -181,7 +181,7 @@ export function SettingsPage() {
         >
           <input
             type="url"
-            aria-label="Адрес детектора"
+            aria-label="Адрес Loge Server"
             value={detectorDraft}
             onChange={(e) => setDetectorDraft(e.target.value)}
             onBlur={() => settingsStore.update({ detectorURL: normalizeDetectorURL(detectorDraft) })}
@@ -198,7 +198,7 @@ export function SettingsPage() {
               settingsStore.update({ detectorURL: defaultDetectorURL })
             }}
           >
-            Сбросить адрес детектора
+            Сбросить адрес Loge Server
           </button>
         </div>
       </Section>

@@ -227,6 +227,20 @@ await step('per-show correction in the tracks panel is pushed to the detector', 
   await page.locator('.tracks-panel').waitFor({ state: 'detached' })
 })
 
+await step('the bar hides after the tracks panel closes, also when its timer ran out meanwhile', async () => {
+  // The Apple apps had the bar stay until the next input here (910e0e7); the web never did.
+  const hidden = () => page.evaluate(() => document.querySelector('.player-bottom')?.classList.contains('hidden'))
+  await page.mouse.move(700, 400)
+  await page.getByRole('button', { name: 'Дорожки и разметка' }).click()
+  await page.locator('.tracks-panel').waitFor()
+  await page.mouse.move(300, 300) // over the video, away from the bar and the panel
+  await page.waitForTimeout(3500) // past the bar's 3 s
+  assert.equal(await hidden(), false, 'the bar stays while the panel is open')
+  await page.keyboard.press('Escape')
+  await page.locator('.tracks-panel').waitFor({ state: 'detached' })
+  await until(hidden, { timeout: 3500, message: 'the bar hidden without another input' })
+})
+
 await step('progress reported to Plex while playing', async () => {
   await until(() => pms('/:/timeline', (r) => r.query.ratingKey === '112' && r.query.state === 'playing').length > 0, {
     timeout: 12000,

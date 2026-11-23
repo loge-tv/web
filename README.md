@@ -188,7 +188,8 @@ FAKE_HLS=absolute npm run smoke      # HLS timeline from the start of the file i
 The smoke test uses the installed Google Chrome (`CHROME_PATH` for another path) and
 `ffmpeg` from PATH. It goes through: PIN sign-in → home (order, collapsing) → an episode from
 "Continue Watching" → direct play of MP4 with SRT in cp1251 → automatic intro skip → BIF preview →
-the timing adjustment goes to Loge Server → timeline → the next episode card before the
+the timing adjustment goes to Loge Server → the bar hides after the panel closes (also when its
+timer ran out while the panel was open) → timeline → the next episode card before the
 credits (a pause freezes it, scrobble only at the credits) → autoplay as the credits start of the next episode (MKV → HLS, resuming from 0:40) → seeking back before
 the offset restarts the transcoder → switching the dub (PUT streams, restart, the dub stored in
 Loge Server) → Esc (stopped, transcode stopped) → choosing the started episode → movie: ▶ plays

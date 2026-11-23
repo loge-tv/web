@@ -1090,6 +1090,48 @@ await step('all seasons and episodes: the catalog\'s greyed with the account\'s 
   fake.state.resetCatalogMarks()
 })
 
+await step('a show opened on an episode stays on it when the catalog\'s greyed episodes come in before it, phone and wide', async () => {
+  // The Apple apps lost the episode here (2f2263f): the row was scrolled to it before the
+  // catalog's episodes came in ahead of it. The web scrolls again when the row grows.
+  // The server has only E3 of season 1 here; the catalog's E1 and E2 come 1.5 s late.
+  for (const episode of fake.state.library.episodes.filter((e) => e.ratingKey !== '113')) episode.deleted = true
+  fake.state.catalogEpisodesDelayMs = 1500
+  const wide = page.viewportSize()
+  const inView = () =>
+    page.evaluate(() => {
+      const row = document.querySelector('.episode-row')
+      const card = row?.querySelector('.landscape-card.selected')
+      if (!row || !card) return { cards: 0 }
+      const r = row.getBoundingClientRect()
+      const c = card.getBoundingClientRect()
+      return {
+        cards: row.querySelectorAll('.landscape-card').length,
+        selected: card.querySelector('.card-art')?.getAttribute('aria-label'),
+        visible: c.left >= r.left - 1 && c.right <= r.right + 1,
+      }
+    })
+  try {
+    for (const size of [{ width: 375, height: 812 }, wide]) {
+      await page.setViewportSize(size)
+      await page.goto(`${app}/#/show/100?season=110&episode=113`)
+      await page.reload() // nothing of the catalog's season in memory
+      await page.locator('.landscape-card.selected').waitFor({ timeout: 10000 })
+      assert.equal((await inView()).cards, 1, 'E3 alone before the catalog answers')
+      await page.locator('.landscape-card.not-downloaded').nth(3).waitFor({ timeout: 10000 })
+      await page.waitForTimeout(900) // the smooth scroll
+      const state = await inView()
+      assert.equal(state.cards, 5, `${size.width} px: E1–E5`)
+      assert.equal(state.selected, '3. Финал')
+      assert.ok(state.visible, `${size.width} px: E3 pushed out of view`)
+      if (size.width < 400) await settledShot('phone-show-catalog-before-target')
+    }
+  } finally {
+    fake.state.catalogEpisodesDelayMs = 0
+    fake.state.restoreLibrary()
+    await page.setViewportSize(wide)
+  }
+})
+
 await step('deleting downloads: a movie, an episode refused and why, watched episodes, a season, the show (fake PMS only)', async () => {
   const deletes = () => find((r) => r.method === 'DELETE')
   const confirm = () => page.getByRole('alertdialog').filter({ has: page.getByRole('button', { name: 'Удалить' }) })

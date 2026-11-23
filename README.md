@@ -49,7 +49,9 @@ The interface is in Russian for now; the labels in quotes below are English tran
   - **All seasons and episodes**: the show page takes the show's seasons and the open season's
     episodes from the Plex catalog (`/library/metadata/<key>/children`) and merges them with the
     server's by number. What is not on the server is greyed out, with "Not on the server · 4 January 2025"
-    or "Out 15 January 2027" and the account's watched mark (`/userState`); a season watched in full
+    or "Out 15 January 2027" and the account's watched mark (`/userState`). The catalog's episodes
+    come after the server's; when they land before the selected one (opened from "Continue
+    watching"), the row scrolls back to it. A season watched in full
     has a ✓; a season only in the catalog says "Season 2, not downloaded". An episode that is not
     downloaded can't be played or deleted, only "Mark watched"; a season — "Mark "Season 2" watched"
     (with its episodes). The marks go to Plex on the account (`/actions/scrobble|unscrobble` on
@@ -208,7 +210,8 @@ a title page from the server, an old agent's too ("Open in the library") → the
 down (server titles with a note, "Nothing found") → deleting from a Home shelf and
 rolling back a refusal → "Not out yet" off in settings: not on Home, still in an empty
 search → "Explore" collections moved in settings (the page follows, the shelves keep their order,
-narrowed to a phone and back) and reset → the phone layout without horizontal scrolling (search and the title page, the settings
+narrowed to a phone and back) and reset → a show opened on E3 while the catalog's E1 and E2 come
+late (E3 still in view at 375 px and wide) → the phone layout without horizontal scrolling (search and the title page, the settings
 pages included) → the browser talked only to the fakes.
 
 ## Deployment

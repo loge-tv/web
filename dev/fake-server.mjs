@@ -563,6 +563,8 @@ export async function startFake(options = {}) {
     detectorDown: !!options.detectorDown,
     detectorDelayMs: 0,
     metadataDelayMs: 0,
+    /** Catalog seasons' episodes come this much later (the show's seasons do not). */
+    catalogEpisodesDelayMs: 0,
     preferences,
     pins,
     library,
@@ -1003,6 +1005,7 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
     if (req.method === 'GET' && m) {
       const show = CATALOG_CHILDREN[m[1]]
       const season = show ? undefined : seasonByKey.get(m[1])
+      if (season && state.catalogEpisodesDelayMs) await new Promise((r) => setTimeout(r, state.catalogEpisodesDelayMs))
       const items = show ? show.map((s) => s.season) : season ? season.episodes : undefined
       return items ? json(res, { MediaContainer: { size: items.length, Metadata: items } }) : json(res, { error: 'not found' }, 404)
     }

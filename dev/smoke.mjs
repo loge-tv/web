@@ -1493,6 +1493,21 @@ await step('phone layout: no horizontal scrolling on home, show and player', asy
   await p.locator('.scrub').waitFor()
   await p.waitForTimeout(1500)
   await p.screenshot({ path: join(screens, 'phone-player.png') })
+  // The default skip mode's countdown («Пропуск заставки через N» and «Не пропускать») fits.
+  await p.evaluate(() => {
+    const settings = JSON.parse(localStorage.getItem('settings') ?? '{}')
+    localStorage.setItem('settings', JSON.stringify({ ...settings, skipMode: 'countdown' }))
+  })
+  await p.goto(`${app}/#/play/112?t=1`)
+  await p.reload()
+  const countdown = p.locator('.skip-countdown')
+  await countdown.waitFor({ timeout: 10000 })
+  for (const box of [await countdown.boundingBox(), await countdown.getByRole('button', { name: 'Не пропускать' }).boundingBox()]) {
+    assert.ok(box.x >= 0 && box.x + box.width <= 390, `skip countdown inside the screen: ${JSON.stringify(box)}`)
+  }
+  assert.ok((await overflow()) <= 0, `player with the countdown overflows by ${await overflow()} px`)
+  await p.waitForTimeout(400)
+  await p.screenshot({ path: join(screens, 'phone-skip-countdown.png') })
   await p.goto(`${app}/#/settings`)
   await p.getByRole('navigation', { name: 'Разделы настроек' }).waitFor({ timeout: 8000 })
   assert.ok((await overflow()) <= 0, `settings overflow by ${await overflow()} px`)

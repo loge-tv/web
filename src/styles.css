@@ -1935,9 +1935,15 @@ a.settings-row:hover {
 }
 
 .countdown-title {
+  /* One line where there is room; on a phone it wraps instead of pushing «Не пропускать» off
+     the screen. */
+  min-width: 0;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+}
+
+.skip-countdown .btn {
+  flex: none;
 }
 
 .next-card {

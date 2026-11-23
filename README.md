@@ -218,8 +218,9 @@ down (server titles with a note, "Nothing found") → deleting from a Home shelf
 rolling back a refusal → "Not out yet" off in settings: not on Home, still in an empty
 search → "Explore" collections moved in settings (the page follows, the shelves keep their order,
 narrowed to a phone and back) and reset → a show opened on E3 while the catalog's E1 and E2 come
-late (E3 still in view at 375 px and wide) → the phone layout without horizontal scrolling (search and the title page, the settings
-pages included) → the browser talked only to the fakes.
+late (E3 still in view at 375 px and wide) → "⋯" low on a phone turned sideways opens upwards → a phone turned
+sideways keeps its content out of the side safe areas (emulated in Chrome) → the phone layout without horizontal
+scrolling (search, the title page, the skip countdown and the settings pages included) → the browser talked only to the fakes.
 
 ## Deployment
 

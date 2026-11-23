@@ -46,6 +46,12 @@ The interface is in Russian for now; the labels in quotes below are English tran
   the first unwatched one after the last watched, otherwise the first. "Watched / Unwatched"
   marks. Posters and pages of downloaded movies and shows carry the "on the Plex watchlist" mark,
   like catalog titles ("In the list" / "Add to the list").
+  - **Title pages** (movie, show, catalog title), as in the Apple apps: only the main action is a
+    wide button ("Watch", "Continue from …", "Open in the library", or "Add to the list" for a
+    catalog title neither on the server nor on the list). The rest are round icons in one row:
+    "From the start", watched, the list, the trailer, "⋯". Watched and listed are filled while
+    on; each icon's name is its tooltip and accessible name ("In the list — remove from the
+    list"). On a phone the main button spans the column.
   - **All seasons and episodes**: the show page takes the show's seasons and the open season's
     episodes from the Plex catalog (`/library/metadata/<key>/children`) and merges them with the
     server's by number. What is not on the server is greyed out, with "Not on the server · 4 January 2025"
@@ -206,7 +212,8 @@ show (by `/userState`) and server titles, old agents' too, are on neither shelf;
 token in a header, none for the resizer) → empty search (shelves, the hint with an empty
 list) → searching "тест" (one request after typing, "On the server" and "Not on the server" without repeats) → the bookmark in search adds → Plex
 refuses: rollback and "Plex watchlist" → a title page (catalog details, add / remove) →
-a title page from the server, an old agent's too ("Open in the library") → the catalog
+a title page from the server, an old agent's too ("Open in the library") → title pages: one wide
+button, round icons filled while on, their tooltips, narrowed to a phone and back → the catalog
 down (server titles with a note, "Nothing found") → deleting from a Home shelf and
 rolling back a refusal → "Not out yet" off in settings: not on Home, still in an empty
 search → "Explore" collections moved in settings (the page follows, the shelves keep their order,

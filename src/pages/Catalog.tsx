@@ -10,7 +10,8 @@ import { CatalogSeasons } from '../ui/catalogEpisodes'
 import { AlertDialog } from '../ui/dialog'
 import { TimeFormat } from '../core/progressTracker'
 import { CatalogImage, ErrorView, Spinner } from '../ui/common'
-import { BookmarkIcon, CheckIcon, EyeIcon, PlayIcon } from '../ui/icons'
+import { BookmarkIcon, CheckIcon, PlayIcon } from '../ui/icons'
+import { IconAction, TitleActions } from '../ui/iconAction'
 import { TrailerButton, useTrailers } from '../ui/trailers'
 
 /**
@@ -77,23 +78,30 @@ export function Catalog() {
             {item.audienceRating !== undefined && <span>★ {item.audienceRating.toFixed(1)}</span>}
           </div>
           <div className="catalog-actions">
-            <div className="row gap wrap">
-              {library && (
-                <button className="btn btn-primary" onClick={() => open(library)}>
-                  <PlayIcon size={18} /> Открыть в библиотеке
-                </button>
+            <TitleActions
+              main={
+                library ? (
+                  <button className="btn btn-primary" onClick={() => open(library)}>
+                    <PlayIcon size={18} /> Открыть в библиотеке
+                  </button>
+                ) : (
+                  // The main action while the title is neither on the server nor on the list.
+                  !listed && (
+                    <button className="btn btn-primary" onClick={toggle}>
+                      <BookmarkIcon size={18} /> Добавить в список
+                    </button>
+                  )
+                )
+              }
+            >
+              {(library || listed) && (
+                <IconAction label={listed ? 'В списке' : 'Добавить в список'} hint={listed ? 'Убрать из списка' : undefined} active={listed} onClick={toggle}>
+                  <BookmarkIcon filled={listed} size={20} />
+                </IconAction>
               )}
-              {/* The main action while the title is neither on the server nor on the list. */}
-              <button
-                className={`btn ${missing && !listed ? 'btn-primary' : 'btn-secondary'}`}
-                title={listed ? 'Убрать из списка' : undefined}
-                onClick={toggle}
-              >
-                {listed ? <CheckIcon size={18} /> : <BookmarkIcon size={18} />} {listed ? 'В списке' : 'Добавить в список'}
-              </button>
-              <TrailerButton videos={trailers} />
               {missing && item.kind === 'movie' && api && <MovieWatchedButton item={item} api={api} />}
-            </div>
+              <TrailerButton videos={trailers} />
+            </TitleActions>
             {missing && <p className="muted small">{CatalogText.notOnServer(server?.name)}</p>}
           </div>
           {item.genres.length > 0 && <div className="muted">{item.genres.slice(0, 4).join(' · ')}</div>}
@@ -138,9 +146,15 @@ function MovieWatchedButton({ item, api }: { item: DiscoverItem; api: PlexDiscov
   }
   return (
     <>
-      <button className="btn btn-secondary" disabled={value === undefined} title={value ? 'Снять отметку' : undefined} onClick={() => void toggle()}>
-        {value ? <CheckIcon size={18} /> : <EyeIcon size={18} />} {value ? 'Просмотрено' : 'Отметить просмотренным'}
-      </button>
+      <IconAction
+        label={value ? 'Просмотрено' : 'Отметить просмотренным'}
+        hint={value ? 'Снять отметку' : undefined}
+        active={value === true}
+        disabled={value === undefined}
+        onClick={() => void toggle()}
+      >
+        <CheckIcon size={20} />
+      </IconAction>
       {failure && <AlertDialog title={CatalogShowText.failedTitle} message={failure} onClose={() => setFailure(undefined)} />}
     </>
   )

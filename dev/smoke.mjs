@@ -392,8 +392,8 @@ await step('movie: ▶ plays from where it was left (no dialog), mark watched, l
   await page.waitForURL(/#\/movie\/200/)
   await page.getByRole('button', { name: /Продолжить с 0:3\d/ }).waitFor()
   await shot('movie')
-  await page.getByRole('button', { name: 'Просмотрено' }).click()
-  await page.getByRole('button', { name: 'Не просмотрено' }).waitFor()
+  await page.getByRole('button', { name: 'Отметить просмотренным' }).click()
+  await page.getByRole('button', { name: 'Просмотрено' }).waitFor()
   assert.ok(pms('/:/scrobble', (r) => r.query.key === '200').length === 1)
   await page.goBack()
   await page.getByRole('tab', { name: 'Непросмотренные' }).click()
@@ -703,6 +703,84 @@ await step('library titles carry the list mark: posters and pages; not for an ol
   assert.equal(await page.getByRole('button', { name: /в список|В списке/ }).count(), 0)
   await page.goto(`${app}/#/movie/210`)
   await page.getByRole('button', { name: 'В списке' }).waitFor()
+  fake.state.resetWatchlist()
+})
+
+await step('title pages: one wide button, the rest round icons (filled when on) named for tooltips; phone and wide', async () => {
+  // As in the Apple apps (8840c09): «Смотреть» / «Продолжить…» / «Открыть в библиотеке» /
+  // «Добавить в список» wide, watched, the list, the trailer, «С начала» and «Ещё» round.
+  const actions = () =>
+    page.$eval('.title-actions', (el) => {
+      const icons = [...el.querySelectorAll('.action-icons > button')]
+      const main = el.querySelector(':scope > .btn')
+      return {
+        main: main?.textContent.trim(),
+        mainWidth: main?.getBoundingClientRect().width,
+        width: el.getBoundingClientRect().width,
+        icons: icons.map((b) => `${b.getAttribute('aria-label')}${b.classList.contains('active') ? ' (on)' : ''}`),
+        tooltips: icons.map((b) => b.title),
+        round: icons.every((b) => {
+          const r = b.getBoundingClientRect()
+          return r.width === 48 && r.height === 48 && getComputedStyle(b).borderRadius === '50%' && b.textContent.trim() === ''
+        }),
+        rows: new Set(icons.map((b) => Math.round(b.getBoundingClientRect().top))).size,
+        buttons: el.querySelectorAll('button').length,
+      }
+    })
+  const layout = async (name) =>
+    narrowAndBack(name, async (width) => {
+      const a = await actions()
+      assert.ok(a.round, `${name}: round icons without text`)
+      assert.equal(a.rows, 1, `${name} at ${width} px: icons in one row`)
+      if (a.main && width < 400) assert.ok(a.mainWidth >= a.width - 1, `${name}: the main button across the phone`)
+    })
+  // A movie never played, not on the list: «Смотреть»; watched off, then on (filled), off again.
+  await page.goto(`${app}/#/movie/210`)
+  await page.reload() // the list as the fake has it again
+  await page.getByRole('button', { name: 'Добавить в список' }).waitFor({ timeout: 10000 })
+  let a = await actions()
+  assert.equal(a.main, 'Смотреть')
+  assert.deepEqual(a.icons, ['Отметить просмотренным', 'Добавить в список', 'Ещё'])
+  assert.deepEqual(a.tooltips, ['Отметить просмотренным', 'Добавить в список', 'Ещё'])
+  await page.getByRole('button', { name: 'Отметить просмотренным' }).click()
+  await until(async () => (await actions()).icons[0] === 'Просмотрено (on)', { message: 'watched: filled' })
+  assert.equal((await actions()).tooltips[0], 'Просмотрено — снять отметку')
+  await page.getByRole('button', { name: 'Добавить в список' }).click()
+  await until(async () => (await actions()).icons[1] === 'В списке (on)', { message: 'listed: filled' })
+  assert.equal((await actions()).tooltips[1], 'В списке — убрать из списка')
+  await settledShot('movie-actions')
+  await layout('movie page')
+  await page.getByRole('button', { name: 'Просмотрено' }).click()
+  await page.getByRole('button', { name: 'В списке' }).click()
+  await until(async () => (await actions()).icons.join() === 'Отметить просмотренным,Добавить в список,Ещё', { message: 'both off' })
+  // The show: its episode to watch wide; the list (on), the trailer, «Ещё».
+  await page.goto(`${app}/#/show/100`)
+  await page.getByRole('button', { name: 'Трейлер' }).waitFor({ timeout: 10000 })
+  a = await actions()
+  assert.match(a.main, /^(Смотреть|Продолжить) /)
+  assert.deepEqual(a.icons, ['В списке (on)', 'Трейлер', 'Ещё'])
+  await layout('show page')
+  await settledShot('show-actions')
+  // A catalog movie: «Добавить в список» wide until it is on the list, then a filled icon.
+  await page.goto(`${app}/#/catalog/cat-new-1`)
+  await page.getByRole('button', { name: 'Трейлер' }).waitFor({ timeout: 10000 })
+  await until(async () => page.getByRole('button', { name: 'Отметить просмотренным' }).isEnabled(), { message: 'watch state known' })
+  a = await actions()
+  assert.equal(a.main, 'Добавить в список')
+  assert.deepEqual(a.icons, ['Отметить просмотренным', 'Трейлер'])
+  await layout('catalog page')
+  await page.getByRole('button', { name: 'Добавить в список' }).click()
+  await until(async () => (await actions()).main === undefined, { message: 'no wide button once listed' })
+  assert.deepEqual((await actions()).icons, ['В списке (on)', 'Отметить просмотренным', 'Трейлер'])
+  await settledShot('catalog-actions')
+  await page.getByRole('button', { name: 'В списке' }).click()
+  await until(async () => (await actions()).main === 'Добавить в список', { message: 'wide again' })
+  // A catalog title the server has: «Открыть в библиотеке» wide, the list an icon.
+  await page.goto(`${app}/#/catalog/cat-show-10`)
+  await page.getByRole('button', { name: 'Открыть в библиотеке' }).waitFor({ timeout: 10000 })
+  a = await actions()
+  assert.equal(a.main, 'Открыть в библиотеке')
+  assert.equal(a.icons[0], 'В списке (on)')
   fake.state.resetWatchlist()
 })
 

@@ -6,6 +6,7 @@ import { Language } from '../core/mediaTrack'
 import { useSettings } from '../settings'
 import { Modal } from './dialog'
 import { PlayIcon, TrailerIcon } from './icons'
+import { IconAction } from './iconAction'
 
 /**
  * TMDB's trailers of a page's title (`movie:603` / `tv:1396`) through the detector, the
@@ -51,9 +52,9 @@ export function TrailerButton({ videos }: { videos: TrailerVideo[] }) {
   if (videos.length === 0) return null
   return (
     <>
-      <button className="btn btn-secondary" onClick={() => setOpen(true)}>
-        <TrailerIcon size={18} /> Трейлер
-      </button>
+      <IconAction label="Трейлер" onClick={() => setOpen(true)}>
+        <TrailerIcon size={20} />
+      </IconAction>
       {open && <TrailerDialog videos={videos} onClose={close} />}
     </>
   )

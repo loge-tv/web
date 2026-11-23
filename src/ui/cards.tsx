@@ -5,7 +5,8 @@ import { isListed, libraryEntry } from '../app/watchlist'
 import { discoverCaption, type DiscoverItem } from '../core/plexDiscover'
 import { displayTitle, isWatched, landscapePath, posterPath, progress, type PlexItem } from '../core/plexModels'
 import { CatalogImage, ItemBadge, PlexImage, ProgressLine } from './common'
-import { BackIcon, BookmarkIcon, CheckIcon, ChevronRightIcon, PlayIcon } from './icons'
+import { BackIcon, BookmarkIcon, ChevronRightIcon, PlayIcon } from './icons'
+import { IconAction } from './iconAction'
 
 /** Vertical poster with title underneath (movies, shows, seasons). */
 export function PosterCard({ item, onOpen, onPlay }: { item: PlexItem; onOpen: () => void; onPlay?: () => void }) {
@@ -84,9 +85,14 @@ export function LibraryWatchlistButton({ item }: { item: PlexItem }) {
   if (!entry) return null
   const listed = isListed(watchlist.items, entry)
   return (
-    <button className="btn btn-secondary" title={listed ? 'Убрать из списка' : undefined} onClick={() => void appModel.watchlist.toggle(entry)}>
-      {listed ? <CheckIcon size={18} /> : <BookmarkIcon size={18} />} {listed ? 'В списке' : 'Добавить в список'}
-    </button>
+    <IconAction
+      label={listed ? 'В списке' : 'Добавить в список'}
+      hint={listed ? 'Убрать из списка' : undefined}
+      active={listed}
+      onClick={() => void appModel.watchlist.toggle(entry)}
+    >
+      <BookmarkIcon filled={listed} size={20} />
+    </IconAction>
   )
 }
 

@@ -5,7 +5,8 @@ import { backdropPath, dynamicRangeBadge, isWatched, tmdbID, type PlexItem } fro
 import { ResumePolicy, TimeFormat } from '../core/progressTracker'
 import { LibraryWatchlistButton } from '../ui/cards'
 import { ErrorView, PlexImage, Spinner } from '../ui/common'
-import { CheckIcon, EyeIcon, PlayIcon, RestartIcon } from '../ui/icons'
+import { CheckIcon, PlayIcon, RestartIcon } from '../ui/icons'
+import { IconAction, TitleActions } from '../ui/iconAction'
 import { TrailerButton, useTrailers } from '../ui/trailers'
 import { useDeletion, useLeave } from '../ui/deletion'
 import { MoreMenu } from '../ui/menu'
@@ -67,31 +68,33 @@ export function Movie() {
             )}
           </div>
           {item.summary && <p className="summary">{item.summary}</p>}
-          <div className="row gap wrap">
-            {resume !== undefined ? (
-              <>
-                <button className="btn btn-primary" onClick={() => play(item, resume)}>
-                  <PlayIcon size={18} /> Продолжить с {TimeFormat.clock(resume)}
-                </button>
-                <button className="btn btn-secondary" onClick={() => play(item)}>
-                  <RestartIcon size={18} /> С начала
-                </button>
-              </>
-            ) : (
-              <button className="btn btn-primary" onClick={() => play(item)}>
-                <PlayIcon size={18} /> Смотреть
+          <TitleActions
+            main={
+              <button className="btn btn-primary" onClick={() => play(item, resume)}>
+                <PlayIcon size={18} /> {resume !== undefined ? `Продолжить с ${TimeFormat.clock(resume)}` : 'Смотреть'}
               </button>
+            }
+          >
+            {resume !== undefined && (
+              <IconAction label="С начала" onClick={() => play(item)}>
+                <RestartIcon size={20} />
+              </IconAction>
             )}
-            <button className="btn btn-secondary" onClick={() => void appModel.setWatched(item, !watched)}>
-              {watched ? <EyeIcon off size={18} /> : <CheckIcon size={18} />} {watched ? 'Не просмотрено' : 'Просмотрено'}
-            </button>
+            <IconAction
+              label={watched ? 'Просмотрено' : 'Отметить просмотренным'}
+              hint={watched ? 'Снять отметку' : undefined}
+              active={watched}
+              onClick={() => void appModel.setWatched(item, !watched)}
+            >
+              <CheckIcon size={20} />
+            </IconAction>
             <LibraryWatchlistButton item={item} />
             <TrailerButton videos={trailers} />
             <MoreMenu
               disabled={deletion.deleting}
               actions={[{ title: 'Удалить фильм', destructive: true, icon: <TrashIcon size={18} />, onSelect: () => deletion.ask({ kind: 'movie', item }) }]}
             />
-          </div>
+          </TitleActions>
         </div>
       </div>
       {deletion.dialogs}

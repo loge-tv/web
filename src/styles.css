@@ -1423,12 +1423,77 @@ a.settings-row:hover {
   padding-bottom: 32px;
 }
 
-/* MARK: «Ещё» menu, busy overlay */
+/* MARK: Title page actions: the main one wide, the rest round icons */
 
-.btn.icon-only {
-  width: 44px;
-  padding: 0;
+.title-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  max-width: 520px;
 }
+
+.title-actions > .btn-primary {
+  min-width: 240px;
+}
+
+.action-icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.action-icons:empty {
+  display: none;
+}
+
+.icon-action {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--surface-strong);
+  color: var(--text);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.icon-action:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.icon-action.active {
+  background: var(--primary-bg);
+  color: var(--primary-text);
+}
+
+.icon-action.active:hover:not(:disabled) {
+  background: #fff;
+}
+
+.icon-action:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.icon-action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+@media (max-width: 560px) {
+  .title-actions {
+    align-items: stretch;
+    max-width: none;
+  }
+}
+
+/* MARK: «Ещё» menu, busy overlay */
 
 .menu {
   position: fixed;

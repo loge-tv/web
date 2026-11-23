@@ -13,6 +13,7 @@ import { CheckIcon, EyeIcon, PlayIcon, TrashIcon } from '../ui/icons'
 import { TrailerButton, useTrailers } from '../ui/trailers'
 import { useDeletion, useLeave } from '../ui/deletion'
 import { MoreMenu, type MenuAction } from '../ui/menu'
+import { TitleActions } from '../ui/iconAction'
 
 interface ShowData {
   show: PlexItem
@@ -179,16 +180,19 @@ export function Show() {
           {left !== undefined && left > 0 && <span className="meta-strong">осталось {left}</span>}
         </div>
         {show.summary && <p className="summary clamp-4">{show.summary}</p>}
-        <div className="row gap wrap">
-          {resumeTarget && (
-            <button className="btn btn-primary" onClick={() => requestPlay(resumeTarget)}>
-              <PlayIcon size={18} /> {playTitle(resumeTarget)}
-            </button>
-          )}
+        <TitleActions
+          main={
+            resumeTarget && (
+              <button className="btn btn-primary" onClick={() => requestPlay(resumeTarget)}>
+                <PlayIcon size={18} /> {playTitle(resumeTarget)}
+              </button>
+            )
+          }
+        >
           <LibraryWatchlistButton item={show} />
           <TrailerButton videos={trailers} />
           <MoreMenu actions={moreActions} disabled={deletion.deleting} />
-        </div>
+        </TitleActions>
       </div>
 
       {seasonEntries.length > 1 && <SeasonTabs entries={seasonEntries} selected={season} watched={seasonWatched} onSelect={selectSeason} />}

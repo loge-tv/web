@@ -59,7 +59,7 @@ export function MoreMenu({ actions, disabled }: { actions: MenuAction[]; disable
     <>
       <button
         ref={button}
-        className="btn btn-secondary icon-only"
+        className="icon-action"
         aria-label="Ещё"
         title="Ещё"
         aria-haspopup="menu"

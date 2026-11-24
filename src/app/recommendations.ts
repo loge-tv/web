@@ -67,6 +67,19 @@ export class Recommendations {
     this.set({ shelves: emptyRecommendations, unavailable: false })
   }
 
+  /**
+   * Asks Loge Server whether it has a TMDB key (the settings' note), without waiting for Home to
+   * load the recommendations. An answer that says nothing (down, refused) changes nothing.
+   */
+  async checkTMDB() {
+    const detector = this.detector()
+    if (!detector) return
+    const generation = this.generation
+    const configured = await detector.hasTMDB()
+    if (configured === undefined || generation !== this.generation) return
+    if (this.state.unavailable === configured) this.set({ unavailable: !configured })
+  }
+
   /** The library changed (something was deleted): the next look asks again. */
   expire() {
     this.loadedAt = undefined
@@ -107,15 +120,16 @@ export class Recommendations {
       if (recent.length === 0) recent = RecommendationSeeds.recentFromIndex(index)
       const seeds = RecommendationSeeds.pick(recent)
       // TMDB through the detector. Null: it has no TMDB key. A failure costs only these
-      // shelves, Plex's list below doesn't need the detector.
+      // shelves, Plex's list below doesn't need the detector. Not asked or no answer: whether
+      // it has a key stays as last known (`checkTMDB`).
       let titles: Record<string, TMDBTitle[]> = {}
-      let configured = true
+      let configured: boolean | undefined
       let detectorFailed = false
       if (detector && seeds.length > 0) {
         try {
           const answer = await detector.recommendations(seeds.map(seedKey))
+          configured = answer !== null
           if (answer) titles = answer
-          else configured = false
         } catch (error) {
           console.warn('recommendations: detector', error)
           detectorFailed = true
@@ -151,7 +165,7 @@ export class Recommendations {
       } else {
         this.loadedAt = Date.now()
       }
-      this.set({ shelves, unavailable: !configured })
+      this.set({ shelves, unavailable: configured === undefined ? this.state.unavailable : !configured })
     })()
     this.running = task
     try {

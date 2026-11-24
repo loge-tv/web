@@ -1036,7 +1036,8 @@ await step('settings «Главная и Обзор»: every shelf off and on, m
   await page.reload()
   await page.getByText('Все полки выключены. Включите нужные в Настройки → Главная и Обзор.').waitFor()
   await settledShot('home-all-off')
-  assert.equal(find((r) => r.server === 'detector' && r.path === '/v1/recommendations' && r.at > off).length, 0, 'TMDB not asked')
+  // (Settings ask without seeds whether Loge Server has a key: that is not a question to TMDB.)
+  assert.equal(find((r) => r.server === 'detector' && r.path === '/v1/recommendations' && r.query.seeds && r.at > off).length, 0, 'TMDB not asked')
   // Back: all on, the default order.
   await page.goto(`${app}/#/settings/home`)
   for (const name of await rows()) await page.locator('label.toggle', { has: page.getByRole('switch', { name, exact: true }) }).click()
@@ -1721,6 +1722,41 @@ await step("a phone on its side: the title page's main action on the first scree
   }
 })
 
+await step('settings «Главная и Обзор» ask Loge Server about the TMDB key themselves (Home not opened first)', async () => {
+  const note = 'Loge Server ответил, что ключа TMDB на нём нет'
+  const asked = (since) => find((r) => r.server === 'detector' && r.path === '/v1/recommendations' && r.at > since)
+  const fresh = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'ru-RU', storageState: await context.storageState() })
+  recordHosts(fresh)
+  const p = await fresh.newPage()
+  p.on('pageerror', (e) => pageErrors.push(`fresh: ${e}`))
+  const open = async () => {
+    const since = Date.now()
+    await p.goto(`${app}/#/settings/home`)
+    await p.reload()
+    await p.getByRole('heading', { name: 'Полки Главной' }).waitFor({ timeout: 15000 })
+    await until(() => asked(since).some((r) => r.status), { message: 'Loge Server asked' })
+    await p.waitForTimeout(300)
+    return since
+  }
+  fake.state.tmdbMissing = true
+  let since = await open()
+  await p.getByText(note, { exact: false }).waitFor({ timeout: 5000 })
+  // Asked once, without seeds: not a question to TMDB.
+  assert.deepEqual(asked(since).map((r) => [r.query.seeds, r.status]), [[undefined, 404]])
+  await p.waitForTimeout(400)
+  await p.screenshot({ path: join(screens, 'settings-home-no-tmdb-direct.png') })
+  fake.state.tmdbMissing = false
+  since = await open()
+  assert.deepEqual(asked(since).map((r) => r.status), [400])
+  assert.equal(await p.getByText(note, { exact: false }).count(), 0)
+  // Loge Server down: nothing known, no note.
+  fake.state.detectorDown = true
+  await open()
+  assert.equal(await p.getByText(note, { exact: false }).count(), 0)
+  fake.state.detectorDown = false
+  await fresh.close()
+})
+
 await step('the browser asked only the fakes (plus the never-answering fake plex.direct)', async () => {
   const outside = [...requestedHosts].filter((h) => !h.startsWith('127.0.0.1:') && !h.endsWith('.fake.plex.direct:32400'))
   assert.deepEqual(outside, [])
@@ -1730,7 +1766,14 @@ await step('no uncaught errors in the page', async () => {
   assert.deepEqual(pageErrors, [])
 })
 
-const failures = fake.requests.filter((r) => r.status >= 400 && r.server !== 'theintrodb' && !(r.server === 'detector' && fake.state.detectorDown))
+const failures = fake.requests.filter(
+  (r) =>
+    r.status >= 400 &&
+    r.server !== 'theintrodb' &&
+    !(r.server === 'detector' && fake.state.detectorDown) &&
+    // Settings ask without seeds whether Loge Server has a TMDB key: 400 says it has.
+    !(r.server === 'detector' && r.path === '/v1/recommendations' && !r.query.seeds),
+)
 if (failures.length) console.log(`non-2xx responses:\n  ${failures.map((r) => `${r.status} ${r.server} ${r.method} ${r.path}`).join('\n  ')}`)
 if (consoleErrors.length) console.log(`console errors (${consoleErrors.length}):\n  ${[...new Set(consoleErrors)].slice(0, 10).join('\n  ')}`)
 console.log(`requests: ${fake.requests.length}, screenshots: ${screens}`)

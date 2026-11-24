@@ -939,8 +939,10 @@ addEventListener('message', (e) => {
       return json(res, { item: url.searchParams.get('item'), videos })
     }
     if (p === '/v1/recommendations') {
-      if (state.tmdbMissing) return json(res, { error: 'tmdb not configured' }, 404)
+      if (state.tmdbMissing) return json(res, { error: 'tmdb is not configured', configured: false }, 404)
       const seeds = (url.searchParams.get('seeds') ?? '').split(',').filter(Boolean)
+      // Like Loge Server: the key is checked before the seeds (the app asks without seeds to learn whether it has one).
+      if (seeds.length === 0) return json(res, { error: 'seeds is required' }, 400)
       return json(res, { items: seeds.map((seed) => (TMDB_RECOMMENDATIONS[seed] ? { seed, titles: TMDB_RECOMMENDATIONS[seed] } : { seed, failed: true })) })
     }
     m = /^\/v1\/preferences\/([^/]+)$/.exec(p)

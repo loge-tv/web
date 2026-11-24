@@ -68,6 +68,31 @@ describe('Recommendations', () => {
     expect(shelves.cast?.items).toHaveLength(1)
   })
 
+  it('settings learn whether the detector has a TMDB key without Home; a refresh that asks nothing keeps it', async () => {
+    const { detector, pms, watchlist, recommendations } = setUp()
+    detector.stub('/v1/recommendations', '{}', 404)
+    await recommendations.checkTMDB()
+    expect(recommendations.getSnapshot().unavailable).toBe(true)
+    expect(detector.last.url.search).toBe('')
+    // No history to ask about: the refresh doesn't ask the detector and keeps what is known.
+    pms.stub('/status/sessions/history/all', container([]))
+    pms.stub('/library/sections/1/all', container([{ ratingKey: '2', type: 'movie', title: 'Fresh', guid: 'plex://movie/cat-fresh', Guid: [{ id: 'tmdb://2' }] }]))
+    const asked = detector.requests.length
+    await recommendations.refresh(watchlist)
+    expect(detector.requests.length).toBe(asked)
+    expect(recommendations.getSnapshot().unavailable).toBe(true)
+    // The key added: the seedless question is refused for the seeds.
+    detector.stub('/v1/recommendations', JSON.stringify({ error: 'seeds is required' }), 400)
+    await recommendations.checkTMDB()
+    expect(recommendations.getSnapshot().unavailable).toBe(false)
+    // Down: nothing known, the note stays as it was.
+    detector.stub('/v1/recommendations', '{}', 404)
+    await recommendations.checkTMDB()
+    detector.fail('/v1/recommendations')
+    await recommendations.checkTMDB()
+    expect(recommendations.getSnapshot().unavailable).toBe(true)
+  })
+
   it('the detector down for a moment: the TMDB shelves stay', async () => {
     const { detector, watchlist, recommendations } = setUp()
     await recommendations.refresh(watchlist)

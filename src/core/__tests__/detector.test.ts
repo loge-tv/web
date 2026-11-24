@@ -112,6 +112,26 @@ describe('DetectorClient', () => {
     expect(await new DetectorClient(base, 'tok', none.fetch).videos('tv:1')).toBeNull()
   })
 
+  it('whether it has a TMDB key, asked without seeds (TMDB is not asked)', async () => {
+    const answer = async (status: number | 'down') => {
+      const mock = new MockFetch()
+      if (status === 'down') mock.fail('/v1/recommendations')
+      else mock.stub('/v1/recommendations', JSON.stringify({ error: 'x' }), status)
+      const result = await new DetectorClient(base, 'tok', mock.fetch).hasTMDB()
+      expect(mock.last.url.search).toBe('')
+      expect(mock.last.headers.get('X-Plex-Token')).toBe('tok')
+      return result
+    }
+    // The key is checked before the seeds: refused for the missing seeds means it is there.
+    expect(await answer(400)).toBe(true)
+    expect(await answer(200)).toBe(true)
+    expect(await answer(404)).toBe(false)
+    // Nothing known: down, someone else's server, an error.
+    expect(await answer(401)).toBeUndefined()
+    expect(await answer(503)).toBeUndefined()
+    expect(await answer('down')).toBeUndefined()
+  })
+
   it('only YouTube ids go into the player URL', () => {
     expect(isYouTubeID('dQw4w9WgXcQ')).toBe(true)
     expect(isYouTubeID('a-b_c')).toBe(true)

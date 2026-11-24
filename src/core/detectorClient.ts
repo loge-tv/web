@@ -155,6 +155,23 @@ export class DetectorClient implements PreferencesRemote {
     return list.map(parseTrailerVideo).filter((v): v is TrailerVideo => v !== null)
   }
 
+  /**
+   * Whether Loge Server has a TMDB key, without a question to TMDB: it checks the key before the
+   * seeds, so `/v1/recommendations` without seeds is refused for them (400) only when the key is
+   * there; 404 is no key (or a server too old for recommendations). Undefined: it couldn't say
+   * (down, refused the token, no CORS).
+   */
+  async hasTMDB(): Promise<boolean | undefined> {
+    try {
+      const response = await fetchWithTimeout(this.fetchFn, joinURL(this.baseURL, '/v1/recommendations'), this.init(), this.timeoutMs)
+      if (response.status === 404) return false
+      if (response.status === 400 || response.ok) return true
+      return undefined
+    } catch {
+      return undefined
+    }
+  }
+
   /** TMDB may take a while on a cold cache: at least 20 s. 404 → null (no TMDB key). */
   private async tmdbJSON(url: string): Promise<unknown> {
     const response = await fetchWithTimeout(this.fetchFn, url, this.init(), Math.max(this.timeoutMs, 20_000))

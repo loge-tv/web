@@ -311,8 +311,12 @@ export const HomeSettingsText = {
 
 function HomeSettings() {
   const settings = useSettings()
-  const { sections } = useApp()
+  const { sections, api } = useApp()
   const { unavailable } = useRecommendations()
+  // Whether Loge Server has a TMDB key, asked here: Home may not have loaded its shelves yet.
+  useEffect(() => {
+    if (api) void appModel.recommendations.checkTMDB()
+  }, [api, settings.detectorURL])
   const order = homeShelfOrder(settings, sections)
   const hubs = exploreHubOrder(settings)
   return (

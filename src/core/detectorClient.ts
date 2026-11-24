@@ -178,10 +178,15 @@ export class DetectorClient implements PreferencesRemote {
     return JSON.parse(await response.text())
   }
 
-  /** `/healthz` answers "ok" (used by the settings screen). */
+  /**
+   * Whether this page can use Loge Server (the settings screen's status). It asks a /v1 route, not
+   * `/healthz`: Loge Server sends CORS headers on /v1 only, so the browser hides `/healthz`'s
+   * answer and a working server would read as down. A cheap one — the segments of a key nobody
+   * has — that also needs the token taken and CORS in place, which every real request needs.
+   */
   async isReachable(): Promise<boolean> {
     try {
-      const response = await fetchWithTimeout(this.fetchFn, joinURL(this.baseURL, '/healthz'), {}, this.timeoutMs)
+      const response = await fetchWithTimeout(this.fetchFn, joinURL(this.baseURL, '/v1/segments/0'), this.init(), this.timeoutMs)
       return response.ok
     } catch {
       return false

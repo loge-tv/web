@@ -260,6 +260,9 @@ without rewrite rules.
   `VITE_YOUTUBE_URL`, `VITE_THEINTRODB_URL`, `VITE_TODAY` — for the fakes only.
 - The app name is a single constant, `APP_NAME` in `src/config.ts` (and `<title>` in
   `index.html`).
+- If the hosting adds a `Content-Security-Policy`, YouTube needs `frame-src` and `connect-src`
+  too: the trailer dialog sends a no-cors `HEAD` to the embed page to tell "YouTube unreachable"
+  apart, and a blocked one reads as no connection. (The repository sets no policy.)
 
 ## What Loge Server needs to provide
 

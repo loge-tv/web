@@ -126,6 +126,15 @@ async function narrowAndBack(name, check) {
   }
 }
 
+/** A phone (touch, 2×) signed in like the main page; its page errors count too. */
+async function phoneContext(viewport) {
+  const phone = await browser.newContext({ viewport, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'ru-RU', storageState: await context.storageState() })
+  recordHosts(phone)
+  const p = await phone.newPage()
+  p.on('pageerror', (e) => pageErrors.push(`phone: ${e}`))
+  return { phone, p }
+}
+
 // MARK: Steps
 
 await step('PIN login through the fake plex.tv, server discovery, home', async () => {
@@ -1520,6 +1529,88 @@ await step('phone layout: no horizontal scrolling on home, show and player', asy
     await p.screenshot({ path: join(screens, `phone-settings-${id}.png`), fullPage: true })
   }
   await phone.close()
+})
+
+await step('subtitles stand above the corner (countdown, skip button, next episode card), bar shown or not: a phone turned both ways, wide', async () => {
+  const corners = [
+    ['countdown', { skipMode: 'countdown' }, 1, '.skip-countdown'],
+    ['skip button', { skipMode: 'button' }, 6, '.skip-button'],
+    ['next episode card', { skipMode: 'auto', nextEpisodeCountdown: 15, autoplayNext: true }, 56, '.next-card'],
+  ]
+  const boxes = (p) =>
+    p.evaluate(() => {
+      const box = (el) => {
+        if (!el) return null
+        const st = getComputedStyle(el)
+        if (st.display === 'none' || Number(st.opacity) < 0.5) return null
+        const r = el.getBoundingClientRect()
+        return r.width && r.height ? { l: r.left, t: r.top, r: r.right, b: r.bottom } : null
+      }
+      return {
+        subtitle: box(document.querySelector('.subtitle-text')),
+        corner: box(document.querySelector('.next-card, .skip-countdown, .skip-button')),
+        top: box(document.querySelector('.player-top:not(.hidden)')),
+        bar: box(document.querySelector('.player-bottom:not(.hidden)')),
+        vw: innerWidth,
+        vh: innerHeight,
+      }
+    })
+  const overlap = (a, b) => (a && b ? Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t)) : 0)
+  const clear = async (p, where) => {
+    const g = await boxes(p)
+    assert.ok(g.subtitle && g.corner, `${where}: subtitle and corner on screen: ${JSON.stringify(g)}`)
+    for (const k of ['corner', 'top', 'bar']) assert.ok(overlap(g.subtitle, g[k]) <= 1, `${where}: the subtitle under the ${k}: ${JSON.stringify(g)}`)
+    assert.ok(g.subtitle.t >= 0 && g.subtitle.b <= g.vh, `${where}: the subtitle inside the screen: ${JSON.stringify(g)}`)
+  }
+  // The countdown and the cue stay (the position crawls) while the bar comes and goes.
+  const open = async (p, settings, t, selector) => {
+    await p.goto(`${app}/#/`)
+    await p.evaluate((patch) => localStorage.setItem('settings', JSON.stringify({ ...JSON.parse(localStorage.getItem('settings') ?? '{}'), ...patch })), settings)
+    await p.goto(`${app}/#/play/112?t=${t}`)
+    await p.reload()
+    await p.locator(selector).waitFor({ timeout: 15000 })
+    await p.waitForFunction(() => document.querySelector('.subtitle-text')?.textContent, null, { timeout: 8000 })
+    await p.evaluate(() => {
+      const v = document.querySelector('video')
+      v.playbackRate = 0.0625
+      void v.play()
+    })
+  }
+  const bar = async (p, shown) => {
+    if (shown) await p.mouse.move(200, 200).then(() => p.mouse.move(210, 205))
+    else await p.waitForSelector('.player-bottom.hidden', { timeout: 8000 })
+    await p.waitForTimeout(450)
+  }
+  const { phone, p } = await phoneContext({ width: 390, height: 844 })
+  for (const [name, settings, t, selector] of corners) {
+    await open(p, settings, t, selector)
+    for (const [tag, size] of [
+      ['upright', { width: 390, height: 844 }],
+      ['on its side', { width: 844, height: 390 }],
+      ['upright again', { width: 390, height: 844 }],
+    ]) {
+      await p.setViewportSize(size)
+      await bar(p, true)
+      await clear(p, `phone ${tag}, ${name}, bar shown`)
+      if (name === 'countdown') await p.screenshot({ path: join(screens, `phone-subtitles-countdown-${size.width}.png`) })
+      await bar(p, false)
+      await clear(p, `phone ${tag}, ${name}, bar hidden`)
+    }
+  }
+  await phone.close()
+  const wide = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ru-RU', storageState: await context.storageState() })
+  recordHosts(wide)
+  const w = await wide.newPage()
+  w.on('pageerror', (e) => pageErrors.push(`wide: ${e}`))
+  for (const [name, settings, t, selector] of corners) {
+    await open(w, settings, t, selector)
+    await bar(w, true)
+    await clear(w, `wide, ${name}, bar shown`)
+    if (name === 'next episode card') await w.screenshot({ path: join(screens, 'subtitles-next-card.png') })
+    await bar(w, false)
+    await clear(w, `wide, ${name}, bar hidden`)
+  }
+  await wide.close()
 })
 
 await step('the browser asked only the fakes (plus the never-answering fake plex.direct)', async () => {

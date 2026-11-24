@@ -1908,15 +1908,37 @@ a.settings-row:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* Skip button, countdown, next episode card */
+/* Subtitles and the corner (skip button, countdown, next episode card) in one column at the
+   bottom: the subtitles always stand above whatever the corner shows, however tall it is (a
+   countdown wrapped on a phone, the card) and at any size. Over the bar while it is shown, low
+   otherwise (a little higher with a corner, which needs the room). */
+
+.player-stack {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 6%;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;
+  transition: bottom 0.3s ease;
+}
+
+.player-stack.cornered {
+  bottom: calc(28px + env(safe-area-inset-bottom));
+}
+
+.player-stack.raised {
+  bottom: calc(110px + env(safe-area-inset-bottom));
+}
 
 .player-corner {
-  position: absolute;
-  right: var(--gutter);
-  bottom: calc(110px + env(safe-area-inset-bottom));
-  z-index: 4;
-  transition: bottom 0.3s ease;
+  align-self: flex-end;
+  margin-right: var(--gutter);
   max-width: calc(100% - 2 * var(--gutter));
+  pointer-events: auto;
 }
 
 .skip-button {
@@ -1999,19 +2021,9 @@ a.settings-row:hover {
 /* Subtitles */
 
 .subtitles {
-  position: absolute;
-  left: max(5%, env(safe-area-inset-left));
-  right: max(5%, env(safe-area-inset-right));
-  bottom: 6%;
-  z-index: 1;
   display: flex;
   justify-content: center;
-  pointer-events: none;
-  transition: bottom 0.3s ease;
-}
-
-.subtitles.raised {
-  bottom: calc(110px + env(safe-area-inset-bottom));
+  padding: 0 max(5%, env(safe-area-inset-right)) 0 max(5%, env(safe-area-inset-left));
 }
 
 .subtitle-text {
@@ -2185,7 +2197,7 @@ a.settings-row:hover {
     font-size: 12px;
     margin-left: 4px;
   }
-  .player-corner {
+  .player-stack.raised {
     bottom: calc(96px + env(safe-area-inset-bottom));
   }
 }

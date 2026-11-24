@@ -100,6 +100,8 @@ The interface is in Russian for now; the labels in quotes below are English tran
     remembered for the show. Text subtitles (SRT/VTT/ASS) are taken from
     `/library/streams/{id}` (UTF-8 or Windows-1251) and drawn over the video by file
     time; image-based ones (PGS/VobSub) and the ones Plex didn't serve are burned in by the transcoder.
+    They share one column at the bottom with the corner (the skip button, the countdown, the next
+    episode card), so they always stand above it, at any size; over the bar while it is shown.
   - Progress in Plex: `/:/timeline` every 10 s, on pause and stop; "watched" is set when
     the final credits start or at 90 %. A started item plays right away from where it was left,
     without asking; "Start over" is a button on the movie page.
@@ -220,7 +222,9 @@ search → "Explore" collections moved in settings (the page follows, the shelve
 narrowed to a phone and back) and reset → a show opened on E3 while the catalog's E1 and E2 come
 late (E3 still in view at 375 px and wide) → "⋯" low on a phone turned sideways opens upwards → a phone turned
 sideways keeps its content out of the side safe areas (emulated in Chrome) → the phone layout without horizontal
-scrolling (search, the title page, the skip countdown and the settings pages included) → the browser talked only to the fakes.
+scrolling (search, the title page, the skip countdown and the settings pages included) → subtitles above the corner
+(countdown, skip button, next episode card), the bar shown and hidden, a phone turned P → L → P and wide → the
+browser talked only to the fakes.
 
 ## Deployment
 

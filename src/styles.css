@@ -44,6 +44,9 @@ body {
 }
 
 html {
+  /* iOS Safari enlarges text on a phone turned sideways otherwise. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   /* Focusing or scrolling to an element keeps it clear of the fixed bars (the tab bar: below). */
   scroll-padding-top: calc(64px + env(safe-area-inset-top));
 }

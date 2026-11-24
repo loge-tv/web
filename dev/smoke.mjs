@@ -1792,6 +1792,14 @@ await step('a phone: focus never leaves an element under the tab bar or the top 
   await phone.close()
 })
 
+await step('a phone turned sideways: text not enlarged (iOS Safari would; only the style is checked here)', async () => {
+  const { phone, p } = await phoneContext({ width: 844, height: 390 })
+  await p.goto(`${app}/#/`)
+  await p.locator('.topbar').waitFor({ timeout: 15000 })
+  assert.equal(await p.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('-webkit-text-size-adjust')), '100%')
+  await phone.close()
+})
+
 await step('the browser asked only the fakes (plus the never-answering fake plex.direct)', async () => {
   const outside = [...requestedHosts].filter((h) => !h.startsWith('127.0.0.1:') && !h.endsWith('.fake.plex.direct:32400'))
   assert.deepEqual(outside, [])

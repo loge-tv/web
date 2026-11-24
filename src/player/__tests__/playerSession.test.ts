@@ -104,7 +104,11 @@ const credits: Segment = { type: 'credits', start: 2909.1, end: 2987.9 }
 
 const lostFilm: AudioPreference = { language: 'rus', title: 'LostFilm', codec: 'aac', channels: 2, indexInLanguage: 1 }
 
-function setup({ skipMode = 'auto' as SkipMode, cached }: { skipMode?: SkipMode; cached?: ShowPreferences } = {}) {
+function setup({
+  skipMode = 'auto' as SkipMode,
+  cached,
+  autoplayNext = true,
+}: { skipMode?: SkipMode; cached?: ShowPreferences; autoplayNext?: boolean } = {}) {
   const segments = deferred<Segment[] | null>()
   const episodes = deferred<PlexItem[]>()
   const pulled = deferred<ShowPreferences | null>()
@@ -142,7 +146,7 @@ function setup({ skipMode = 'auto' as SkipMode, cached }: { skipMode?: SkipMode;
     {
       api: api as unknown as PlexServerAPI,
       detector: () => detector as unknown as DetectorClient,
-      settings: () => ({ skipMode, autoplayNext: true, nextEpisodeCountdown: 5, forceTranscode: false }),
+      settings: () => ({ skipMode, autoplayNext, nextEpisodeCountdown: 5, forceTranscode: false }),
       preferences: store,
       preferencesSync: sync,
       capabilities: { canPlay: () => true, audioTrackSwitching: false },
@@ -476,5 +480,94 @@ describe('PlayerSession next episode countdown', () => {
     expect(s.session.getSnapshot().nextCard?.secondsLeft).toBe(3)
     s.video.dispatchEvent(new Event('ended'))
     expect(s.session.getSnapshot().item.ratingKey).toBe('103')
+  })
+})
+
+describe('PlayerSession watched mark', () => {
+  /** Playing episode 102 with the segments and the next episode known. */
+  async function playing(options: { autoplayNext?: boolean } = {}) {
+    const s = setup(options)
+    await started(s)
+    s.segments.resolve([intro, credits])
+    s.episodes.resolve([current, next])
+    await flush()
+    return s
+  }
+
+  /** `/:/scrobble` calls per ratingKey. */
+  const scrobbles = (s: ReturnType<typeof setup>) => {
+    const counts: Record<string, number> = {}
+    for (const [key] of s.api.markWatched.mock.calls as unknown as [string][]) counts[key] = (counts[key] ?? 0) + 1
+    return counts
+  }
+
+  /** The next episode's media opened and played a little, as after any switch. */
+  async function nextPlays(s: ReturnType<typeof setup>) {
+    expect(s.session.getSnapshot().item.ratingKey).toBe('103')
+    await flush()
+    s.video.dispatchEvent(new Event('loadedmetadata'))
+    await flush()
+    s.video.playTo(1)
+    s.video.playTo(12)
+    await vi.advanceTimersByTimeAsync(2000)
+  }
+
+  it('the countdown before the credits: the episode is marked once, the next one not', async () => {
+    const s = await playing()
+    s.video.playTo(2905)
+    s.video.playTo(2909.1)
+    await nextPlays(s)
+    expect(scrobbles(s)).toEqual({ '102': 1 })
+  })
+
+  it('a stop past 90 % then the countdown: the stop and the switch don\'t both mark it', async () => {
+    const s = await playing()
+    // 90 % of 2990 s is 2691 s, before the countdown: the tracker marks it here.
+    s.video.playTo(2700)
+    expect(scrobbles(s)).toEqual({ '102': 1 })
+    s.video.playTo(2905)
+    s.video.playTo(2909.1)
+    await nextPlays(s)
+    expect(scrobbles(s)).toEqual({ '102': 1 })
+  })
+
+  it('without autoplay: the card at the credits, «Смотреть» — marked once', async () => {
+    const s = await playing({ autoplayNext: false })
+    s.video.playTo(2912)
+    expect(scrobbles(s)).toEqual({ '102': 1 })
+    expect(s.session.getSnapshot().nextCard).toEqual({ item: next })
+    s.session.playNext() // the card's «Смотреть»
+    await nextPlays(s)
+    expect(scrobbles(s)).toEqual({ '102': 1 })
+  })
+
+  it('the file ends, the wall-clock countdown starts the next episode — marked once', async () => {
+    const s = await playing()
+    s.session.cancelNextEpisode()
+    s.video.playTo(2988)
+    s.video.dispatchEvent(new Event('ended'))
+    expect(s.session.getSnapshot().nextCard?.secondsLeft).toBe(5)
+    await vi.advanceTimersByTimeAsync(5000)
+    await nextPlays(s)
+    expect(scrobbles(s)).toEqual({ '102': 1 })
+  })
+
+  it('the next episode isn\'t marked from the old file\'s position', async () => {
+    const s = await playing()
+    s.video.playTo(2905)
+    s.video.playTo(2909.1)
+    // A time update of the old file still on the element as the next one opens.
+    s.video.currentTime = 2909.1
+    s.video.dispatchEvent(new Event('timeupdate'))
+    await nextPlays(s)
+    expect(scrobbles(s)['103']).toBeUndefined()
+  })
+
+  it('closing in the credits marks it once', async () => {
+    const s = await playing({ autoplayNext: false })
+    s.video.playTo(2950)
+    s.session.close()
+    s.session.reportStopped(true) // pagehide after the close
+    expect(scrobbles(s)).toEqual({ '102': 1 })
   })
 })

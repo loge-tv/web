@@ -19,7 +19,7 @@ import {
   PauseIcon,
   PlayIcon,
   RewindIcon,
-  TracksIcon,
+  SettingsIcon,
   VolumeIcon,
 } from '../ui/icons'
 import { BifThumbnails } from './bifThumbnails'
@@ -340,7 +340,7 @@ function PlayerOverlay({ session, api, onExit }: { session: PlayerSession; api: 
             </div>
           )}
           <button className={`icon-button${panel ? ' active' : ''}`} onClick={() => (panel ? closePanel() : setPanel(true))} aria-label="Дорожки и разметка" title="Дорожки и разметка">
-            <TracksIcon size={24} />
+            <SettingsIcon size={24} />
           </button>
           {fullscreenSupported() && (
             <button className="icon-button" onClick={toggleFullscreen} aria-label={fullscreen ? 'Выйти из полноэкранного режима' : 'Во весь экран'} title="F">

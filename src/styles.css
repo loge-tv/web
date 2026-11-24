@@ -43,6 +43,11 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+html {
+  /* Focusing or scrolling to an element keeps it clear of the fixed bars (the tab bar: below). */
+  scroll-padding-top: calc(64px + env(safe-area-inset-top));
+}
+
 body {
   overflow-x: hidden;
 }
@@ -2213,6 +2218,14 @@ a.settings-row:hover {
 }
 
 @media (max-width: 560px) {
+  :root {
+    /* The tab bar: 6 + 38 + 6 px and its top line, plus the home indicator's area. */
+    --tabbar-height: calc(51px + env(safe-area-inset-bottom));
+  }
+  html {
+    scroll-padding-top: calc(56px + env(safe-area-inset-top));
+    scroll-padding-bottom: calc(var(--tabbar-height) + 8px);
+  }
   .topbar {
     gap: 14px;
     height: 56px;
@@ -2256,7 +2269,7 @@ a.settings-row:hover {
   }
   /* The page's own 64 px end, plus the tab bar over it. */
   .page {
-    padding-bottom: calc(112px + env(safe-area-inset-bottom));
+    padding-bottom: calc(64px + var(--tabbar-height));
   }
   .player-controls .time {
     font-size: 12px;

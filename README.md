@@ -241,8 +241,8 @@ scrolling (search, the title page, the skip countdown and the settings pages inc
 (countdown, skip button, next episode card), the bar shown and hidden, a phone turned P → L → P and wide → the
 trailer 16:9 inside a phone's screen both ways → YouTube unreachable, offline, refusing: the app's message, "Retry",
 "Open in YouTube" → a phone on its side: the title page's main action on the first screen, a long title and summary
-too → the settings page learns about the TMDB key by itself (no Home first; the key there, Loge Server down) → the
-browser talked only to the fakes.
+too → the settings page learns about the TMDB key by itself (no Home first; the key there, Loge Server down) → focus
+scrolls clear of the tab bar and the top bar → the browser talked only to the fakes.
 
 ## Deployment
 
@@ -387,7 +387,8 @@ hovering and clicking on the bar; dragging and touch, Safari and Firefox were no
 - New on 2026-11-24 — only in headless Chrome against the fakes: the embedded player's messages (the
   "listening" handshake and `onError` are what the IFrame Player API is known to use; the fake answers
   that way, the real YouTube wasn't asked) and the no-cors `HEAD` of a real embed page; on iOS Safari —
-  the compact header and the trailer's size with Safari's bars.
+  focus scrolling with `scroll-padding` (Chrome honours it, Safari not checked), the compact header and
+  the trailer's size with Safari's bars.
 - A title of an old Plex agent whose year on the server differs from the catalog's (or whose
   title is translated differently) is not "recognised": it stays in "Not on the server" and in "Want
   to watch".

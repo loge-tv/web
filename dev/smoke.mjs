@@ -1757,6 +1757,41 @@ await step('settings «Главная и Обзор» ask Loge Server about the 
   await fresh.close()
 })
 
+await step('a phone: focus never leaves an element under the tab bar or the top bar', async () => {
+  const { phone, p } = await phoneContext({ width: 390, height: 844 })
+  const focusClear = () =>
+    p.evaluate(async () => {
+      const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      const tabbar = document.querySelector('.tabbar').getBoundingClientRect()
+      const topbar = document.querySelector('.topbar').getBoundingClientRect()
+      const pageTop = (el) => el.getBoundingClientRect().top + scrollY
+      const focusable = [...document.querySelectorAll('.page button:not(:disabled), .page a[href]')].filter((el) => el.getBoundingClientRect().height > 0)
+      const el = focusable.find((e) => pageTop(e) > innerHeight * 1.2)
+      // Its bottom 8 px above the screen's edge: under the tab bar.
+      window.scrollTo(0, pageTop(el) + el.getBoundingClientRect().height - innerHeight + 8)
+      await frame()
+      el.focus()
+      await frame()
+      const below = { bottom: el.getBoundingClientRect().bottom, tabbarTop: tabbar.top }
+      el.blur()
+      // Its top 8 px below the screen's edge: under the top bar.
+      window.scrollTo(0, pageTop(el) - 8)
+      await frame()
+      el.focus()
+      await frame()
+      const above = { top: el.getBoundingClientRect().top, topbarBottom: topbar.bottom }
+      el.blur()
+      return { below, above }
+    })
+  await p.goto(`${app}/#/`)
+  // Home's shelves, taller than two screens (posters keep their size while they load).
+  await p.waitForFunction(() => document.querySelectorAll('section.shelf').length >= 3 && document.documentElement.scrollHeight > innerHeight * 2, null, { timeout: 15000 })
+  const { below, above } = await focusClear()
+  assert.ok(below.bottom <= below.tabbarTop + 0.5, `focused under the tab bar: ${JSON.stringify(below)}`)
+  assert.ok(above.top >= above.topbarBottom - 0.5, `focused under the top bar: ${JSON.stringify(above)}`)
+  await phone.close()
+})
+
 await step('the browser asked only the fakes (plus the never-answering fake plex.direct)', async () => {
   const outside = [...requestedHosts].filter((h) => !h.startsWith('127.0.0.1:') && !h.endsWith('.fake.plex.direct:32400'))
   assert.deepEqual(outside, [])

@@ -64,7 +64,7 @@ The interface is in Russian for now; the labels in quotes below are English tran
 - **Settings**: skip mode, autoplay of the next episode and a 5/10/15 s countdown, seek
   steps, the Loge Server address (with a check and a reset), "Always through the server"
   (forced transcoding), server and connection address, switching servers, sign out.
-- Loge Server is optional: when it can't be asked (down, refuses the token, no CORS), segments come from the
+- Loge Server is optional: when it isn't set or can't be asked (down, refuses the token, no CORS), segments come from the
   file's own chapters ("Intro", "Credits", "Титры"…) and, for what they lack, from [TheIntroDB](https://theintrodb.org)
   (a request of its own, without the Plex token); the tracks panel says where they came from. Nothing there — no skipping.
 
@@ -117,8 +117,9 @@ without rewrite rules.
 - **HTTPS is required** (or `http://localhost`): from an HTTPS page only the server's HTTPS
   addresses are reachable — `*.plex.direct` from the plex.tv list. If the page is opened over HTTP
   on the local network, `http://192.168.…:32400` works too.
-- The default Loge Server address is `https://loge-server.example.com`; it can be changed in
-  settings or at build time: `VITE_DETECTOR_URL=https://… npm run build`. Loge Server must
+- There is no default Loge Server address: everyone enters their own in settings, or it is set at
+  build time: `VITE_DETECTOR_URL=https://… npm run build`. Without one, segments come from the
+  file's chapters and TheIntroDB. Loge Server must
   send CORS headers (see below) and be on HTTPS if the app itself is on HTTPS.
 - `VITE_PLEX_TV_URL`, `VITE_PLEX_AUTH_URL` — for the fakes only.
 - The app name is a single constant, `APP_NAME` in `src/config.ts` (and `<title>` in
@@ -127,8 +128,8 @@ without rewrite rules.
 ## What Loge Server needs to provide
 
 Every request to Loge Server carries the `X-Plex-Token` header, so the browser first sends a
-preflight `OPTIONS`. Loge Server sends CORS headers since version 0.1.9 (in `main`); checked on
-`https://loge-server.example.com`: the preflight gets 204 with the headers below. Without CORS
+preflight `OPTIONS`. Loge Server sends CORS headers since version 0.1.9 (in `main`); checked on a
+running Loge Server: the preflight gets 204 with the headers below. Without CORS
 (an old or a custom Loge Server) segments come only from the file's chapters and TheIntroDB, and a show's
 timing and dub live only in `localStorage`.
 

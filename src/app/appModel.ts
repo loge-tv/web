@@ -64,11 +64,12 @@ export class AppModel {
     this.listeners.forEach((l) => l())
   }
 
-  /** Detector bound to the server token; null until connected. */
+  /** Loge Server bound to the server token; null until connected or when no address is set. */
   detector(): DetectorClient | null {
     const api = this.state.api
-    if (!api) return null
-    return new DetectorClient(normalizeDetectorURL(settingsStore.get().detectorURL), api.token)
+    const url = normalizeDetectorURL(settingsStore.get().detectorURL)
+    if (!api || !url) return null
+    return new DetectorClient(url, api.token)
   }
 
   // MARK: Session

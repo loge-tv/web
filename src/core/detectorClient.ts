@@ -3,8 +3,6 @@ import { parseSegment, sanitizeSegments, type Segment } from './segment'
 import type { PlexPart } from './plexModels'
 import { decodePreferences, preferencesBody, type PreferencesRemote, type ShowPreferences } from './showPreferences'
 
-export const DEFAULT_DETECTOR_URL = 'https://loge-server.example.com'
-
 interface SegmentsResponse {
   ratingKey: string
   segments: Segment[]
@@ -132,7 +130,10 @@ export class DetectorClient implements PreferencesRemote {
   }
 }
 
-/** A usable detector base URL from user input, or the default. */
+/**
+ * A usable Loge Server base URL from user input; empty when there is none. Loge Server is the
+ * person's own server, so there is no default address.
+ */
 export function normalizeDetectorURL(input: string): string {
   const trimmed = input.trim()
   try {
@@ -141,5 +142,5 @@ export function normalizeDetectorURL(input: string): string {
   } catch {
     // fall through
   }
-  return DEFAULT_DETECTOR_URL
+  return ''
 }

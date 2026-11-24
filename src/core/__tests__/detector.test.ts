@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_DETECTOR_URL, DetectorClient, normalizeDetectorURL } from '../detectorClient'
+import { DetectorClient, normalizeDetectorURL } from '../detectorClient'
 import { fixture, MockFetch } from './support'
 
 // Port of DetectorClientTests.swift.
@@ -82,7 +82,8 @@ describe('DetectorClient', () => {
 
   it('normalizes the configured URL', () => {
     expect(normalizeDetectorURL(' https://d.test/ ')).toBe('https://d.test')
-    expect(normalizeDetectorURL('ftp://x')).toBe(DEFAULT_DETECTOR_URL)
-    expect(normalizeDetectorURL('')).toBe(DEFAULT_DETECTOR_URL)
+    // No default: Loge Server is the person's own.
+    expect(normalizeDetectorURL('ftp://x')).toBe('')
+    expect(normalizeDetectorURL('')).toBe('')
   })
 })

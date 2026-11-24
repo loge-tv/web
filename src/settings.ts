@@ -1,6 +1,5 @@
 import { useSyncExternalStore } from 'react'
 import { DEFAULT_DETECTOR } from './config'
-import { DEFAULT_DETECTOR_URL } from './core/detectorClient'
 import { skipModes, type SkipMode } from './core/skipPolicy'
 import { readJSON, StorageKey, writeJSON } from './storage'
 
@@ -15,7 +14,7 @@ export interface Settings {
   seekBack: number
   /** → step, seconds. */
   seekForward: number
-  /** Detector service base URL. */
+  /** Loge Server base URL; empty: none (segments from the file's chapters and TheIntroDB). */
   detectorURL: string
   /** Preferred server connection URL (empty: automatic). */
   preferredConnection: string
@@ -27,7 +26,7 @@ export const countdownOptions = [5, 10, 15]
 export const seekBackOptions = [5, 10, 15, 30]
 export const seekForwardOptions = [5, 10, 15, 30, 60]
 
-export const defaultDetectorURL = DEFAULT_DETECTOR ?? DEFAULT_DETECTOR_URL
+export const defaultDetectorURL = DEFAULT_DETECTOR ?? ''
 
 const defaults: Settings = {
   skipMode: 'countdown',
@@ -47,7 +46,7 @@ function load(): Settings {
   if (!(s.nextEpisodeCountdown > 0)) s.nextEpisodeCountdown = defaults.nextEpisodeCountdown
   if (!(s.seekBack > 0)) s.seekBack = defaults.seekBack
   if (!(s.seekForward > 0)) s.seekForward = defaults.seekForward
-  if (typeof s.detectorURL !== 'string' || !s.detectorURL) s.detectorURL = defaults.detectorURL
+  if (typeof s.detectorURL !== 'string') s.detectorURL = defaults.detectorURL
   return s
 }
 

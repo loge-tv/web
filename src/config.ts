@@ -17,7 +17,7 @@ export const PLEX_DISCOVER_URL: string = import.meta.env.VITE_PLEX_DISCOVER_URL 
 export const PLEX_IMAGES_URL: string = import.meta.env.VITE_PLEX_IMAGES_URL || 'https://images.plex.tv'
 /** Fakes only: «today» for release dates, so the smoke's «Ещё не вышло» doesn't go stale. */
 export const PINNED_TODAY: string | undefined = import.meta.env.VITE_TODAY || undefined
-/** Detector used until the user sets another one in the settings. */
+/** Loge Server used until the user sets another one in the settings; none by default. */
 export const DEFAULT_DETECTOR: string | undefined = import.meta.env.VITE_DETECTOR_URL || undefined
 /**
  * YouTube, where trailers play (`/embed/<id>`). Overridable for the fakes only: the smoke test

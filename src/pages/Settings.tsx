@@ -121,10 +121,12 @@ function Toggle({ label, detail, checked, onChange }: { label: string; detail?: 
 
 function DetectorStatus({ url, token }: { url: string; token?: string }) {
   const [status, setStatus] = useState<'checking' | 'ok' | 'down'>('checking')
+  const base = normalizeDetectorURL(url)
   useEffect(() => {
+    if (!base) return
     let cancelled = false
     setStatus('checking')
-    const client = new DetectorClient(normalizeDetectorURL(url), token ?? '')
+    const client = new DetectorClient(base, token ?? '')
     const timer = setTimeout(() => {
       void client.isReachable().then((ok) => {
         if (!cancelled) setStatus(ok ? 'ok' : 'down')
@@ -134,7 +136,8 @@ function DetectorStatus({ url, token }: { url: string; token?: string }) {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [url, token])
+  }, [base, token])
+  if (!base) return <span className="status">Не задан</span>
   const text = status === 'checking' ? 'Проверяю…' : status === 'ok' ? 'Loge Server отвечает' : 'Loge Server недоступен'
   return <span className={`status status-${status}`}>{text}</span>
 }
@@ -442,7 +445,7 @@ function DetectorSettings() {
   const { api } = useApp()
   const [detectorDraft, setDetectorDraft] = useState(settings.detectorURL)
   return (
-    <Section footer="Сервис, который находит заставки и титры. Если он недоступен, разметка для пропуска берётся из глав файла и TheIntroDB, где она есть.">
+    <Section footer="Адрес вашего Loge Server: с ним заставки и титры находятся точнее. Без него они берутся из глав файла и TheIntroDB.">
       <form
         className="settings-row input-row"
         onSubmit={(e) => {
@@ -454,6 +457,7 @@ function DetectorSettings() {
         <input
           type="url"
           aria-label="Адрес Loge Server"
+          placeholder="https://…"
           value={detectorDraft}
           onChange={(e) => setDetectorDraft(e.target.value)}
           onBlur={() => settingsStore.update({ detectorURL: normalizeDetectorURL(detectorDraft) })}
@@ -463,15 +467,17 @@ function DetectorSettings() {
       </form>
       <div className="settings-row">
         <DetectorStatus url={settings.detectorURL} token={api?.token} />
-        <button
-          className="link-button"
-          onClick={() => {
-            setDetectorDraft(defaultDetectorURL)
-            settingsStore.update({ detectorURL: defaultDetectorURL })
-          }}
-        >
-          Сбросить адрес Loge Server
-        </button>
+        {settings.detectorURL !== defaultDetectorURL && (
+          <button
+            className="link-button"
+            onClick={() => {
+              setDetectorDraft(defaultDetectorURL)
+              settingsStore.update({ detectorURL: defaultDetectorURL })
+            }}
+          >
+            {defaultDetectorURL ? 'Сбросить адрес Loge Server' : 'Убрать адрес Loge Server'}
+          </button>
+        )}
       </div>
     </Section>
   )

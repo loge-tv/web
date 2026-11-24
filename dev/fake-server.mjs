@@ -587,6 +587,10 @@ export async function startFake(options = {}) {
     searchFail: false,
     /** The detector answers 404 to TMDB questions (no TMDB key). */
     tmdbMissing: false,
+    /** The fake YouTube can't be reached: its connections are dropped (a browser error page in the frame). */
+    youtubeDown: false,
+    /** The fake YouTube player reports this error code to the page (150: embedding not allowed). */
+    youtubeError: 0,
     /** Plex's collections down. */
     hubsFail: false,
     /** The server refuses DELETE (deletion not allowed in its settings). */
@@ -898,11 +902,25 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
     const p = decodeURIComponent(url.pathname)
     if (p === '/healthz') return text(res, 'ok')
     // Stands in for YouTube's embed page (the trailer's iframe), so the browser never leaves the fakes.
+    // Like YouTube's player with enablejsapi=1, it answers the page's «listening» with onReady
+    // (and onError when `youtubeError` is set).
     const embed = /^\/embed\/([\w-]+)$/.exec(p)
+    if (embed && state.youtubeDown) return req.socket.destroy()
     if (embed)
       return text(
         res,
-        `<!doctype html><meta charset="utf-8"><body style="margin:0;background:#111;color:#eee;font:20px sans-serif;display:grid;place-items:center;height:100vh">Fake YouTube: ${embed[1]} (${escapeXML(url.searchParams.get('hl') ?? '')})</body>`,
+        `<!doctype html><meta charset="utf-8"><body style="margin:0;background:#111;color:#eee;font:20px sans-serif;display:grid;place-items:center;height:100vh">Fake YouTube: ${embed[1]} (${escapeXML(url.searchParams.get('hl') ?? '')})<script>
+addEventListener('message', (e) => {
+  let data
+  try { data = JSON.parse(e.data) } catch { return }
+  if (data?.event !== 'listening' || window.answered) return
+  window.answered = true
+  const send = (event, info) => parent.postMessage(JSON.stringify({ event, info, id: data.id, channel: 'widget' }), '*')
+  send('initialDelivery', {})
+  send('onReady', null)
+  if (${Number(state.youtubeError) || 0}) send('onError', ${Number(state.youtubeError) || 0})
+})
+</script></body>`,
         200,
         'text/html; charset=utf-8',
       )

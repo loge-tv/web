@@ -1592,6 +1592,38 @@ a.settings-row:hover {
   border: 0;
 }
 
+/* In the frame's place when YouTube can't show the video. */
+.trailer-failed {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px;
+  text-align: center;
+}
+
+.trailer-failed p {
+  margin: 0;
+  max-width: 420px;
+  color: var(--text-secondary);
+}
+
+.trailer-failed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.trailer-failed-actions .btn {
+  min-height: 40px;
+  padding: 0 18px;
+  font-size: 15px;
+}
+
 .trailer-list {
   list-style: none;
   margin: 0;

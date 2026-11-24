@@ -1635,6 +1635,58 @@ await step('the trailer on a phone: a 16:9 picture inside the screen, upright an
   await phone.close()
 })
 
+await step("«Трейлер» when YouTube can't show it (unreachable, offline, the video refused): the app says so, «Повторить», «Открыть в YouTube»", async () => {
+  const dialog = () => page.getByRole('dialog', { name: 'Трейлер' })
+  const alert = () => dialog().getByRole('alert')
+  const watch = 'https://www.youtube.com/watch?v=ruTrailer01'
+  const open = async () => {
+    await page.goto(`${app}/#/show/100`)
+    await page.getByRole('button', { name: 'Трейлер' }).click({ timeout: 10000 })
+    await dialog().waitFor()
+  }
+  const plays = () => page.frameLocator('.trailer-frame iframe').getByText('Fake YouTube: ruTrailer01 (ru)').waitFor({ timeout: 8000 })
+  // Unreachable: its connections dropped (the frame would hold the browser's error page).
+  fake.state.youtubeDown = true
+  await open()
+  await alert().waitFor({ timeout: 8000 })
+  assert.equal(await alert().locator('p').textContent(), 'Трейлер не загрузился: нет связи с YouTube.')
+  assert.equal(await dialog().getByRole('link', { name: 'Открыть в YouTube' }).getAttribute('href'), watch)
+  assert.equal(await dialog().locator('iframe').count(), 0)
+  await settledShot('trailer-unreachable')
+  fake.state.youtubeDown = false
+  await alert().getByRole('button', { name: 'Повторить' }).click()
+  await plays()
+  // The player is asked for its messages, for this page; a working one gets no message.
+  const src = new URL((await dialog().locator('iframe').getAttribute('src')) ?? '')
+  assert.equal(src.searchParams.get('enablejsapi'), '1')
+  assert.equal(src.searchParams.get('origin'), new URL(app).origin)
+  await page.waitForTimeout(1500)
+  assert.equal(await alert().count(), 0)
+  await page.keyboard.press('Escape')
+  await dialog().waitFor({ state: 'detached' })
+  // Offline: said at once; back online, the video by itself.
+  await context.setOffline(true)
+  await page.getByRole('button', { name: 'Трейлер' }).click()
+  await alert().waitFor({ timeout: 5000 })
+  assert.equal(await alert().locator('p').textContent(), 'Трейлер не загрузился: нет связи с YouTube.')
+  await context.setOffline(false)
+  await plays()
+  assert.equal(await alert().count(), 0)
+  await page.keyboard.press('Escape')
+  await dialog().waitFor({ state: 'detached' })
+  // The player refuses (150: its author allows it only on YouTube): no «Повторить».
+  fake.state.youtubeError = 150
+  await open()
+  await alert().waitFor({ timeout: 8000 })
+  assert.equal(await alert().locator('p').textContent(), 'Автор видео не разрешает смотреть его вне YouTube.')
+  assert.equal(await alert().getByRole('button', { name: 'Повторить' }).count(), 0)
+  assert.equal(await dialog().getByRole('link', { name: 'Открыть в YouTube' }).getAttribute('href'), watch)
+  await settledShot('trailer-refused')
+  fake.state.youtubeError = 0
+  await page.keyboard.press('Escape')
+  await dialog().waitFor({ state: 'detached' })
+})
+
 await step('the browser asked only the fakes (plus the never-answering fake plex.direct)', async () => {
   const outside = [...requestedHosts].filter((h) => !h.startsWith('127.0.0.1:') && !h.endsWith('.fake.plex.direct:32400'))
   assert.deepEqual(outside, [])

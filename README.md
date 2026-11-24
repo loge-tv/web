@@ -51,7 +51,10 @@ The interface is in Russian for now; the labels in quotes below are English tran
     catalog title neither on the server nor on the list). The rest are round icons in one row:
     "From the start", watched, the list, the trailer, "⋯". Watched and listed are filled while
     on; each icon's name is its tooltip and accessible name ("In the list — remove from the
-    list"). On a phone the main button spans the column.
+    list"). On a phone the main button spans the column. A phone on its side (a screen up to 500 px
+    high, the Apple app's "short" one: art 170 pt, poster 140 pt) gets a compact header — a short art,
+    a 140 px poster, a smaller title and the actions before the summary — so the main button is on
+    the first screen.
   - **All seasons and episodes**: the show page takes the show's seasons and the open season's
     episodes from the Plex catalog (`/library/metadata/<key>/children`) and merges them with the
     server's by number. What is not on the server is greyed out, with "Not on the server · 4 January 2025"
@@ -231,12 +234,13 @@ down (server titles with a note, "Nothing found") → deleting from a Home shelf
 rolling back a refusal → "Not out yet" off in settings: not on Home, still in an empty
 search → "Explore" collections moved in settings (the page follows, the shelves keep their order,
 narrowed to a phone and back) and reset → a show opened on E3 while the catalog's E1 and E2 come
-late (E3 still in view at 375 px and wide) → "⋯" low on a phone turned sideways opens upwards → a phone turned
+late (E3 still in view at 375 px and wide) → "⋯" with no room below (a show on a phone turned sideways) opens upwards → a phone turned
 sideways keeps its content out of the side safe areas (emulated in Chrome) → the phone layout without horizontal
 scrolling (search, the title page, the skip countdown and the settings pages included) → subtitles above the corner
 (countdown, skip button, next episode card), the bar shown and hidden, a phone turned P → L → P and wide → the
 trailer 16:9 inside a phone's screen both ways → YouTube unreachable, offline, refusing: the app's message, "Retry",
-"Open in YouTube" → the browser talked only to the fakes.
+"Open in YouTube" → a phone on its side: the title page's main action on the first screen, a long title and summary
+too → the browser talked only to the fakes.
 
 ## Deployment
 
@@ -379,7 +383,7 @@ hovering and clicking on the bar; dragging and touch, Safari and Firefox were no
 - New on 2026-11-24 — only in headless Chrome against the fakes: the embedded player's messages (the
   "listening" handshake and `onError` are what the IFrame Player API is known to use; the fake answers
   that way, the real YouTube wasn't asked) and the no-cors `HEAD` of a real embed page; on iOS Safari —
-  the trailer's size with Safari's bars.
+  the compact header and the trailer's size with Safari's bars.
 - A title of an old Plex agent whose year on the server differs from the catalog's (or whose
   title is translated differently) is not "recognised": it stays in "Not on the server" and in "Want
   to watch".

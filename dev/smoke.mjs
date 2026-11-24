@@ -1329,7 +1329,7 @@ await step('deleting downloads: a movie, an episode refused and why, watched epi
   fake.state.restoreLibrary()
 })
 
-await step('«Ещё» low on the screen (a phone turned sideways) opens upwards, inside the screen', async () => {
+await step('«Ещё» with no room below (a show on a phone turned sideways) opens upwards, inside the screen', async () => {
   const phone = await browser.newContext({
     viewport: { width: 844, height: 390 },
     deviceScaleFactor: 2,
@@ -1341,21 +1341,23 @@ await step('«Ещё» low on the screen (a phone turned sideways) opens upwards
   recordHosts(phone)
   const p = await phone.newPage()
   p.on('pageerror', (e) => pageErrors.push(`phone: ${e}`))
-  await p.goto(`${app}/#/movie/200`)
+  // The show's three deletions: its header is compact on a phone on its side, the button in the
+  // upper half, but the menu doesn't fit under it.
+  await p.goto(`${app}/#/show/100`)
   const more = p.getByRole('button', { name: 'Ещё', exact: true })
   await more.waitFor({ timeout: 15000 })
   const menuBox = async (screenshot) => {
     await more.click()
-    await p.getByRole('menuitem', { name: 'Удалить фильм' }).waitFor()
+    await p.getByRole('menuitem', { name: 'Удалить сериал' }).waitFor()
     const [button, menu] = await Promise.all([more.boundingBox(), p.getByRole('menu').boundingBox()])
     if (screenshot) await p.waitForTimeout(200).then(() => p.screenshot({ path: join(screens, `${screenshot}.png`) }))
     await p.keyboard.press('Escape')
     await p.getByRole('menu').waitFor({ state: 'detached' })
     return { button, menu }
   }
-  // The button at the bottom edge: the menu goes above it.
-  await more.evaluate((b) => window.scrollBy(0, b.getBoundingClientRect().bottom - window.innerHeight + 4))
+  // No room below: the menu goes above the button.
   let { button, menu } = await menuBox('phone-landscape-menu')
+  assert.ok(button.y + button.height + menu.height > 390 - 8, `room under the button: ${JSON.stringify({ menu, button })}`)
   assert.ok(menu.y >= 0 && menu.y + menu.height <= 390, `menu inside the screen: ${JSON.stringify(menu)}`)
   assert.ok(menu.y + menu.height <= button.y, `menu above the button: ${JSON.stringify({ menu, button })}`)
   // With room below, it stays under the button.
@@ -1685,6 +1687,38 @@ await step("«Трейлер» when YouTube can't show it (unreachable, offline,
   fake.state.youtubeError = 0
   await page.keyboard.press('Escape')
   await dialog().waitFor({ state: 'detached' })
+})
+
+await step("a phone on its side: the title page's main action on the first screen (a long title and summary too)", async () => {
+  const LONG_TITLE = 'Очень длинное название, которое не помещается в одну строку'
+  const LONG_SUMMARY = 'Длинное описание. '.repeat(40)
+  const pmsPort = new URL(fake.urls.pms).port
+  for (const viewport of [
+    { width: 844, height: 390 },
+    { width: 667, height: 375 },
+  ]) {
+    const { phone, p } = await phoneContext(viewport)
+    await p.route(
+      (url) => url.port === pmsPort && /^\/library\/metadata\/(200|100)$/.test(url.pathname),
+      async (route) => {
+        const response = await route.fetch()
+        const body = await response.json()
+        for (const m of body.MediaContainer?.Metadata ?? []) Object.assign(m, { title: LONG_TITLE, summary: LONG_SUMMARY })
+        await route.fulfill({ response, json: body })
+      },
+    )
+    for (const path of ['/#/movie/200', '/#/show/100', '/#/catalog/cat-new-1']) {
+      await p.goto(`${app}${path}`)
+      // The wide button, or the round icons when a catalog title has none.
+      const main = p.locator('.title-actions > :first-child')
+      await main.waitFor({ timeout: 15000 })
+      await p.waitForTimeout(300)
+      const box = await main.boundingBox()
+      assert.ok(box.y + box.height <= viewport.height, `${path} at ${viewport.width}×${viewport.height}: the main action below the first screen: ${JSON.stringify(box)}`)
+      if (viewport.width === 844 && path !== '/#/catalog/cat-new-1') await p.screenshot({ path: join(screens, `phone-landscape-${path.split('/')[2]}.png`) })
+    }
+    await phone.close()
+  }
 })
 
 await step('the browser asked only the fakes (plus the never-answering fake plex.direct)', async () => {

@@ -1000,6 +1000,32 @@ p {
   line-height: 1.05;
 }
 
+/* A phone on its side (little height, the Apple app's «isShort»: art 170 pt, poster 140 pt): a
+   short art, a small poster and the actions before the summary, so the main button is on the
+   first screen. Tablets and computers are taller than this. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .detail-backdrop {
+    height: 240px;
+  }
+  .detail-body {
+    padding-top: 76px;
+    gap: 12px;
+  }
+  .movie-layout {
+    align-items: flex-start;
+    gap: 24px;
+  }
+  .detail-poster {
+    width: 140px;
+  }
+  .detail-title {
+    font-size: clamp(24px, 3.6vw, 32px);
+  }
+  .detail-body .summary {
+    order: 1;
+  }
+}
+
 .meta {
   display: flex;
   flex-wrap: wrap;

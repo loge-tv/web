@@ -1286,6 +1286,14 @@ a.settings-row:hover {
   color: var(--text-secondary);
 }
 
+/* TMDB's logo as it is (colours, proportions), smaller than Loge's in the header. */
+.tmdb-logo {
+  display: block;
+  height: 12px;
+  width: auto;
+  flex: none;
+}
+
 .toggle {
   cursor: pointer;
   position: relative;

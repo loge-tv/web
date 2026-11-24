@@ -446,6 +446,11 @@ await step('settings: a list of four pages, Back returns to it; detector reachab
   await settingsPages().first().waitFor()
   assert.deepEqual(await settingsPages().allTextContents(), ['Плеер', 'Главная и Обзор', 'Loge Server', 'Сервер и аккаунт'])
   await page.getByText(/^Loge \d/).waitFor()
+  // TMDB's attribution (its terms, §3): the sentence word for word and its logo from the bundle.
+  await page.getByText('This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.').waitFor()
+  const tmdbLogo = page.getByRole('img', { name: 'TMDB' })
+  await page.waitForFunction(() => { const img = document.querySelector('img.tmdb-logo'); return !!img && img.complete && img.naturalWidth > 0 })
+  assert.ok(!/themoviedb|tmdb\.org/.test((await tmdbLogo.getAttribute('src')) ?? ''), 'the logo is not loaded from TMDB')
   await settledShot('settings')
   // Browser Back from a page lands on the list.
   await settingsPages().filter({ hasText: 'Loge Server' }).click()

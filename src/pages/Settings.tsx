@@ -2,6 +2,7 @@ import { useEffect, useId, useState, type ComponentType, type ReactNode } from '
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { appModel } from '../app/appModel'
 import { useApp } from '../app/hooks'
+import tmdbLogo from '../assets/tmdb-logo.svg'
 import { APP_NAME, APP_VERSION } from '../config'
 import { DetectorClient, normalizeDetectorURL } from '../core/detectorClient'
 import { skipModes, skipModeTitle, type SkipMode } from '../core/skipPolicy'
@@ -160,15 +161,33 @@ export function SettingsPage() {
           ))}
         </nav>
       </Section>
-      <Section title="О приложении">
+      <Section title="О приложении" footer={<TMDBNotice />}>
         <div className="settings-row">
           <span>Версия</span>
           <span className="muted">
             {APP_NAME} {APP_VERSION}
           </span>
         </div>
+        <div className="settings-row">
+          <span>Рекомендации и трейлеры</span>
+          <img className="tmdb-logo" src={tmdbLogo} alt="TMDB" />
+        </div>
       </Section>
     </div>
+  )
+}
+
+/**
+ * TMDB's terms (§3) want this sentence, word for word, with one of their logos (as it is, less
+ * prominent than the app's own) in an "About" or "Credits" section: recommendations and trailers
+ * come from TMDB through Loge Server. The logo is in the bundle, nothing is loaded from TMDB.
+ */
+function TMDBNotice() {
+  return (
+    <>
+      <span lang="en">This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.</span>{' '}
+      Loge использует TMDB и API TMDB, но не одобрен, не сертифицирован и никак иначе не утверждён TMDB.
+    </>
   )
 }
 

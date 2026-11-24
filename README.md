@@ -163,7 +163,10 @@ The interface is in Russian for now; the labels in quotes below are English tran
   pictures go through the Plex resizer `images.plex.tv/photo` (without a token), not straight from
   image.tmdb.org.
 - **Settings** — a list of sections, each with its own page (`#/settings/<section>`; the browser's
-  "Back" and "‹ Settings" return to the list), the version under the list:
+  "Back" and "‹ Settings" return to the list), under the list "About": the version and TMDB's
+  attribution — its logo (smaller than Loge's) and, word for word, the sentence its terms ask for
+  ("This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise
+  approved by TMDB.", with a Russian translation):
   - **Player** — "Preferred language" (audio, subtitles and the trailer language; 13 languages),
     skip mode, autoplay of the next episode and a 5/10/15 s countdown, seek steps,
     "Always through the server" (forced transcoding);
@@ -417,4 +420,6 @@ hovering and clicking on the bar; dragging and touch, Safari and Firefox were no
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). Except `src/assets/tmdb-logo.svg`: TMDB's logo, used as their
+[attribution rules](https://www.themoviedb.org/about/logos-attribution) ask, under their terms, not MIT.
+This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.

@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { EpisodeNavigator } from '../episodeNavigator'
-import { track, trackDisplayName, TrackSelector, tracksFromPart } from '../mediaTrack'
+import { Language, track, trackDisplayName, TrackSelector, tracksFromPart } from '../mediaTrack'
 import { makeItem, parseMetadata, type PlexItem } from '../plexModels'
 import { ProgressTracker, ResumePolicy, TimeFormat } from '../progressTracker'
 import { fixtureJSON } from './support'
@@ -115,8 +115,39 @@ describe('TrackSelector', () => {
 
   it('Russian audio is preferred over the default', () => {
     expect(TrackSelector.defaultAudio([engTrueHD, rusAC3, rusMVO])).toEqual(rusAC3)
+    // 5.1 wins over stereo even when the file marks the stereo one as default.
     const defaultMVO = { ...rusMVO, isDefault: true }
-    expect(TrackSelector.defaultAudio([engTrueHD, rusAC3, defaultMVO])).toEqual(defaultMVO)
+    expect(TrackSelector.defaultAudio([engTrueHD, defaultMVO, rusAC3])).toEqual(rusAC3)
+  })
+
+  /** The best of the preferred language: channels, then codec, then the file default, then order. */
+  it('the best quality in the preferred language', () => {
+    const rusStereo = track({ id: 4, kind: 'audio', language: 'rus', title: 'Дубляж', codec: 'ac3', channels: 2, isDefault: true })
+    const rusEAC3 = track({ id: 5, kind: 'audio', language: 'rus', title: 'Дубляж', codec: 'eac3', channels: 6 })
+    const rusTrueHD = track({ id: 6, kind: 'audio', language: 'ru', title: 'Дубляж', codec: 'truehd', channels: 8 })
+    const rusComment = track({ id: 7, kind: 'audio', language: 'rus', title: 'Комментарии режиссёра', codec: 'truehd', channels: 8 })
+    expect(TrackSelector.defaultAudio([rusStereo, rusAC3])).toEqual(rusAC3) // 5.1 over stereo
+    expect(TrackSelector.defaultAudio([rusAC3, rusEAC3])).toEqual(rusEAC3) // same channels: the better codec
+    expect(TrackSelector.defaultAudio([rusAC3, rusTrueHD, engTrueHD])).toEqual(rusTrueHD) // 7.1 TrueHD
+    expect(TrackSelector.defaultAudio([rusComment, rusAC3])).toEqual(rusAC3) // commentary last
+    const second = track({ id: 8, kind: 'audio', language: 'rus', title: 'MVO', codec: 'ac3', channels: 6 })
+    expect(TrackSelector.defaultAudio([rusAC3, second])).toEqual(rusAC3) // a tie keeps the file's order
+    expect(TrackSelector.defaultAudio([rusComment])).toEqual(rusComment) // only commentary: still that language
+  })
+
+  it('another preferred language', () => {
+    const engAC3 = track({ id: 4, kind: 'audio', language: 'en', codec: 'ac3', channels: 6 })
+    expect(TrackSelector.defaultAudio([rusAC3, engAC3, engTrueHD], 'en')).toEqual(engTrueHD)
+    const ukr = track({ id: 9, kind: 'audio', language: 'ukr', codec: 'aac', channels: 2 })
+    expect(TrackSelector.defaultAudio([rusAC3, ukr], 'uk')).toEqual(ukr)
+    // Subtitles follow the language too.
+    const engForced = track({ id: 4, kind: 'sub', language: 'eng', codec: 'subrip', isForced: true })
+    expect(TrackSelector.defaultSubtitle([rusForced, engForced, engSubs], engTrueHD, 'en')).toEqual(engForced)
+    expect(TrackSelector.defaultSubtitle([rusFull, engSubs], rusAC3, 'en')).toEqual(engSubs)
+    expect(Language.choices).toHaveLength(13)
+    expect(Language.choices.every((code) => Language.name(code) !== code)).toBe(true) // every choice has a Russian name
+    expect(Language.matches('GER', 'de')).toBe(true)
+    expect(Language.matches('und', 'de')).toBe(false)
   })
 
   it('falls back to the file default', () => {

@@ -1,0 +1,147 @@
+{
+ "MediaContainer": {
+  "identifier": "tv.plex.provider.discover",
+  "size": 4,
+  "SearchResults": [
+   {
+    "id": "external",
+    "title": "More Ways To Watch",
+    "size": 10,
+    "SearchResult": [
+     {
+      "Metadata": {
+       "addedAt": 1631664000,
+       "art": "https://metadata-static.plex.tv/4/gracenote/4e6cbb4ed793f3afa9add250e54a302a.jpg",
+       "duration": 9300000,
+       "guid": "plex://movie/5d776cac47dd6e001f6ee059",
+       "key": "/library/metadata/5d776cac47dd6e001f6ee059",
+       "originallyAvailableAt": "2021-09-15",
+       "ratingKey": "5d776cac47dd6e001f6ee059",
+       "slug": "dune-2021",
+       "thumb": "https://image.tmdb.org/t/p/original/3hbXNclcHaj5KiF6kK41GBMjyFr.jpg",
+       "title": "Дюна",
+       "type": "movie",
+       "year": 2021,
+       "Genre": [
+        {
+         "filter": "genre=5d9c046c2192ba001f2ff6c4",
+         "id": "5d9c046c2192ba001f2ff6c4",
+         "key": "/library/categories/sci-fi",
+         "ratingKey": "genre_5d9c046c2192ba001f2ff6c4",
+         "slug": "sci-fi",
+         "tag": "Sci-Fi",
+         "type": "hub",
+         "context": "tag.genre"
+        },
+        {
+         "filter": "genre=5d9c046c2192ba001f2ff6c2",
+         "id": "5d9c046c2192ba001f2ff6c2",
+         "key": "/library/categories/action",
+         "ratingKey": "genre_5d9c046c2192ba001f2ff6c2",
+         "slug": "action",
+         "tag": "Action",
+         "type": "hub",
+         "context": "tag.genre"
+        }
+       ],
+       "source": "provider://tv.plex.provider.discover"
+      },
+      "score": 0.92
+     },
+     {
+      "Metadata": {
+       "addedAt": 471830400,
+       "art": "https://metadata-static.plex.tv/8/gracenote/898ffb62345221423bd42da5a0d6b17e.jpg",
+       "duration": 8160000,
+       "guid": "plex://movie/5d7768273c3c2a001fbcb51a",
+       "key": "/library/metadata/5d7768273c3c2a001fbcb51a",
+       "originallyAvailableAt": "1984-12-14",
+       "ratingKey": "5d7768273c3c2a001fbcb51a",
+       "slug": "dune-1984",
+       "thumb": "https://image.tmdb.org/t/p/original/ushxXCt5RAXtBFGrpMxiz5n6d3L.jpg",
+       "title": "Дюна",
+       "type": "movie",
+       "year": 1984,
+       "Genre": [
+        {
+         "filter": "genre=5d9c046c2192ba001f2ff6c2",
+         "id": "5d9c046c2192ba001f2ff6c2",
+         "key": "/library/categories/action",
+         "ratingKey": "genre_5d9c046c2192ba001f2ff6c2",
+         "slug": "action",
+         "tag": "Action",
+         "type": "hub",
+         "context": "tag.genre"
+        },
+        {
+         "filter": "genre=5d9c046c2192ba001f2ff6c3",
+         "id": "5d9c046c2192ba001f2ff6c3",
+         "key": "/library/categories/adventure",
+         "ratingKey": "genre_5d9c046c2192ba001f2ff6c3",
+         "slug": "adventure",
+         "tag": "Adventure",
+         "type": "hub",
+         "context": "tag.genre"
+        }
+       ],
+       "source": "provider://tv.plex.provider.discover"
+      },
+      "score": 0.73
+     },
+     {
+      "Metadata": {
+       "addedAt": 975801600,
+       "art": "https://image.tmdb.org/t/p/original/4TpDp2hueKimqgC8hXweZW0T0yW.jpg",
+       "childCount": 1,
+       "duration": 5700000,
+       "guid": "plex://show/5d9c08444eefaa001f5d9359",
+       "key": "/library/metadata/5d9c08444eefaa001f5d9359/children",
+       "leafCount": 12,
+       "originallyAvailableAt": "2000-12-03",
+       "ratingKey": "5d9c08444eefaa001f5d9359",
+       "skipChildren": true,
+       "slug": "dune",
+       "subtype": "miniSeries",
+       "thumb": "https://image.tmdb.org/t/p/original/y2WnjknqhZL0nISOrvUinODI81a.jpg",
+       "title": "Дюна",
+       "type": "show",
+       "year": 2000,
+       "Genre": [
+        {
+         "filter": "genre=5d9c046c705e7a001e6c8d9a",
+         "id": "5d9c046c705e7a001e6c8d9a",
+         "key": "/library/categories/drama",
+         "ratingKey": "genre_5d9c046c705e7a001e6c8d9a",
+         "slug": "drama",
+         "tag": "Drama",
+         "type": "hub",
+         "context": "tag.genre"
+        },
+        {
+         "filter": "genre=5d9c046c2192ba001f2ff6c3",
+         "id": "5d9c046c2192ba001f2ff6c3",
+         "key": "/library/categories/adventure",
+         "ratingKey": "genre_5d9c046c2192ba001f2ff6c3",
+         "slug": "adventure",
+         "tag": "Adventure",
+         "type": "hub",
+         "context": "tag.genre"
+        }
+       ],
+       "source": "provider://tv.plex.provider.discover"
+      },
+      "score": 0.68
+     },
+     {
+      "score": 0.5,
+      "Metadata": {
+       "ratingKey": "5d7768",
+       "type": "person",
+       "title": "Дени Вильнёв"
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

@@ -179,6 +179,108 @@ describe('SkipController', () => {
   })
 })
 
+describe('next episode countdown before the final credits', () => {
+  const playNext = { kind: 'playNextEpisode' }
+
+  it('ends as the credits start', () => {
+    for (const mode of ['auto', 'countdown'] as const) {
+      const controller = new SkipController([intro, credits], context(mode))
+      controller.nextEpisodeLead = 10
+      expect(controller.update(2898), mode).toBeNull()
+      expect(controller.nextEpisodeCountdown, `${mode}: not yet`).toBeNull()
+      expect(controller.update(2899.5)).toBeNull()
+      expect(controller.nextEpisodeCountdown, `${mode}: 10 s before the credits`).toBe(10)
+      expect(controller.prompt).toBeNull()
+      expect(controller.update(2905)).toBeNull()
+      expect(controller.nextEpisodeCountdown).toBe(5)
+      expect(controller.update(2909.1), `${mode}: as the credits start`).toEqual(playNext)
+      expect(controller.update(2909.6), `${mode}: once`).toBeNull()
+    }
+  })
+
+  it('the full countdown when playback starts inside the credits', () => {
+    const controller = new SkipController([intro, credits], context())
+    controller.nextEpisodeLead = 10
+    // Resumed (or seeked) into the credits.
+    expect(controller.update(2950)).toBeNull()
+    expect(controller.nextEpisodeCountdown).toBe(10)
+    expect(controller.update(2959)).toBeNull()
+    expect(controller.update(2960)).toEqual(playNext)
+  })
+
+  it('cut at the end of the credits', () => {
+    const controller = new SkipController([intro, credits], context())
+    controller.nextEpisodeLead = 10
+    expect(controller.update(2985)).toBeNull()
+    expect(controller.nextEpisodeCountdown, 'until the credits end').toBe(3)
+    expect(controller.update(2988.5), 'the last tick past their end').toEqual(playNext)
+  })
+
+  it('a cancelled countdown leaves the button', () => {
+    const controller = new SkipController([intro, credits], context())
+    controller.nextEpisodeLead = 10
+    expect(controller.update(2900)).toBeNull()
+    expect(controller.nextEpisodeCountdown).not.toBeNull()
+    controller.cancelCountdown()
+    controller.userInteracted()
+    expect(controller.update(2901)).toBeNull()
+    expect(controller.nextEpisodeCountdown, 'stays cancelled').toBeNull()
+    expect(controller.update(2910), 'no autoplay in the credits').toBeNull()
+    expect(controller.prompt?.action, 'the button instead').toEqual(nextEpisode)
+  })
+
+  it('seeking back rearms it', () => {
+    const controller = new SkipController([intro, credits], context())
+    controller.nextEpisodeLead = 10
+    expect(controller.update(2900)).toBeNull()
+    expect(controller.nextEpisodeCountdown).not.toBeNull()
+    controller.userSeeked(1000)
+    expect(controller.update(1000)).toBeNull()
+    expect(controller.nextEpisodeCountdown).toBeNull()
+    expect(controller.update(2899.5)).toBeNull()
+    expect(controller.nextEpisodeCountdown, 'counts again').toBe(10)
+  })
+
+  it('none without autoplay, a next episode or auto credits', () => {
+    const cases: [SkipContext, number | undefined][] = [
+      [context(), undefined],
+      [context('auto', { next: false }), 10],
+      [context('auto', { first: true }), 10],
+      [context('button'), 10],
+    ]
+    for (const [ctx, lead] of cases) {
+      const controller = new SkipController([intro, credits], ctx)
+      controller.nextEpisodeLead = lead
+      controller.update(2900)
+      expect(controller.nextEpisodeCountdown, `${JSON.stringify(ctx)} lead ${lead}`).toBeNull()
+    }
+    // Without autoplay the card still comes at the credits (it waits for the user).
+    const controller = new SkipController([intro, credits], context())
+    expect(controller.update(2909.5)).toEqual(startNext)
+  })
+
+  it('starts once the next episode is known', () => {
+    const controller = new SkipController([intro, credits], context('auto', { next: false }))
+    controller.nextEpisodeLead = 10
+    expect(controller.update(2900)).toBeNull()
+    expect(controller.nextEpisodeCountdown).toBeNull()
+    controller.setHasNextEpisode(true)
+    expect(controller.update(2900.5)).toBeNull()
+    expect(controller.nextEpisodeCountdown).toBe(10)
+  })
+
+  it('a correction change starts it over against the new start', () => {
+    const controller = new SkipController([intro, credits], context())
+    controller.nextEpisodeLead = 10
+    expect(controller.update(2900)).toBeNull()
+    expect(controller.nextEpisodeCountdown).toBe(10)
+    controller.setCorrection(correction({ creditsStart: 5 }))
+    expect(controller.nextEpisodeCountdown).toBeNull()
+    expect(controller.update(2905)).toBeNull()
+    expect(controller.nextEpisodeCountdown, 'credits now from 2914.1').toBe(10)
+  })
+})
+
 describe('countdown mode', () => {
   it('policy', () => {
     const ctx = context('countdown')

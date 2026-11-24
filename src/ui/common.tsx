@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { useApp } from '../app/hooks'
+import { useApp, useWatchlist } from '../app/hooks'
 import { isWatched, progress, unwatchedLeafCount, type PlexItem } from '../core/plexModels'
 import { CheckIcon } from './icons'
 
@@ -28,26 +28,34 @@ export function ErrorView({ message, onRetry, children }: { message: string; onR
   )
 }
 
-/** Resized image through the server's photo transcoder; sized for the screen's pixel density. */
-export function PlexImage({
-  path,
-  width,
-  height,
-  alt = '',
-  className,
-  eager,
-}: {
+interface ImageProps {
   path: string | undefined
   width: number
   height: number
   alt?: string
   className?: string
   eager?: boolean
-}) {
+}
+
+const pixels = (points: number) => Math.round(points * Math.min(2, Math.max(1, window.devicePixelRatio || 1)))
+
+/** Resized image through the server's photo transcoder; sized for the screen's pixel density. */
+export function PlexImage({ path, width, height, ...rest }: ImageProps) {
   const { api } = useApp()
+  return <FadeImage src={api?.imageURL(path, pixels(width), pixels(height))} {...rest} />
+}
+
+/**
+ * Catalog picture (absolute TMDB / Plex CDN URL) through Plex's image resizer, never straight
+ * from its host: the server's `imageURL` would pass such a URL through untouched.
+ */
+export function CatalogImage({ path, width, height, ...rest }: ImageProps) {
+  const { api } = useWatchlist()
+  return <FadeImage src={api?.imageURL(path, pixels(width), pixels(height))} {...rest} />
+}
+
+function FadeImage({ src, alt = '', className, eager }: { src: string | undefined; alt?: string; className?: string; eager?: boolean }) {
   const [loaded, setLoaded] = useState<string | undefined>()
-  const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1))
-  const src = api?.imageURL(path, Math.round(width * dpr), Math.round(height * dpr))
   return (
     <div className={`img ${className ?? ''}`}>
       {src && (

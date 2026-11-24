@@ -101,6 +101,49 @@ export const RestartIcon = (p: IconProps) => (
   </Icon>
 )
 
+export const SearchIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path
+      fillRule="evenodd"
+      d="M10.5 3a7.5 7.5 0 0 1 5.96 12.05l4.25 4.24a1 1 0 0 1-1.42 1.42l-4.24-4.25A7.5 7.5 0 1 1 10.5 3zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z"
+    />
+  </Icon>
+)
+
+/** Bookmark: outlined, or filled when the title is on the Plex list. */
+export const BookmarkIcon = ({ filled, ...p }: IconProps & { filled?: boolean }) => (
+  <Icon {...p}>
+    {filled ? (
+      <path d="M6.5 3h11A1.5 1.5 0 0 1 19 4.5v15.6a.9.9 0 0 1-1.4.7L12 16.7l-5.6 4.1a.9.9 0 0 1-1.4-.7V4.5A1.5 1.5 0 0 1 6.5 3z" />
+    ) : (
+      <path
+        fillRule="evenodd"
+        d="M6.5 3h11A1.5 1.5 0 0 1 19 4.5v15.6a.9.9 0 0 1-1.4.7L12 16.7l-5.6 4.1a.9.9 0 0 1-1.4-.7V4.5A1.5 1.5 0 0 1 6.5 3zM7 5v13.1l4.4-3.2a1 1 0 0 1 1.2 0l4.4 3.2V5H7z"
+      />
+    )}
+  </Icon>
+)
+
+/** House: the «Главная» settings page. */
+export const HomeIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path
+      fillRule="evenodd"
+      d="M11.3 3.3a1 1 0 0 1 1.4 0l8 7.6a1 1 0 0 1-1.4 1.5l-.3-.3V19a2 2 0 0 1-2 2h-3.5a1 1 0 0 1-1-1v-4.5h-1V20a1 1 0 0 1-1 1H7a2 2 0 0 1-2-2v-6.9l-.3.3a1 1 0 0 1-1.4-1.5l8-7.6zM7 10.2V19h2.5v-4.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V19H17v-8.8l-5-4.8-5 4.8z"
+    />
+  </Icon>
+)
+
+/** Two server units: the «Сервер и аккаунт» settings page. */
+export const ServerIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path
+      fillRule="evenodd"
+      d="M5 3h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 2v4h14V5H5zm0 8h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2zm0 2v4h14v-4H5zm2-9h2v2H7V6zm0 10h2v2H7v-2z"
+    />
+  </Icon>
+)
+
 /** Gear (Material Icons "settings", Apache 2.0). */
 export const SettingsIcon = (p: IconProps) => (
   <Icon {...p}>
@@ -112,6 +155,46 @@ export const EyeIcon =({ off, ...p }: IconProps & { off?: boolean }) => (
   <Icon {...p}>
     <path d="M12 5c5 0 8.6 4.2 9.8 6.4a1.3 1.3 0 0 1 0 1.2C20.6 14.8 17 19 12 19s-8.6-4.2-9.8-6.4a1.3 1.3 0 0 1 0-1.2C3.4 9.2 7 5 12 5zm0 2c-3.6 0-6.4 2.9-7.7 5 1.3 2.1 4.1 5 7.7 5s6.4-2.9 7.7-5C18.4 9.9 15.6 7 12 7zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6z" />
     {off && <path d="M4.3 3.3a1 1 0 0 1 1.4 0l15 15a1 1 0 0 1-1.4 1.4l-15-15a1 1 0 0 1 0-1.4z" />}
+  </Icon>
+)
+
+export const ChevronUpIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4.6 15.4a1 1 0 0 0 1.4 0l6-6 6 6a1 1 0 1 0 1.4-1.4l-6.7-6.7a1 1 0 0 0-1.4 0L4.6 14a1 1 0 0 0 0 1.4z" />
+  </Icon>
+)
+
+export const ChevronDownIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4.6 8.6a1 1 0 0 1 1.4 0l6 6 6-6a1 1 0 1 1 1.4 1.4l-6.7 6.7a1 1 0 0 1-1.4 0L4.6 10a1 1 0 0 1 0-1.4z" />
+  </Icon>
+)
+
+/** «Ещё»: three dots. */
+export const MoreIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="5" cy="12" r="2" />
+    <circle cx="12" cy="12" r="2" />
+    <circle cx="19" cy="12" r="2" />
+  </Icon>
+)
+
+export const TrashIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path
+      fillRule="evenodd"
+      d="M9 3h6a1 1 0 0 1 1 1v1h4a1 1 0 1 1 0 2h-1l-.9 12.2A2 2 0 0 1 16.1 21H7.9a2 2 0 0 1-2-1.8L5 7H4a1 1 0 0 1 0-2h4V4a1 1 0 0 1 1-1zm-2 4 .9 12h8.2L17 7H7zm3 2a1 1 0 0 1 1 1v6a1 1 0 1 1-2 0v-6a1 1 0 0 1 1-1zm4 0a1 1 0 0 1 1 1v6a1 1 0 1 1-2 0v-6a1 1 0 0 1 1-1z"
+    />
+  </Icon>
+)
+
+/** A film frame with a play triangle: «Трейлер». */
+export const TrailerIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path
+      fillRule="evenodd"
+      d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v12h14V6H5zm5 2.6 5 3.1a.4.4 0 0 1 0 .6l-5 3.1a.4.4 0 0 1-.6-.3V8.9a.4.4 0 0 1 .6-.3z"
+    />
   </Icon>
 )
 

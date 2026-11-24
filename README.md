@@ -20,11 +20,81 @@ The interface is in Russian for now; the labels in quotes below are English tran
   the next episodes of shows in progress — the show watched last comes first; its
   `lastViewedAt` comes from one request, `/library/metadata/a,b,c`, without it the Plex order is kept), "Recently Added · \<library>" — new episodes
   collapse into one season card. An episode card opens its season with that episode;
-  the ▶ button over the artwork (on hover, always on a phone) plays it right away.
+  the ▶ button over the artwork (on hover, always on a phone) plays it right away. There is no
+  big card of the last show.
+  Recommendations (as in the Apple apps): "Similar on the server" and "Because you watched
+  "…"" — from TMDB recommendations through Loge Server (`/v1/recommendations?seeds=movie:1,tv:2`):
+  the seeds are the three titles with a TMDB id watched last (the owner's history
+  `/status/sessions/history/all`, without it the library's `lastViewedAt`); TMDB titles
+  are matched with the Plex catalog (`/library/metadata/matches`, cached in `localStorage` for 30 days,
+  "no match" for 7); what is on the server and not started goes to "Similar on the server", the rest
+  (minus what Plex history says was watched) makes a shelf per seed. Without a TMDB key on Loge Server
+  (404) these shelves are missing, and Settings say so (the settings page asks Loge Server itself, Home
+  needn't be opened first). "More with the cast of "…"" — the Plex catalog's
+  "More From This Cast & Crew" for a recent title, works without Loge Server too. They refresh at most
+  every 15 minutes and after a deletion.
+  Every shelf ("Continue Watching", "Want to watch", "Not out yet", "Recently Added" of
+  each library, the three recommendation shelves) can be turned off and moved in Settings →
+  "Home and Explore"; "Restore the default order". New shelves take their place after their
+  neighbour in the default order. With all of them off, a hint says where to turn them on.
+- **Explore** (a link in the header): ready-made collections of the Plex catalog — "Popular on Plex",
+  "Most added to watchlists", "Coming soon", "Most anticipated movies"
+  (`/hubs/sections/home/<id>`); a season in a collection opens its show. Each collection can be
+  turned off and moved in Settings → "Home and Explore", the page shows them in that order;
+  with all of them off there is no "Explore" link. Refreshed every 30 minutes.
 - **Libraries** of movies and shows with "All / Unwatched / New" filters. A movie
   page, a show page with seasons and episodes. The selected episode: the started one, otherwise
   the first unwatched one after the last watched, otherwise the first. "Watched / Unwatched"
-  marks.
+  marks. Posters and pages of downloaded movies and shows carry the "on the Plex watchlist" mark,
+  like catalog titles ("In the list" / "Add to the list").
+  - **Title pages** (movie, show, catalog title), as in the Apple apps: only the main action is a
+    wide button ("Watch", "Continue from …", "Open in the library", or "Add to the list" for a
+    catalog title neither on the server nor on the list). The rest are round icons in one row:
+    "From the start", watched, the list, the trailer, "⋯". Watched and listed are filled while
+    on; each icon's name is its tooltip and accessible name ("In the list — remove from the
+    list"). On a phone the main button spans the column. A phone on its side (a screen up to 500 px
+    high, the Apple app's "short" one: art 170 pt, poster 140 pt) gets a compact header — a short art,
+    a 140 px poster, a smaller title and the actions before the summary — so the main button is on
+    the first screen.
+  - **All seasons and episodes**: the show page takes the show's seasons and the open season's
+    episodes from the Plex catalog (`/library/metadata/<key>/children`) and merges them with the
+    server's by number. What is not on the server is greyed out, with "Not on the server · 4 January 2025"
+    or "Out 15 January 2027" and the account's watched mark (`/userState`). The catalog's episodes
+    come after the server's; when they land before the selected one (opened from "Continue
+    watching"), the row scrolls back to it. A season watched in full
+    has a ✓; a season only in the catalog says "Season 2, not downloaded". An episode that is not
+    downloaded can't be played or deleted, only "Mark watched"; a season — "Mark "Season 2" watched"
+    (with its episodes). The marks go to Plex on the account (`/actions/scrobble|unscrobble` on
+    `metadata.provider.plex.tv`), change at once and roll back with "Couldn't mark" if
+    Plex refused. The page of a catalog show that is not on the server shows its seasons and
+    episodes the same way; a catalog movie has "Mark watched" ⇄ "Watched". A show
+    of an old agent (without a catalog key) is as before.
+  - **Deleting downloads** (the "⋯" "More" button): a movie; a show, the open season, all watched
+    episodes ("Delete watched episodes (N)": the list is asked from the server again before the question);
+    an episode — "Delete episode" under it. Each one after a confirmation in a dialog of the page (not
+    `window.confirm`) that says what goes ("3 episodes will be deleted from the server's disk. This
+    can't be undone."). Plex deletes: `DELETE /library/metadata/<key>`, one at a time. A refusal is explained:
+    only the owner can delete, and Plex Media Server must have "Library → Allow media deletion" on.
+    A deleted title leaves the library index at once (and is "Want to watch" again if on the list),
+    recommendations are recomputed; after a movie or a show — back.
+  - **Trailer** of a movie and a show (downloaded or not): TMDB's YouTube videos through Loge Server
+    (`/v1/videos?item=movie:<tmdb>&language=ru`), the preferred language first. The button
+    appears when there are videos; it opens a dialog with the embedded YouTube player (`hl` and
+    `cc_lang_pref` are the preferred language), a list of the other videos and "Open in YouTube".
+    Only real YouTube ids go into the URL. The TMDB id comes from the title's `Guid` (the server gives
+    them with `includeGuids=1`, the catalog in its details). The picture is 16:9, as wide as the
+    dialog but on a phone on its side no taller than the screen leaves it (the list and the link
+    scroll under it), as in the Apple app's sheet.
+    When YouTube can't show the video, the app says so in the frame's place, with "Open in YouTube":
+    offline or YouTube unreachable ("the trailer didn't load: no connection to YouTube", with "Retry";
+    back online it tries again by itself) — found by `navigator.onLine` and a no-cors `HEAD` of the
+    embed page (a cross-origin frame's `load` fires for the browser's error page too), or that `HEAD`
+    hanging 15 s while the player is silent; the player refusing the video (embedding forbidden,
+    removed, …) — its `onError` over postMessage (`enablejsapi=1&origin=…`, the IFrame Player API's
+    "listening" handshake). A player that never answers is left alone. Error 150 doesn't say why:
+    YouTube gives it for a video whose author forbids embedding, but also for its "confirm you're
+    not a bot" sign-in wall and for a country block, so the text ("YouTube doesn't show this video
+    here — open it in YouTube") blames no one.
 - **Player**:
   - Direct play in `<video>` if the browser supports the container and codecs (MP4/M4V/MOV/WebM +
     `canPlayType`) and the chosen dub is the one the browser plays by default (in Safari
@@ -39,11 +109,15 @@ The interface is in Russian for now; the labels in quotes below are English tran
     Remote Watch Pass or Plex Pass". If Loge Server didn't serve the file — direct play from Plex,
     then the transcoder. The Plex transcoder from outside without Plex Pass is most likely closed too
     (not tested), so an MKV away from home may not play in the browser.
-  - Audio and subtitles: the TrackSelector rules (Russian audio; with it only forced Russian
-    subtitles, otherwise full Russian ones). A dub chosen by hand is
+  - Audio and subtitles: the TrackSelector rules (audio in the preferred language, Russian by
+    default; of several, the best: not a commentary, more channels, a better codec, then
+    the default track — 5.1 beats stereo; with it only forced subtitles in that
+    language, otherwise full ones). A dub chosen by hand is
     remembered for the show. Text subtitles (SRT/VTT/ASS) are taken from
     `/library/streams/{id}` (UTF-8 or Windows-1251) and drawn over the video by file
     time; image-based ones (PGS/VobSub) and the ones Plex didn't serve are burned in by the transcoder.
+    They share one column at the bottom with the corner (the skip button, the countdown, the next
+    episode card), so they always stand above it, at any size; over the bar while it is shown.
   - Progress in Plex: `/:/timeline` every 10 s, on pause and stop; "watched" is set when
     the final credits start or at 90 %. A started item plays right away from where it was left,
     without asking; "Start over" is a button on the movie page.
@@ -53,17 +127,57 @@ The interface is in Russian for now; the labels in quotes below are English tran
   - Seeking by dragging (mouse and finger) with a preview frame from the Plex BIF
     (`/library/parts/{id}/indexes/sd`, if the file has `indexes="sd"`), otherwise just the time.
 - **Skipping** — "Automatic / With countdown (default) / With a button / Off" modes with the same
-  SkipController logic as on Apple TV. Final credits → a "Next episode
-  in N" card with "Play" and "Credits" buttons; in countdown mode, "Don't skip";
+  SkipController logic as on Apple TV. Before the final credits → a "Next episode
+  in N" card with "Play" and "Credits" buttons: the countdown (Settings → Player, 5/10/15 s)
+  ends as the credits start, and the next episode starts then. A pause stops the countdown,
+  "Credits" (or Esc) cancels it — the credits play with a "Next episode" button; a seek away
+  takes the card down and it counts again on return; playback resumed or seeked into the
+  credits gets the full countdown, cut at their end. Without "Play automatically" the card
+  comes at the credits and waits. In countdown mode, "Don't skip";
   seeking back before the intro skips it again.
 - **Show timing** in the player (the tracks button): shifts the start and end of the intro and
   credits by any number of seconds, applied at once. The adjustment and the dub are stored in
   `localStorage` and synced with Loge Server (`/v1/preferences/{showRatingKey}`) in the same JSON as
   Apple TV; unsaved changes are not overwritten by data from Loge Server; when Loge Server
   is unreachable the local copy works and is sent later.
-- **Settings**: skip mode, autoplay of the next episode and a 5/10/15 s countdown, seek
-  steps, the Loge Server address (with a check and a reset), "Always through the server"
-  (forced transcoding), server and connection address, switching servers, sign out.
+- **Search and the Plex watchlist** (the magnifier in the header): searches the server and the whole Plex
+  catalog (Discover, `discover.provider.plex.tv`, 350 ms after typing stops). Results —
+  "On the server" (library posters → its page) and "Not on the server" (catalog posters).
+  A server title is recognised by its `guid` `plex://movie|show/<catalog key>` (modern Plex agents),
+  old agents' titles by type, title (ignoring case and diacritics, ё = е) and year;
+  such a title isn't repeated in the catalog part. "On the server" also gets server titles
+  whose name matches the query. The bookmark on a catalog poster adds to the Plex watchlist (the
+  same one as in the Plex apps) and removes from it. A catalog title page: backdrop, poster, type and year,
+  duration or number of seasons, content rating, score, genres, summary, "Add to the
+  list" / "In the list", "Open in the library" if the server already has it.
+  On Home (after "Continue Watching"; each can be turned off in Settings → Home) and
+  in an empty search (always) the watchlist is two shelves: "Want to watch" — out, not on the
+  server, not watched by Plex history (`/library/metadata/<keys>/userState`, 50 per request: the
+  list itself doesn't have it; a show — if not started); "Not out yet" — nearest first (a date before
+  "year only"), undated last, with the release date under the poster. Titles that are on the server
+  don't go to these shelves (they are in "Recently Added"); the shelves appear only once both the
+  list and the library index are loaded. Empty shelves in search — the hint "Find a movie or show".
+  A change of the list shows at once; if Plex refused, it rolls back and a "Plex watchlist" note
+  pops up with the reason. Overseerr / Seerr is not needed and affects nothing. The texts are the same as
+  in the Apple apps. The catalog uses the plex.tv account token, not the server token; catalog
+  pictures go through the Plex resizer `images.plex.tv/photo` (without a token), not straight from
+  image.tmdb.org.
+- **Settings** — a list of sections, each with its own page (`#/settings/<section>`; the browser's
+  "Back" and "‹ Settings" return to the list), under the list "About": the version and TMDB's
+  attribution — its logo (smaller than Loge's) and, word for word, the sentence its terms ask for
+  ("This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise
+  approved by TMDB.", with a Russian translation):
+  - **Player** — "Preferred language" (audio, subtitles and the trailer language; 13 languages),
+    skip mode, autoplay of the next episode and a 5/10/15 s countdown, seek steps,
+    "Always through the server" (forced transcoding);
+  - **Home and Explore** — Home shelves: a switch and ↑/↓ on each, "Restore the default
+    order" (stored as the set of hidden ones `hiddenShelves` and the order `shelfOrder`: future shelves
+    are on by themselves); the "Explore" collections the same way: a switch and ↑/↓ on each,
+    "Restore the default collection order" (`hiddenHubs`, `hubOrder`). In an empty search the
+    watchlist is always shown in full. Settings stay in this browser (`localStorage`): unlike the
+    Apple apps' iCloud, nothing syncs them;
+  - **Loge Server** — the address, empty until one is entered (with a check, and a reset or removal);
+  - **Server and account** — server and connection address, reconnecting, switching servers, sign out.
 - Loge Server is optional: when it isn't set or can't be asked (down, refuses the token, no CORS), segments come from the
   file's own chapters ("Intro", "Credits", "Титры"…) and, for what they lack, from [TheIntroDB](https://theintrodb.org)
   (a request of its own, without the Plex token); the tracks panel says where they came from. Nothing there — no skipping.
@@ -86,7 +200,13 @@ npm run build        # dist/ — static files
 
 `dev/fake-server.mjs` is a fake plex.tv (PIN, sign-in page, server list), Plex Media
 Server (libraries, metadata, timeline/scrobble, files with Range, BIF, SRT in cp1251,
-an ffmpeg HLS transcoder) and Loge Server (segments, preferences, CORS). The video is generated by
+an ffmpeg HLS transcoder), the Plex catalog (search, the watchlist page by page, watch history
+`/userState`, title details, `PUT /actions/*`, the `/photo` resizer; a refused list, a refused
+search and a reset — `state.watchlistFail`, `state.searchFail`, `state.resetWatchlist()`) and
+Loge Server (segments, preferences, CORS; no TMDB key — `state.tmdbMissing`) with a fake TheIntroDB that knows nothing and a
+fake YouTube embed page (it answers the player handshake; unreachable — `state.youtubeDown`, refusing the video —
+`state.youtubeError`). The `--mode fake` build points the catalog and the resizer there too and pins "today"
+(`VITE_TODAY=2026-11-22`), so release dates in the fake don't go stale. The video is generated by
 ffmpeg into `dev/.media` (not in git).
 
 ```sh
@@ -99,14 +219,36 @@ FAKE_HLS=absolute npm run smoke      # HLS timeline from the start of the file i
 The smoke test uses the installed Google Chrome (`CHROME_PATH` for another path) and
 `ffmpeg` from PATH. It goes through: PIN sign-in → home (order, collapsing) → an episode from
 "Continue Watching" → direct play of MP4 with SRT in cp1251 → automatic intro skip → BIF preview →
-the timing adjustment goes to Loge Server → timeline → the next episode card and scrobble on
-the credits → autoplay of the next episode (MKV → HLS, resuming from 0:40) → seeking back before
+the timing adjustment goes to Loge Server → closing the panel starts the bar's 3 s over (it
+stays, then hides; a pointer move restarts them) → timeline → the next episode card before the
+credits (a pause freezes it, scrobble only at the credits) → autoplay as the credits start of the next episode (MKV → HLS, resuming from 0:40) → seeking back before
 the offset restarts the transcoder → switching the dub (PUT streams, restart, the dub stored in
-Loge Server) → Esc (stopped, transcode stopped) → choosing the started episode → movie: resume
-dialog, marking as watched, filters → settings → countdown mode ("Don't
-skip", the button inside the intro) → Loge Server off → keys → leaving the player while
-it is still loading (nothing starts, no transcode is left behind) → the phone layout without
-horizontal scrolling.
+Loge Server) → Esc (stopped, transcode stopped) → choosing the started episode → movie: ▶ plays
+from where it was left without asking, marking as watched, filters → settings (a list of four
+pages, "Back" to the list, Loge Server, skip mode) → countdown mode ("Don't
+skip", the button inside the intro) → "Credits" on the next episode card (the credits play with
+the "Next episode" button, no autoplay) → Loge Server off (the fake TheIntroDB asked by the
+show's TVDB id, without the Plex token) → keys → leaving the player while
+it is still loading (nothing starts, no transcode is left behind) → the watchlist on
+Home ("Want to watch" / "Not out yet": order, dates; a watched movie, a started
+show (by `/userState`) and server titles, old agents' too, are on neither shelf; the account
+token in a header, none for the resizer) → empty search (shelves, the hint with an empty
+list) → searching "тест" (one request after typing, "On the server" and "Not on the server" without repeats) → the bookmark in search adds → Plex
+refuses: rollback and "Plex watchlist" → a title page (catalog details, add / remove) →
+a title page from the server, an old agent's too ("Open in the library") → title pages: one wide
+button, round icons filled while on, their tooltips, narrowed to a phone and back → the catalog
+down (server titles with a note, "Nothing found") → deleting from a Home shelf and
+rolling back a refusal → "Not out yet" off in settings: not on Home, still in an empty
+search → "Explore" collections moved in settings (the page follows, the shelves keep their order,
+narrowed to a phone and back) and reset → a show opened on E3 while the catalog's E1 and E2 come
+late (E3 still in view at 375 px and wide) → "⋯" with no room below (a show on a phone turned sideways) opens upwards → a phone turned
+sideways keeps its content out of the side safe areas (emulated in Chrome) → the phone layout without horizontal
+scrolling (search, the title page, the skip countdown and the settings pages included) → subtitles above the corner
+(countdown, skip button, next episode card), the bar shown and hidden, a phone turned P → L → P and wide → the trailer
+16:9 inside a phone's screen both ways → YouTube unreachable, offline, refusing: the app's message, "Retry", "Open in
+YouTube" → a phone on its side: the title page's main action on the first screen, a long title and summary too →
+the settings page learns about the TMDB key by itself (no Home first; the key there, Loge Server down) → focus
+scrolls clear of the tab bar and the top bar, `-webkit-text-size-adjust: 100%` → the browser talked only to the fakes.
 
 ## Deployment
 
@@ -121,9 +263,13 @@ without rewrite rules.
   build time: `VITE_DETECTOR_URL=https://… npm run build`. Without one, segments come from the
   file's chapters and TheIntroDB. Loge Server must
   send CORS headers (see below) and be on HTTPS if the app itself is on HTTPS.
-- `VITE_PLEX_TV_URL`, `VITE_PLEX_AUTH_URL` — for the fakes only.
+- `VITE_PLEX_TV_URL`, `VITE_PLEX_AUTH_URL`, `VITE_PLEX_DISCOVER_URL`, `VITE_PLEX_IMAGES_URL`,
+  `VITE_YOUTUBE_URL`, `VITE_THEINTRODB_URL`, `VITE_TODAY` — for the fakes only.
 - The app name is a single constant, `APP_NAME` in `src/config.ts` (and `<title>` in
   `index.html`).
+- If the hosting adds a `Content-Security-Policy`, YouTube needs `frame-src` and `connect-src`
+  too: the trailer dialog sends a no-cors `HEAD` to the embed page to tell "YouTube unreachable"
+  apart, and a blocked one reads as no connection. (The repository sets no policy.)
 
 ## What Loge Server needs to provide
 
@@ -138,19 +284,28 @@ timing and dub live only in `localStorage`.
   `OPTIONS` without a token check. Requests: `GET /v1/segments/{ratingKey}`,
   `GET/PUT /v1/preferences/{key}`, `GET /healthz`; the `X-Plex-Token` header is the access token
   for the Plex server (as on Apple TV).
-- No other API changes are needed.
+- For recommendations and trailers — `GET /v1/recommendations?seeds=…&language=ru-RU` and
+  `GET /v1/videos?item=…&language=…` (Loge Server with a TMDB key, branch `recommendations`;
+  without the key they answer 404, and those shelves and the button are missing). The settings page asks
+  `GET /v1/recommendations` without seeds to learn whether there is a key: 404 — none, 400 (the seeds are
+  missing, checked after the key) — there is one; TMDB itself isn't asked. The browser never talks to TMDB.
 
 ## Layout
 
 ```
-src/core/      pure logic without the DOM: Plex models, plex.tv/PMS/Loge Server clients,
-               SkipPolicy/SkipController, adjustment, show preferences and their sync,
-               track selection, playback plan, BIF, subtitles. Tests are in src/core/__tests__
-src/app/       session state (sign-in, server, connection), loading and navigation hooks
+src/core/      pure logic without the DOM: Plex models, plex.tv/PMS/Loge Server and Plex
+               catalog (plexDiscover) clients, matching the catalog with the library and the
+               watchlist shelves (catalogMatch), SkipPolicy/SkipController, adjustment, show
+               preferences and their sync, track selection, playback plan, BIF, subtitles,
+               segments without Loge Server (chapters, TheIntroDB). Tests are in src/core/__tests__
+src/app/       session state (sign-in, server, connection), the watchlist and the library index
+               (watchlist.ts), recommendations (recommendations.ts), "Explore" (explore.ts),
+               catalog seasons (catalogShow.ts); tests in src/app/__tests__; loading hooks
 src/player/    PlayerSession (engine: <video>/hls.js, file time, skipping, progress,
                next episode), PlayerPage, ScrubBar, TracksPanel
-src/pages/     home, libraries, movie, show, settings, sign-in screens
-src/ui/        cards, shelves, icons, shared layout
+src/pages/     home, libraries, movie, show, search, catalog title, settings, sign-in screens
+src/ui/        cards, shelves, icons, shared layout, dialogs, the "More" menu, deletion,
+               trailers, catalog seasons and episodes
 dev/           fake servers and the smoke test
 ```
 
@@ -182,6 +337,19 @@ dev/           fake servers and the smoke test
   on the PMS rule "after 90 % it's watched, with no resume point", which has been checked only
   against the fake. The cost: if you stop in the credits to finish them later, there will be no
   resume point.
+- **The Plex catalog — auth in headers** (the account's `X-Plex-Token`,
+  `X-Plex-Client-Identifier`, `X-Plex-Product`, `X-Plex-Language`), as in the Apple app, and
+  not in the query as for PMS and plex.tv: this path is tested on the real Discover, and the account
+  token stays out of URLs. The cost is a preflight for every new URL (cached by the browser).
+- **The library index** for matching — all movies and shows of the sections
+  (`/library/sections/{id}/all`), refreshed at most every 10 minutes; the watchlist — up to 500
+  titles, 100 per request.
+- **Old Plex agents** (no `plex://` in `guid`) are matched with the catalog by type, title
+  and year (the Apple app matches only by the catalog key, and such a title stays both in "Not on the
+  server" and in "Want to watch"). Only for such titles: a title with a key and the same
+  name and year is a different title (a remake).
+- **Pressing the bookmark again before Plex answered the last press is ignored** (the
+  Apple app sends a second request): that way requests don't overtake each other.
 - **hls.js is loaded lazily** — only when the transcoder is needed (it's most of the bundle).
 - **The season card** in "Recently Added" — one per season, ordered by the newest episode.
 - The **"Always through the server"** setting is for files the browser claims to
@@ -206,16 +374,52 @@ hovering and clicking on the bar; dragging and touch, Safari and Firefox were no
 - Chrome 142+ (Local Network Access): a page from the internet that talks to a plex.direct
   address with a local IP triggers a permission prompt for access to devices on the local
   network — it has to be allowed once.
-- Safari: native HLS and `audioTracks` switching are written but have not been run.
+- Safari: `audioTracks` switching is written but has not been run. Native HLS was run only in the
+  iOS simulators against the fake, and failed there ("ошибка 4"): Safari asks for the media playlist
+  under `start.m3u8` without `X-Plex-Token` (only hls.js adds it, in `xhrSetup`), and the fake answers
+  401. Whether a real PMS wants the token for `session/…/base/index.m3u8` is not known.
 - Firefox: no HEVC and no AC3/EAC3 — such files go through the transcoder.
 - Dolby Vision / HDR are not played as is in the browser: Plex re-encodes them (with
   tone mapping, if the server can), and only what `canPlayType` confirms plays directly.
 - DTS/TrueHD — the audio is always re-encoded.
-- Missing: Plex managed users (Plex Home), playlists, search, a PiP button,
-  quality selection (always the maximum, `videoQuality=100`).
+- The Plex catalog (Discover): CORS checked with curl (2026-11-22) — the preflight of GET and PUT
+  answers `Access-Control-Allow-Origin: *`, methods with PUT, allows the headers
+  `X-Plex-Token`, `X-Plex-Client-Identifier`, `X-Plex-Product`, `X-Plex-Language`, `Accept`
+  (`/library/metadata/a,b/userState` included); a GET with a token was checked separately only
+  with `X-Plex-Token`, `X-Plex-Client-Identifier`, `Accept`. Search, the list, `/userState`
+  and `PUT /actions/*` were not called from the web with a token — only against the fake; the response
+  formats come from the Apple app (the list and `/userState` checked there against a real account).
+- New on the night of 2026-11-23 — only against the fakes: Loge Server's recommendations (the home
+  Loge Server has `/v1/recommendations`; `/v1/videos` is on a Loge Server branch, not deployed yet, until
+  then there is no "Trailer" button), `DELETE` on a real PMS (the CORS preflight for DELETE and
+  the answer with "Allow media deletion" off are not tested; the refusal texts fit any
+  status), the catalog's `children` and `/actions/scrobble` on `metadata.provider.plex.tv` from
+  the browser (CORS not tested; Plex Web does the same from its own domain), the embedded YouTube
+  player (in the smoke test a fake page stands in for it; some videos forbid embedding —
+  for that there is "Open in YouTube"), the `/hubs/sections/home/*` collections.
+- New on 2026-11-24 — the embedded player's messages: the real YouTube player in Mobile Safari answers
+  the "listening" handshake and sends `onError` as the fake does, but from the test machine's network
+  it wanted a sign-in ("confirm you're not a bot", error 150) for every video, so a real trailer
+  hasn't been seen playing in the page; the no-cors `HEAD` of a real embed page was run in headless
+  Chrome. In Mobile Safari (iOS 27.2 and 18.4 simulators) against the
+  fakes: subtitles above the corner, the trailer's 16:9 sideways, the refusal and no-connection
+  texts, the compact header, the TMDB note, no text enlarging sideways, and the player, the trailer
+  and the pages turned portrait → landscape → portrait. Not checked in Safari: focus scrolling with
+  `scroll-padding` (Chrome honours it; on an iPhone neither Tab nor Option+Tab moves the focus).
+- A title of an old Plex agent whose year on the server differs from the catalog's (or whose
+  title is translated differently) is not "recognised": it stays in "Not on the server" and in "Want
+  to watch".
+- On a phone (up to 560 px) the sections — Home, libraries, Explore — are at the bottom of the screen, like
+  the tabs of the iPhone app; the header keeps the logo, the magnifier and the gear. With many libraries
+  the bottom bar scrolls sideways. On a computer the sections are in the header; their links scroll
+  with a fade at the edge if they don't fit.
+- Missing: Plex managed users (Plex Home), playlists, a PiP button, quality selection
+  (always the maximum, `videoQuality=100`).
 - Autoplay: if the browser doesn't allow starting the video without a gesture, a large
   ▶ button is shown.
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). Except `src/assets/tmdb-logo.svg`: TMDB's logo, used as their
+[attribution rules](https://www.themoviedb.org/about/logos-attribution) ask, under their terms, not MIT.
+This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.

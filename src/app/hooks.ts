@@ -1,12 +1,62 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useNavigate } from 'react-router-dom'
+import type { WatchlistShelves } from '../core/catalogMatch'
+import type { DiscoverItem } from '../core/plexDiscover'
 import type { PlexItem } from '../core/plexModels'
 import type { PlexServerAPI } from '../core/plexServerAPI'
 import { ResumePolicy } from '../core/progressTracker'
+import { PINNED_TODAY } from '../config'
+import { useSettings, wantsRecommendations } from '../settings'
 import { appModel, type AppSnapshot } from './appModel'
+import type { ExploreSnapshot } from './explore'
+import type { RecommendationsSnapshot } from './recommendations'
+import { today, watchlistShelves, type WatchlistSnapshot } from './watchlist'
 
 export function useApp(): AppSnapshot {
   return useSyncExternalStore(appModel.subscribe, appModel.getSnapshot)
+}
+
+export function useWatchlist(): WatchlistSnapshot {
+  return useSyncExternalStore(appModel.watchlist.subscribe, appModel.watchlist.getSnapshot)
+}
+
+/** «Хочу посмотреть» and «Ещё не вышло». */
+export function useWatchlistShelves(): WatchlistShelves {
+  const snapshot = useWatchlist()
+  return useMemo(() => watchlistShelves(snapshot, today(PINNED_TODAY)), [snapshot])
+}
+
+/** Loads the Plex list and the library index, apart from the page's own data (Plex being slow doesn't hold it up). */
+export function useWatchlistRefresh() {
+  const { refreshKey } = useApp()
+  useEffect(() => {
+    void appModel.watchlist.load()
+    void appModel.watchlist.refreshIndex()
+  }, [refreshKey])
+}
+
+export function useRecommendations(): RecommendationsSnapshot {
+  return useSyncExternalStore(appModel.recommendations.subscribe, appModel.recommendations.getSnapshot)
+}
+
+/** Asks TMDB and Plex for the recommendation shelves while one of them is on in settings. */
+export function useRecommendationsRefresh() {
+  const { refreshKey } = useApp()
+  const wanted = wantsRecommendations(useSettings())
+  useEffect(() => {
+    if (wanted) void appModel.recommendations.refresh(appModel.watchlist)
+  }, [refreshKey, wanted])
+}
+
+export function useExplore(): ExploreSnapshot {
+  return useSyncExternalStore(appModel.explore.subscribe, appModel.explore.getSnapshot)
+}
+
+/** Loads the Plex list once (pages other than Home and search need it for the marks). */
+export function useWatchlistLoaded() {
+  useEffect(() => {
+    void appModel.watchlist.loadIfNeeded()
+  }, [])
 }
 
 /** The connected server API (screens behind the "ready" phase only). */
@@ -105,5 +155,19 @@ export function useOpenItem() {
       }
     },
     [navigate, requestPlay],
+  )
+}
+
+/** Opens a catalog title: its library page when the server has it, otherwise the catalog page. */
+export function useOpenCatalog() {
+  const navigate = useNavigate()
+  const openItem = useOpenItem()
+  return useCallback(
+    (entry: DiscoverItem) => {
+      const item = appModel.watchlist.getSnapshot().index.item(entry)
+      if (item) openItem(item)
+      else navigate(`/catalog/${encodeURIComponent(entry.ratingKey)}`, { state: { entry } })
+    },
+    [navigate, openItem],
   )
 }

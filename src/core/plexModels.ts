@@ -66,6 +66,11 @@ export interface PlexItem {
   key: string
   type: PlexItemType
   title: string
+  /**
+   * Plex catalog id (`plex://movie/5d77…`) with the modern agents; older agents give
+   * `com.plexapp.agents.…` or nothing.
+   */
+  guid?: string
   summary?: string
   year?: number
   index?: number
@@ -96,7 +101,10 @@ export interface PlexItem {
   media: PlexMedia[]
   /** Chapters of the file, only when asked with `includeChapters=1` (the full item). */
   chapters: PlexChapter[]
-  /** External ids, e.g. "tvdb://415239", "tmdb://203857", "imdb://tt17491088". */
+  /**
+   * Ids in other databases, e.g. "tvdb://415239", "tmdb://203857", "imdb://tt17491088";
+   * the library gives them when asked with `includeGuids`.
+   */
   guids: string[]
 }
 
@@ -173,9 +181,28 @@ function parseChapter(raw: unknown): PlexChapter | null {
   }
 }
 
-/** `{"id":"tvdb://415239"}` → "tvdb://415239". */
-function parseGuid(raw: unknown): string | undefined {
-  return isRecord(raw) ? lossyString(raw.id) : undefined
+/** `Guid: [{id: "tmdb://1"}, …]` → ids. */
+export function parseGuids(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter(isRecord)
+    .map((g) => lossyString(g.id))
+    .filter((id): id is string => !!id)
+}
+
+/** TMDB id from `tmdb://…` guids (library items asked with `includeGuids`, catalog details). */
+export function tmdbIDFromGuids(guids: string[] | undefined): number | undefined {
+  for (const guid of guids ?? []) {
+    if (!guid.startsWith('tmdb://')) continue
+    const id = Number(guid.slice(7))
+    if (Number.isInteger(id) && id > 0) return id
+  }
+  return undefined
+}
+
+/** TMDB id of a library item, when the library was asked with `includeGuids`. */
+export function tmdbID(item: PlexItem): number | undefined {
+  return tmdbIDFromGuids(item.guids)
 }
 
 export function parseItem(raw: unknown): PlexItem | null {
@@ -187,6 +214,8 @@ export function parseItem(raw: unknown): PlexItem | null {
     key: lossyString(raw.key) ?? `/library/metadata/${ratingKey}`,
     type: itemTypes.find((t) => t === typeName) ?? 'other',
     title: lossyString(raw.title) ?? '',
+    guid: lossyString(raw.guid),
+    guids: parseGuids(raw.Guid),
     summary: lossyString(raw.summary),
     year: lossyInt(raw.year),
     index: lossyInt(raw.index),
@@ -213,7 +242,6 @@ export function parseItem(raw: unknown): PlexItem | null {
     lastViewedAt: lossyInt(raw.lastViewedAt),
     media: Array.isArray(raw.Media) ? raw.Media.map(parseMedia).filter((m): m is PlexMedia => m !== null) : [],
     chapters: Array.isArray(raw.Chapter) ? raw.Chapter.map(parseChapter).filter((c): c is PlexChapter => c !== null) : [],
-    guids: Array.isArray(raw.Guid) ? raw.Guid.map(parseGuid).filter((g): g is string => g !== undefined) : [],
   }
 }
 
@@ -319,6 +347,16 @@ export function landscapePath(item: PlexItem): string | undefined {
 
 export function backdropPath(item: PlexItem): string | undefined {
   return item.art ?? item.grandparentArt ?? item.thumb
+}
+
+/**
+ * Key of the same title in Plex's online catalog (Discover, Watchlist): the tail of a
+ * `plex://movie/…` or `plex://show/…` guid. Undefined for items matched by older agents.
+ */
+export function catalogKey(item: PlexItem): string | undefined {
+  const guid = item.guid
+  if (!guid || !(guid.startsWith('plex://movie/') || guid.startsWith('plex://show/'))) return undefined
+  return guid.split('/').pop() || undefined
 }
 
 /** The show this item belongs to (for episodes and seasons) or itself. */

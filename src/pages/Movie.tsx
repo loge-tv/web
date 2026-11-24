@@ -1,10 +1,16 @@
 import { useParams } from 'react-router-dom'
 import { appModel } from '../app/appModel'
-import { useApi, useLoad, usePlay } from '../app/hooks'
-import { backdropPath, dynamicRangeBadge, isWatched, type PlexItem } from '../core/plexModels'
+import { useApi, useLoad, usePlay, useWatchlistLoaded } from '../app/hooks'
+import { backdropPath, dynamicRangeBadge, isWatched, tmdbID, type PlexItem } from '../core/plexModels'
 import { ResumePolicy, TimeFormat } from '../core/progressTracker'
+import { LibraryWatchlistButton } from '../ui/cards'
 import { ErrorView, PlexImage, Spinner } from '../ui/common'
-import { CheckIcon, EyeIcon, PlayIcon, RestartIcon } from '../ui/icons'
+import { CheckIcon, PlayIcon, RestartIcon } from '../ui/icons'
+import { IconAction, TitleActions } from '../ui/iconAction'
+import { TrailerButton, useTrailers } from '../ui/trailers'
+import { useDeletion, useLeave } from '../ui/deletion'
+import { MoreMenu } from '../ui/menu'
+import { TrashIcon } from '../ui/icons'
 
 export function badges(item: PlexItem): string[] {
   const media = item.media[0]
@@ -19,8 +25,14 @@ export function badges(item: PlexItem): string[] {
 export function Movie() {
   const { key = '' } = useParams()
   const api = useApi()
+  // The list marks of library titles.
+  useWatchlistLoaded()
   const { play } = usePlay()
   const { data: item, error, loading, reload } = useLoad<PlexItem | undefined>((signal) => api.item(key, signal), [api, key])
+  const tmdb = item ? tmdbID(item) : undefined
+  const trailers = useTrailers(tmdb ? `movie:${tmdb}` : undefined)
+  const leave = useLeave()
+  const deletion = useDeletion(leave)
 
   if (!item && loading) return <Spinner />
   if (!item) return <ErrorView message={`Не удалось загрузить фильм: ${error ?? 'не найден'}`} onRetry={reload} />
@@ -56,27 +68,36 @@ export function Movie() {
             )}
           </div>
           {item.summary && <p className="summary">{item.summary}</p>}
-          <div className="row gap wrap">
-            {resume !== undefined ? (
-              <>
-                <button className="btn btn-primary" onClick={() => play(item, resume)}>
-                  <PlayIcon size={18} /> Продолжить с {TimeFormat.clock(resume)}
-                </button>
-                <button className="btn btn-secondary" onClick={() => play(item)}>
-                  <RestartIcon size={18} /> С начала
-                </button>
-              </>
-            ) : (
-              <button className="btn btn-primary" onClick={() => play(item)}>
-                <PlayIcon size={18} /> Смотреть
+          <TitleActions
+            main={
+              <button className="btn btn-primary" onClick={() => play(item, resume)}>
+                <PlayIcon size={18} /> {resume !== undefined ? `Продолжить с ${TimeFormat.clock(resume)}` : 'Смотреть'}
               </button>
+            }
+          >
+            {resume !== undefined && (
+              <IconAction label="С начала" onClick={() => play(item)}>
+                <RestartIcon size={20} />
+              </IconAction>
             )}
-            <button className="btn btn-secondary" onClick={() => void appModel.setWatched(item, !watched)}>
-              {watched ? <EyeIcon off size={18} /> : <CheckIcon size={18} />} {watched ? 'Не просмотрено' : 'Просмотрено'}
-            </button>
-          </div>
+            <IconAction
+              label={watched ? 'Просмотрено' : 'Отметить просмотренным'}
+              hint={watched ? 'Снять отметку' : undefined}
+              active={watched}
+              onClick={() => void appModel.setWatched(item, !watched)}
+            >
+              <CheckIcon size={20} />
+            </IconAction>
+            <LibraryWatchlistButton item={item} />
+            <TrailerButton videos={trailers} />
+            <MoreMenu
+              disabled={deletion.deleting}
+              actions={[{ title: 'Удалить фильм', destructive: true, icon: <TrashIcon size={18} />, onSelect: () => deletion.ask({ kind: 'movie', item }) }]}
+            />
+          </TitleActions>
         </div>
       </div>
+      {deletion.dialogs}
     </div>
   )
 }

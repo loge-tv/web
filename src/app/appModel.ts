@@ -1,13 +1,18 @@
-import { PLEX_AUTH_URL, PLEX_TV_URL } from '../config'
+import { PLEX_AUTH_URL, PLEX_DISCOVER_URL, PLEX_IMAGES_URL, PLEX_TV_URL } from '../config'
 import { DetectorClient, normalizeDetectorURL } from '../core/detectorClient'
 import { HTTPError } from '../core/http'
 import { PlexAccountAPI, usableCandidateURLs, type PlexClientInfo, type PlexServer } from '../core/plexAccount'
+import { PlexDiscoverAPI } from '../core/plexDiscover'
 import { sectionKind, type PlexItem, type PlexLibrarySection } from '../core/plexModels'
 import { PlexServerAPI } from '../core/plexServerAPI'
 import { ShowPreferencesStore, ShowPreferencesSync } from '../core/showPreferences'
 import { makeClientInfo } from '../platform'
 import { settingsStore } from '../settings'
 import { readJSON, readString, storage, StorageKey, writeJSON, writeString } from '../storage'
+import { DeletionText } from '../core/deletion'
+import { Explore } from './explore'
+import { Recommendations } from './recommendations'
+import { Watchlist } from './watchlist'
 
 export type Phase =
   | { kind: 'starting' }
@@ -44,6 +49,10 @@ export class AppModel {
   readonly account = new PlexAccountAPI(this.client, undefined, PLEX_TV_URL, PLEX_AUTH_URL)
   readonly preferences = new ShowPreferencesStore(storage)
   readonly preferencesSync = new ShowPreferencesSync(this.preferences, () => this.detector())
+  /** Plex Watchlist and which catalog titles the server has. */
+  readonly watchlist = new Watchlist()
+  readonly recommendations = new Recommendations()
+  readonly explore = new Explore()
 
   private state: AppSnapshot = { phase: { kind: 'starting' }, sections: [], refreshKey: 0 }
   private listeners = new Set<() => void>()
@@ -70,6 +79,13 @@ export class AppModel {
     const url = normalizeDetectorURL(settingsStore.get().detectorURL)
     if (!api || !url) return null
     return new DetectorClient(url, api.token)
+  }
+
+  /** Plex's catalog for the signed-in account (the account token, not the server's). */
+  private discoverAPI(): PlexDiscoverAPI | undefined {
+    if (!this.userToken) return undefined
+    const language = navigator.language?.slice(0, 2) || 'ru'
+    return new PlexDiscoverAPI(this.userToken, this.client, undefined, PLEX_DISCOVER_URL, PLEX_IMAGES_URL, language)
   }
 
   // MARK: Session
@@ -201,6 +217,10 @@ export class AppModel {
     const api = new PlexServerAPI(url, current.accessToken, this.client)
     try {
       const sections = (await api.sections()).filter((s) => sectionKind(s) === 'movie' || sectionKind(s) === 'show')
+      const discover = this.discoverAPI()
+      this.watchlist.configure(discover, api, sections)
+      this.recommendations.configure(discover, api, current.owned, () => this.detector())
+      this.explore.configure(discover)
       this.set({ server: current, api, sections, phase: { kind: 'ready' } })
       // Changes made while the detector was unreachable.
       this.preferencesSync.schedulePush(0)
@@ -222,6 +242,7 @@ export class AppModel {
   async switchServer() {
     writeJSON(StorageKey.server, undefined)
     settingsStore.update({ preferredConnection: '' })
+    this.unconfigure()
     this.set({ server: undefined, api: undefined, sections: [] })
     await this.loadServers()
   }
@@ -231,13 +252,56 @@ export class AppModel {
     writeJSON(StorageKey.server, undefined)
     writeJSON(StorageKey.pendingPin, undefined)
     this.userToken = undefined
+    this.unconfigure()
     this.set({ server: undefined, api: undefined, sections: [], phase: { kind: 'login' } })
+  }
+
+  private unconfigure() {
+    this.watchlist.configure(undefined, undefined, [])
+    this.recommendations.configure(undefined, undefined, true, () => null)
+    this.explore.configure(undefined)
+  }
+
+  /** Plex's online catalog for the signed-in account (undefined without one). */
+  get discover(): PlexDiscoverAPI | undefined {
+    return this.watchlist.getSnapshot().api
   }
 
   // MARK: Playback and watch state
 
   refresh() {
     this.set({ refreshKey: this.state.refreshKey + 1 })
+  }
+
+  /**
+   * Deletes titles with their files from the server, one by one (a failure doesn't stop the
+   * rest). Undefined when all went; otherwise what to tell the user.
+   */
+  async delete(items: PlexItem[]): Promise<string | undefined> {
+    const api = this.state.api
+    if (!api) return DeletionText.failed(undefined)
+    let failed = 0
+    let firstError: unknown
+    const gone = new Set<string>()
+    for (const item of items) {
+      try {
+        await api.delete(item.ratingKey)
+        gone.add(item.ratingKey)
+      } catch (error) {
+        console.warn('delete', item.ratingKey, error)
+        failed += 1
+        firstError ??= error
+      }
+    }
+    if (gone.size > 0) {
+      this.watchlist.forget(gone)
+      this.recommendations.forget(gone)
+      this.recommendations.expire()
+    }
+    this.refresh()
+    if (failed === 0) return undefined
+    const reason = DeletionText.failed(firstError)
+    return failed === items.length ? reason : `${DeletionText.partly(failed, items.length)} ${reason}`
   }
 
   async setWatched(item: PlexItem, watched: boolean) {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { DetectorClient, normalizeDetectorURL } from '../detectorClient'
+import { DetectorClient, isYouTubeID, normalizeDetectorURL, trailerWatchURL } from '../detectorClient'
+import { discoverTmdbID, parseDiscoverItem } from '../plexDiscover'
 import { fixture, MockFetch } from './support'
 
 // Port of DetectorClientTests.swift.
@@ -85,5 +86,64 @@ describe('DetectorClient', () => {
     // No default: Loge Server is the person's own.
     expect(normalizeDetectorURL('ftp://x')).toBe('')
     expect(normalizeDetectorURL('')).toBe('')
+  })
+
+  it('videos: TMDB trailers of a title, null without a TMDB key', async () => {
+    const mock = new MockFetch()
+    mock.stub(
+      '/v1/videos',
+      JSON.stringify({
+        videos: [
+          { key: 'abc', name: 'Трейлер', type: 'Trailer', language: 'ru', official: true, size: 1080 },
+          { key: 'def', name: 'Teaser', type: 'Teaser', language: 'en', official: false },
+        ],
+      }),
+    )
+    const client = new DetectorClient(base, 'tok', mock.fetch)
+    const videos = await client.videos('movie:603', 'ru')
+    expect(videos?.map((v) => v.key)).toEqual(['abc', 'def'])
+    expect(videos?.[1]).toEqual({ key: 'def', name: 'Teaser', type: 'Teaser', language: 'en', official: false })
+    expect(trailerWatchURL(videos![0])).toBe('https://www.youtube.com/watch?v=abc')
+    expect(mock.last.url.searchParams.get('item')).toBe('movie:603')
+    expect(mock.last.url.searchParams.get('language')).toBe('ru')
+    expect(mock.last.headers.get('X-Plex-Token')).toBe('tok')
+
+    const none = new MockFetch()
+    none.stub('/v1/videos', JSON.stringify({ configured: false }), 404)
+    expect(await new DetectorClient(base, 'tok', none.fetch).videos('tv:1')).toBeNull()
+  })
+
+  it('whether it has a TMDB key, asked without seeds (TMDB is not asked)', async () => {
+    const answer = async (status: number | 'down') => {
+      const mock = new MockFetch()
+      if (status === 'down') mock.fail('/v1/recommendations')
+      else mock.stub('/v1/recommendations', JSON.stringify({ error: 'x' }), status)
+      const result = await new DetectorClient(base, 'tok', mock.fetch).hasTMDB()
+      expect(mock.last.url.search).toBe('')
+      expect(mock.last.headers.get('X-Plex-Token')).toBe('tok')
+      return result
+    }
+    // The key is checked before the seeds: refused for the missing seeds means it is there.
+    expect(await answer(400)).toBe(true)
+    expect(await answer(200)).toBe(true)
+    expect(await answer(404)).toBe(false)
+    // Nothing known: down, someone else's server, an error.
+    expect(await answer(401)).toBeUndefined()
+    expect(await answer(503)).toBeUndefined()
+    expect(await answer('down')).toBeUndefined()
+  })
+
+  it('only YouTube ids go into the player URL', () => {
+    expect(isYouTubeID('dQw4w9WgXcQ')).toBe(true)
+    expect(isYouTubeID('a-b_c')).toBe(true)
+    expect(isYouTubeID('')).toBe(false)
+    expect(isYouTubeID('x?autoplay=0')).toBe(false)
+    expect(isYouTubeID('../evil')).toBe(false)
+    expect(isYouTubeID('a'.repeat(33))).toBe(false)
+  })
+
+  it('a catalog title has its TMDB id in the details', () => {
+    const item = parseDiscoverItem({ ratingKey: '5d77', type: 'movie', title: 'X', Guid: [{ id: 'imdb://tt1' }, { id: 'tmdb://603' }] })
+    expect(item && discoverTmdbID(item)).toBe(603)
   })
 })

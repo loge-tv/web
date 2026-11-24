@@ -20,6 +20,8 @@ import {
 import { adjustCorrection, correctionsEqual, NO_CORRECTION, type CorrectionField, type SkipCorrection } from '../core/skipCorrection'
 import { SkipController, skipContextFor, type SkipAction, type SkipCountdown, type SkipMode, type SkipPrompt } from '../core/skipPolicy'
 import { activeCues, decodeSubtitleBytes, parseSubtitles, type Cue } from '../core/subtitles'
+import { TheIntroDBClient } from '../core/theIntroDB'
+import { THEINTRODB_URL } from '../config'
 import { newSessionId } from '../platform'
 
 export interface NextEpisodeCard {
@@ -63,6 +65,8 @@ export interface PlayerSettings {
   autoplayNext: boolean
   nextEpisodeCountdown: number
   forceTranscode: boolean
+  /** ISO 639-1: the best audio in it is picked by default (Russian when missing). */
+  preferredLanguage?: string
 }
 
 export interface PlayerDeps {
@@ -145,7 +149,13 @@ export class PlayerSession {
   private pendingSeekTarget?: number
   private restartTimer?: ReturnType<typeof setTimeout>
   private tickTimer?: ReturnType<typeof setInterval>
+  /** The wall-clock countdown of the "Next episode" card at the end of a file without final credits. */
   private countdownTimer?: ReturnType<typeof setInterval>
+  /**
+   * The "Next episode" card shows the countdown before the final credits (driven by the skip
+   * controller and the position, not by `countdownTimer`).
+   */
+  private creditsCountdown = false
   private reachedEnd = false
   private fellBackFromDirect = false
   /** Direct play takes the file from the detector (outside the home network). */
@@ -232,7 +242,7 @@ export class PlayerSession {
     if (this.snapshot.finished) return
     // Anything still loading (item, segments, transcode start) must not start the media.
     this.loadToken++
-    clearInterval(this.countdownTimer)
+    this.stopCountdownTimer()
     this.reportStopped(true)
     this.teardownMedia()
     this.set({ finished: true })
@@ -243,7 +253,7 @@ export class PlayerSession {
     this.close()
     this.disposed = true
     clearInterval(this.tickTimer)
-    clearInterval(this.countdownTimer)
+    this.stopCountdownTimer()
     clearTimeout(this.restartTimer)
     this.detach.forEach((d) => d())
     this.detach = []
@@ -253,8 +263,9 @@ export class PlayerSession {
   private async load(requested: PlexItem, startAt?: number) {
     if (this.snapshot.finished) return
     const token = ++this.loadToken
-    clearInterval(this.countdownTimer)
+    this.stopCountdownTimer()
     this.teardownMedia()
+    this.creditsCountdown = false
     this.reachedEnd = false
     this.fellBackFromDirect = false
     this.fellBackFromDetector = false
@@ -308,8 +319,9 @@ export class PlayerSession {
     this.tracks = tracksFromPart(part)
     // The dub chosen earlier in this show, if this file has it; else the usual default.
     const remembered = preferences.audio ? preferredAudio(this.tracks, preferences.audio) : undefined
-    this.audio = remembered ?? TrackSelector.defaultAudio(this.tracks)
-    this.subtitle = TrackSelector.defaultSubtitle(this.tracks, this.audio)
+    const language = this.deps.settings().preferredLanguage ?? 'ru'
+    this.audio = remembered ?? TrackSelector.defaultAudio(this.tracks, language)
+    this.subtitle = TrackSelector.defaultSubtitle(this.tracks, this.audio, language)
     this.set({
       correction: preferences.correction,
       audioTracks: this.tracks.filter((t) => t.kind === 'audio'),
@@ -325,7 +337,8 @@ export class PlayerSession {
     })
     // From Loge Server; without it, from the file's chapters and TheIntroDB.
     const detector = this.deps.detector()
-    void new SegmentFinder({ detector, show: (ratingKey) => api.item(ratingKey).catch(() => undefined) })
+    const theIntroDB = THEINTRODB_URL ? new TheIntroDBClient(THEINTRODB_URL) : undefined
+    void new SegmentFinder({ detector, theIntroDB, show: (ratingKey) => api.item(ratingKey).catch(() => undefined) })
       .find(full)
       .catch((): FoundSegments => ({ segments: [], sources: [] }))
       .then((found) => {
@@ -343,9 +356,13 @@ export class PlayerSession {
    * already in (one from 0:00, a resume inside it) is still skipped or counted down.
    */
   private applySegments(item: PlexItem, found: FoundSegments) {
-    const context = skipContextFor(this.deps.settings().skipMode, item, this.snapshot.nextEpisode !== undefined)
+    const settings = this.deps.settings()
+    const context = skipContextFor(settings.skipMode, item, this.snapshot.nextEpisode !== undefined)
     const controller = new SkipController(found.segments, context, this.snapshot.correction)
     if (this.snapshot.duration > 0) controller.setDuration(this.snapshot.duration)
+    // The "Next episode" countdown runs before the final credits: the next episode starts as
+    // they do. Without autoplay the card waits at the credits.
+    controller.nextEpisodeLead = settings.autoplayNext ? settings.nextEpisodeCountdown : undefined
     this.skip = controller
     this.set({ segments: controller.segments, segmentSources: found })
     this.tracker.creditsStart = controller.watchedThreshold
@@ -378,7 +395,7 @@ export class PlayerSession {
     const track = preference ? preferredAudio(this.tracks, preference) : undefined
     if (!track || track.id === this.audio?.id) return
     this.audio = track
-    this.subtitle = TrackSelector.defaultSubtitle(this.tracks, track)
+    this.subtitle = TrackSelector.defaultSubtitle(this.tracks, track, this.deps.settings().preferredLanguage ?? 'ru')
     this.set({ selectedAudio: track.id, selectedSubtitle: this.subtitle?.id })
     this.applyTrackChange()
   }
@@ -726,6 +743,12 @@ export class PlayerSession {
 
   private onEnded() {
     this.reachedEnd = true
+    // The countdown before the credits was still running when the file ended.
+    if (this.creditsCountdown && !this.snapshot.loading) {
+      this.creditsCountdown = false
+      this.playNext()
+      return
+    }
     if (this.snapshot.loading || this.snapshot.nextCard) return
     this.markWatchedNow()
     const next = this.snapshot.nextEpisode
@@ -774,13 +797,40 @@ export class PlayerSession {
       return
     }
     const command = skip.update(this.snapshot.position)
-    if (command) {
-      if (command.kind === 'seek') this.perform({ kind: 'seek', to: command.to })
-      else this.startNextEpisodeCountdown()
+    switch (command?.kind) {
+      case 'seek':
+        this.perform({ kind: 'seek', to: command.to })
+        break
+      case 'startNextEpisodeCountdown':
+        this.startNextEpisodeCountdown()
+        break
+      case 'playNextEpisode':
+        // The next episode is loading now: nothing of this one is shown or reported after it.
+        this.creditsCountdown = false
+        this.playNext()
+        return
     }
+    this.showCreditsCountdown(skip)
     if (!this.snapshot.nextCard) this.set({ skipPrompt: skip.prompt, skipCountdown: skip.countdown })
     else this.set({ skipPrompt: null, skipCountdown: null })
     this.report(this.currentState())
+  }
+
+  /**
+   * The countdown before the final credits: the card follows the position (a pause freezes
+   * it, a seek away takes it down). A card of the wall-clock countdown stays as it is.
+   */
+  private showCreditsCountdown(skip: SkipController) {
+    const seconds = skip.nextEpisodeCountdown
+    const next = this.snapshot.nextEpisode
+    if (seconds !== null && next && this.countdownTimer === undefined) {
+      this.creditsCountdown = true
+      const card = this.snapshot.nextCard
+      if (card?.item !== next || card.secondsLeft !== seconds) this.set({ nextCard: { item: next, secondsLeft: seconds } })
+    } else if (this.creditsCountdown) {
+      this.creditsCountdown = false
+      this.set({ nextCard: null })
+    }
   }
 
   private currentState(): PlaybackState {
@@ -891,9 +941,12 @@ export class PlayerSession {
     void this.load(next, ResumePolicy.resumePosition(next))
   }
 
-  /** The user dismissed the "Next episode" card: keep watching the credits. */
+  /** The user dismissed the "Next episode" card («Титры»): keep watching the credits. */
   cancelNextEpisode() {
-    clearInterval(this.countdownTimer)
+    this.stopCountdownTimer()
+    this.creditsCountdown = false
+    // A countdown before the credits stays cancelled: they play, with the button inside.
+    this.skip?.cancelCountdown()
     this.skip?.userInteracted()
     this.set({ nextCard: null, skipPrompt: this.skip?.prompt ?? null })
   }
@@ -965,6 +1018,11 @@ export class PlayerSession {
 
   // MARK: Countdown
 
+  private stopCountdownTimer() {
+    clearInterval(this.countdownTimer)
+    this.countdownTimer = undefined
+  }
+
   private startNextEpisodeCountdown() {
     const next = this.snapshot.nextEpisode
     if (!next) return
@@ -975,13 +1033,13 @@ export class PlayerSession {
     }
     let remaining = settings.nextEpisodeCountdown
     this.set({ nextCard: { item: next, secondsLeft: remaining }, skipPrompt: null, skipCountdown: null })
-    clearInterval(this.countdownTimer)
+    this.stopCountdownTimer()
     this.countdownTimer = setInterval(() => {
       // Pausing freezes the countdown (but not once the file has ended).
       if (this.snapshot.paused && !this.reachedEnd) return
       remaining -= 1
       if (remaining <= 0) {
-        clearInterval(this.countdownTimer)
+        this.stopCountdownTimer()
         this.playNext()
         return
       }

@@ -64,8 +64,13 @@ export interface SkipCountdown {
 /** Commands the player must execute. */
 export type SkipCommand =
   | { kind: 'seek'; to: number }
-  /** Show the "Next episode" card with a countdown, then play the next episode. */
+  /**
+   * Show the "Next episode" card with a countdown, then play the next episode. Final credits
+   * reached without `nextEpisodeLead` (autoplay off: the card waits for the user).
+   */
   | { kind: 'startNextEpisodeCountdown' }
+  /** The countdown before the final credits ran out: play the next episode now. */
+  | { kind: 'playNextEpisode' }
 
 export const SkipPolicy = {
   /**
@@ -189,6 +194,16 @@ export class SkipController {
   prompt: SkipPrompt | null = null
   /** Countdown before a segment (countdown mode). */
   countdown: SkipCountdown | null = null
+  /**
+   * Seconds left before the next episode: the countdown runs during the `nextEpisodeLead`
+   * seconds before the final credits, so the next episode starts as they do.
+   */
+  nextEpisodeCountdown: number | null = null
+  /**
+   * Length of that countdown (the "Next episode" setting); undefined: no countdown, the card
+   * waits for the user once the credits start.
+   */
+  nextEpisodeLead: number | undefined
   private states: SegmentState[] = []
 
   constructor(segments: Segment[], context: SkipContext, correction: SkipCorrection = NO_CORRECTION) {
@@ -223,6 +238,7 @@ export class SkipController {
       return state.kind === 'counting' ? pending : state
     })
     this.countdown = null
+    this.nextEpisodeCountdown = null
   }
 
   /**
@@ -242,6 +258,15 @@ export class SkipController {
   /** Call on every position tick. Returns a command to run at most once per segment. */
   update(position: number): SkipCommand | null {
     this.countdown = null
+    const nextEpisode = this.updateNextEpisodeCountdown(position)
+    if (nextEpisode) {
+      this.prompt = null
+      return nextEpisode
+    }
+    if (this.nextEpisodeCountdown !== null) {
+      this.prompt = null
+      return null
+    }
     const fromCountdown = this.updateCountdowns(position)
     if (fromCountdown) {
       this.prompt = null
@@ -324,6 +349,44 @@ export class SkipController {
     return null
   }
 
+  /**
+   * The countdown to the next episode: during the `nextEpisodeLead` seconds before final
+   * credits that would play the next episode on their own, ending as they start. Playback
+   * that begins closer than that (resume, seek into the credits) gets the full countdown,
+   * cut at the end of the credits.
+   */
+  private updateNextEpisodeCountdown(position: number): SkipCommand | null {
+    this.nextEpisodeCountdown = null
+    const lead = this.nextEpisodeLead
+    if (lead === undefined || !(lead > 0)) return null
+    for (let i = 0; i < this.segments.length; i++) {
+      if (this.behaviorAt(i) !== 'auto' || this.actionAt(i).kind !== 'nextEpisode') continue
+      const segment = this.segments[i]
+      const inWindow = position >= segment.start - lead && position < segment.end
+      if (this.states[i].kind === 'pending' && inWindow) {
+        const natural = position <= segment.start - lead + 1
+        const deadline = natural ? segment.start : Math.min(Math.max(segment.start, position + lead), segment.end)
+        this.states[i] = { kind: 'counting', deadline }
+      }
+      const state = this.states[i]
+      if (state.kind !== 'counting') continue
+      // Ran out (also when the last tick lands at the very end of the credits; a user's seek
+      // resets the countdown before this, in `userSeeked`).
+      if (position >= state.deadline) {
+        this.states[i] = autoFired
+        return { kind: 'playNextEpisode' }
+      }
+      if (!inWindow) {
+        // Seeked away before it ran out: count again next time.
+        this.states[i] = pending
+        continue
+      }
+      this.nextEpisodeCountdown = Math.max(1, Math.ceil(state.deadline - position))
+      return null
+    }
+    return null
+  }
+
   private behaviorAt(i: number): SkipBehavior {
     return SkipPolicy.behavior(this.detected[i], this.context)
   }
@@ -342,10 +405,14 @@ export class SkipController {
     }
   }
 
-  /** The user cancelled the countdown: play the segment, offer the button inside it. */
+  /**
+   * The user cancelled the countdown (before a segment or to the next episode): play the
+   * segment, offer the button inside it.
+   */
   cancelCountdown() {
     this.states = this.states.map((s) => (s.kind === 'counting' ? manual : s))
     this.countdown = null
+    this.nextEpisodeCountdown = null
   }
 
   /**
@@ -384,6 +451,7 @@ export class SkipController {
       }
     })
     this.countdown = null
+    this.nextEpisodeCountdown = null
   }
 
   /** Position from which progress counts as "watched": start of the final credits, if known. */

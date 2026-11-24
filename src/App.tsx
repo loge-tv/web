@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { appModel } from './app/appModel'
 import { useApp } from './app/hooks'
+import { Catalog } from './pages/Catalog'
+import { Explore } from './pages/Explore'
 import { Home } from './pages/Home'
 import { Library } from './pages/Library'
 import { Movie } from './pages/Movie'
 import { FailedScreen, LoginScreen, ServerPicker, SplashScreen } from './pages/SessionScreens'
-import { SettingsPage } from './pages/Settings'
+import { Search } from './pages/Search'
+import { SettingsPage, SettingsSubpage } from './pages/Settings'
 import { Show } from './pages/Show'
 import { PlayerPage } from './player/PlayerPage'
 import { APP_NAME } from './config'
@@ -50,7 +53,11 @@ export function App() {
               <Route path="library/:key" element={<Library />} />
               <Route path="movie/:key" element={<Movie />} />
               <Route path="show/:key" element={<Show />} />
+              <Route path="search" element={<Search />} />
+              <Route path="catalog/:key" element={<Catalog />} />
+              <Route path="explore" element={<Explore />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="settings/:page" element={<SettingsSubpage />} />
             </Route>
             <Route path="play/:key" element={<PlayerPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -50,6 +50,34 @@ export const Language = {
     return Language.names[code.toLowerCase()] ?? code
   },
 
+  /** Languages offered as the preferred one (ISO 639-1), in the settings' order. */
+  choices: ['ru', 'en', 'uk', 'de', 'fr', 'es', 'it', 'pt', 'pl', 'tr', 'ja', 'ko', 'zh'],
+
+  /** Other spellings files use for a language (ISO 639-2 and names). */
+  aliases: {
+    ru: ['rus', 'russian', 'ru-ru'],
+    en: ['eng', 'english', 'en-us', 'en-gb'],
+    uk: ['ukr', 'ukrainian', 'uk-ua'],
+    de: ['ger', 'deu', 'german'],
+    fr: ['fre', 'fra', 'french'],
+    es: ['spa', 'spanish'],
+    it: ['ita', 'italian'],
+    pt: ['por', 'portuguese', 'pt-br'],
+    pl: ['pol', 'polish'],
+    tr: ['tur', 'turkish'],
+    ja: ['jpn', 'japanese'],
+    ko: ['kor', 'korean'],
+    zh: ['chi', 'zho', 'chinese'],
+  } as Record<string, string[]>,
+
+  /** A track's language code is `preferred` (an ISO 639-1 code) in any spelling. */
+  matches(code: string | undefined | null, preferred: string): boolean {
+    const c = code?.toLowerCase()
+    if (!c) return false
+    const p = preferred.toLowerCase()
+    return c === p || (Language.aliases[p]?.includes(c) ?? false)
+  },
+
   /** "ru" and "rus" are the same language; unknown codes compare as written. */
   same(a: string | undefined | null, b: string | undefined | null): boolean {
     const x = a?.toLowerCase() ?? ''
@@ -136,22 +164,71 @@ export function tracksFromPart(part: PlexPart | undefined): MediaTrack[] {
     )
 }
 
+function isCommentary(t: MediaTrack): boolean {
+  const title = t.title?.toLowerCase() ?? ''
+  return title.includes('comment') || title.includes('коммент')
+}
+
+/** Lossless over lossy, newer over older. */
+function codecRank(codec: string | undefined): number {
+  switch (codec?.toLowerCase()) {
+    case 'truehd':
+    case 'mlp':
+      return 6
+    case 'flac':
+    case 'pcm_s16le':
+    case 'pcm_s24le':
+    case 'pcm_bluray':
+    case 'alac':
+      return 5
+    case 'dts':
+      return 4
+    case 'eac3':
+      return 3
+    case 'ac3':
+      return 2
+    case 'aac':
+    case 'opus':
+    case 'vorbis':
+      return 1
+    default:
+      return 0
+  }
+}
+
+/** Not commentary, channels, codec, file default: the bigger the better. */
+function audioRank(t: MediaTrack): number[] {
+  return [isCommentary(t) ? 0 : 1, t.channels ?? 0, codecRank(t.codec), t.isDefault ? 1 : 0]
+}
+
+function compareRanks(a: number[], b: number[]): number {
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i]
+  return 0
+}
+
 export const TrackSelector = {
-  /** Russian audio first; otherwise what the file marks as default; otherwise the first. */
-  defaultAudio(tracks: MediaTrack[]): MediaTrack | undefined {
+  /**
+   * Audio in the preferred language, the best of them: more channels first (5.1 over stereo),
+   * then the better codec, then the file default; commentary last. On a tie the earlier in the
+   * file. Without that language: what the file marks as default, otherwise the first.
+   */
+  defaultAudio(tracks: MediaTrack[], language = 'ru'): MediaTrack | undefined {
     const audio = tracks.filter((t) => t.kind === 'audio')
-    const russian = audio.filter(isRussian)
-    // Several Russian dubs: prefer the file default among them, then the first.
-    return russian.find((t) => t.isDefault) ?? russian[0] ?? audio.find((t) => t.isDefault) ?? audio[0]
+    let best: MediaTrack | undefined
+    for (const t of audio) {
+      if (!Language.matches(t.language, language)) continue
+      if (!best || compareRanks(audioRank(t), audioRank(best)) > 0) best = t
+    }
+    return best ?? audio.find((t) => t.isDefault) ?? audio[0]
   },
 
   /**
-   * With Russian audio: only forced Russian subtitles (signs, foreign speech).
-   * Without Russian audio: full Russian subtitles if present.
+   * With audio in the preferred language: only its forced subtitles (signs, foreign speech).
+   * Otherwise: full subtitles in that language if present.
    */
-  defaultSubtitle(tracks: MediaTrack[], audio: MediaTrack | undefined): MediaTrack | undefined {
-    const subs = tracks.filter((t) => t.kind === 'sub' && isRussian(t))
-    if (audio && isRussian(audio)) {
+  defaultSubtitle(tracks: MediaTrack[], audio: MediaTrack | undefined, language = 'ru'): MediaTrack | undefined {
+    const subs = tracks.filter((t) => t.kind === 'sub' && Language.matches(t.language, language))
+    if (audio && Language.matches(audio.language, language)) {
       return subs.find((t) => t.isForced)
     }
     return subs.find((t) => !t.isForced) ?? subs[0]

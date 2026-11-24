@@ -1,4 +1,5 @@
-import { fetchChecked, fetchJSON, fetchWithTimeout, isRecord, joinURL, lossyString, strictEncode, type FetchFn } from './http'
+import { fetchChecked, fetchJSON, fetchWithTimeout, HTTPError, isRecord, joinURL, lossyString, strictEncode, type FetchFn } from './http'
+import { parseTMDBTitle, type TMDBTitle } from './recommendations'
 import { parseSegment, sanitizeSegments, type Segment } from './segment'
 import type { PlexPart } from './plexModels'
 import { decodePreferences, preferencesBody, type PreferencesRemote, type ShowPreferences } from './showPreferences'
@@ -119,6 +120,64 @@ export class DetectorClient implements PreferencesRemote {
     )
   }
 
+  // MARK: TMDB (the detector keeps the key)
+
+  /**
+   * TMDB's recommendations for `seeds` (`movie:603`, `tv:1396`), by seed. Seeds TMDB didn't
+   * answer are missing. `null`: the detector has no TMDB key (or is too old for this).
+   */
+  async recommendations(seeds: string[], language = 'ru-RU'): Promise<Record<string, TMDBTitle[]> | null> {
+    if (seeds.length === 0) return {}
+    const url = joinURL(this.baseURL, '/v1/recommendations', { seeds: seeds.join(','), language })
+    const json = await this.tmdbJSON(url)
+    if (json === null) return null
+    const result: Record<string, TMDBTitle[]> = {}
+    const items = isRecord(json) && Array.isArray(json.items) ? json.items : []
+    for (const item of items.filter(isRecord)) {
+      const seed = lossyString(item.seed)
+      if (!seed || item.failed === true) continue
+      result[seed] = Array.isArray(item.titles) ? item.titles.map(parseTMDBTitle).filter((t): t is TMDBTitle => t !== null) : []
+    }
+    return result
+  }
+
+  /**
+   * TMDB's YouTube trailers of a movie or show (`movie:603`, `tv:1396`), in `language` first,
+   * best first. `null`: the detector has no TMDB key (or is too old for this).
+   */
+  async videos(item: string, language = 'ru'): Promise<TrailerVideo[] | null> {
+    const url = joinURL(this.baseURL, '/v1/videos', { item, language })
+    const json = await this.tmdbJSON(url)
+    if (json === null) return null
+    const list = isRecord(json) && Array.isArray(json.videos) ? json.videos : []
+    return list.map(parseTrailerVideo).filter((v): v is TrailerVideo => v !== null)
+  }
+
+  /**
+   * Whether Loge Server has a TMDB key, without a question to TMDB: it checks the key before the
+   * seeds, so `/v1/recommendations` without seeds is refused for them (400) only when the key is
+   * there; 404 is no key (or a server too old for recommendations). Undefined: it couldn't say
+   * (down, refused the token, no CORS).
+   */
+  async hasTMDB(): Promise<boolean | undefined> {
+    try {
+      const response = await fetchWithTimeout(this.fetchFn, joinURL(this.baseURL, '/v1/recommendations'), this.init(), this.timeoutMs)
+      if (response.status === 404) return false
+      if (response.status === 400 || response.ok) return true
+      return undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  /** TMDB may take a while on a cold cache: at least 20 s. 404 → null (no TMDB key). */
+  private async tmdbJSON(url: string): Promise<unknown> {
+    const response = await fetchWithTimeout(this.fetchFn, url, this.init(), Math.max(this.timeoutMs, 20_000))
+    if (response.status === 404) return null
+    if (!response.ok) throw new HTTPError(response.status, url)
+    return JSON.parse(await response.text())
+  }
+
   /** `/healthz` answers "ok" (used by the settings screen). */
   async isReachable(): Promise<boolean> {
     try {
@@ -128,6 +187,40 @@ export class DetectorClient implements PreferencesRemote {
       return false
     }
   }
+}
+
+/** A trailer or teaser on YouTube (`/v1/videos`). */
+export interface TrailerVideo {
+  /** The YouTube video id. */
+  key: string
+  name: string
+  type: string
+  /** ISO 639-1; empty when TMDB has none. */
+  language: string
+  official: boolean
+}
+
+function parseTrailerVideo(raw: unknown): TrailerVideo | null {
+  if (!isRecord(raw)) return null
+  const key = lossyString(raw.key)
+  if (!key) return null
+  return {
+    key,
+    name: lossyString(raw.name) ?? '',
+    type: lossyString(raw.type) ?? 'Trailer',
+    language: lossyString(raw.language) ?? '',
+    official: raw.official === true,
+  }
+}
+
+/** A YouTube video id: letters, digits, `_` and `-` (nothing that could change the embed URL). */
+export function isYouTubeID(key: string): boolean {
+  return /^[A-Za-z0-9_-]{1,32}$/.test(key)
+}
+
+/** The watch page, to open in YouTube or a new tab. */
+export function trailerWatchURL(video: TrailerVideo): string {
+  return `https://www.youtube.com/watch?v=${encodeURIComponent(video.key)}`
 }
 
 /**

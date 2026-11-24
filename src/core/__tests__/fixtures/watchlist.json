@@ -1,0 +1,33 @@
+{
+ "MediaContainer": {
+  "librarySectionID": "watchlist",
+  "librarySectionTitle": "Watchlist",
+  "offset": 0,
+  "totalSize": 3,
+  "identifier": "tv.plex.provider.discover",
+  "size": 2,
+  "Metadata": [
+   {
+    "art": "https://image.tmdb.org/t/p/original/4TpDp2hueKimqgC8hXweZW0T0yW.jpg",
+    "guid": "plex://show/5d9c08444eefaa001f5d9359",
+    "key": "/library/metadata/5d9c08444eefaa001f5d9359/children",
+    "ratingKey": "5d9c08444eefaa001f5d9359",
+    "thumb": "https://image.tmdb.org/t/p/original/y2WnjknqhZL0nISOrvUinODI81a.jpg",
+    "title": "Дюна",
+    "type": "show",
+    "year": 2000,
+    "childCount": 1
+   },
+   {
+    "guid": "plex://movie/5d776cac47dd6e001f6ee059",
+    "key": "/library/metadata/5d776cac47dd6e001f6ee059",
+    "ratingKey": "5d776cac47dd6e001f6ee059",
+    "thumb": "https://metadata-static.plex.tv/4/gracenote/4e6cbb4ed793f3afa9add250e54a302a.jpg",
+    "title": "Дюна",
+    "type": "movie",
+    "year": 2021,
+    "duration": 9300000
+   }
+  ]
+ }
+}

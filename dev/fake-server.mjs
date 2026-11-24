@@ -1,10 +1,12 @@
-// Fake plex.tv, Plex Media Server and detector for local development and the smoke test.
-// Nothing here talks to the real Plex. Media is generated with ffmpeg into dev/.media.
+// Fake plex.tv, Plex Media Server, Plex's catalog (Discover + image resizer) and detector for
+// local development and the smoke test. Nothing here talks to the real Plex. Media is generated
+// with ffmpeg into dev/.media.
 //
 //   node dev/fake-server.mjs            # serves dev/.out/dist (build with `npm run build:fake`)
 //   FAKE_HLS=absolute node dev/fake-server.mjs
 //
-// Ports (env): FAKE_APP_PORT 5180, FAKE_PLEXTV_PORT 5181, FAKE_PMS_PORT 5182, FAKE_DETECTOR_PORT 5183.
+// Ports (env): FAKE_APP_PORT 5180, FAKE_PLEXTV_PORT 5181, FAKE_PMS_PORT 5182, FAKE_DETECTOR_PORT 5183,
+// FAKE_DISCOVER_PORT 5184.
 
 import { execFile } from 'node:child_process'
 import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -97,6 +99,16 @@ const SRT = `1
 3
 00:00:40,000 --> 00:00:50,000
 Середина серии
+
+4
+00:00:05,000 --> 00:00:15,000
+Реплика поверх заставки,
+в две строки
+
+5
+00:00:52,000 --> 00:01:10,000
+Реплика перед титрами,
+тоже в две строки
 `
 
 // MARK: Library
@@ -141,6 +153,10 @@ export function makeLibrary() {
     key: '/library/metadata/100/children',
     type: 'show',
     title: 'Тестовый сериал',
+    // Modern agent: the same title as the catalog's cat-show-10.
+    guid: 'plex://show/cat-show-10',
+    // TMDB's id: the seed of «Потому что вы смотрели» (the fake detector knows it).
+    Guid: [{ id: 'imdb://tt0000100' }, { id: 'tmdb://1100' }, { id: 'tvdb://100' }],
     summary: 'Сериал из генератора тестового сигнала: счётчик на экране и ровный тон.',
     year: 2025,
     contentRating: '16+',
@@ -220,6 +236,9 @@ export function makeLibrary() {
     key: '/library/metadata/200',
     type: 'movie',
     title: 'Тестовый фильм',
+    // Old agent: no catalog key, found by its title only.
+    guid: 'com.plexapp.agents.imdb://tt0000200?lang=ru',
+    Guid: [{ id: 'imdb://tt0000200' }, { id: 'tmdb://1200' }],
     summary: 'Полтора часа? Нет, полторы минуты тестовой таблицы.',
     year: 2024,
     contentRating: '12+',
@@ -232,7 +251,68 @@ export function makeLibrary() {
     addedAt: t - 3000,
     Media: [videoMedia(2000, 'mp4', [{ id: 20001, languageCode: 'rus', title: 'Дубляж', default: true }], [], '')],
   }
-  return { show, season, episodes, movie }
+  // Never played: TMDB recommends it, so it is on «Похожее на сервере».
+  const fresh = {
+    ratingKey: '210',
+    key: '/library/metadata/210',
+    type: 'movie',
+    title: 'Неначатый фильм',
+    guid: 'plex://movie/cat-film-210',
+    Guid: [{ id: 'tmdb://1210' }],
+    summary: 'Его ещё не смотрели.',
+    year: 2022,
+    duration: DURATION * 1000,
+    thumb: '/library/metadata/210/thumb/1',
+    art: '/library/metadata/210/art/1',
+    addedAt: t - 20000,
+    Media: [videoMedia(2100, 'mp4', [{ id: 21001, languageCode: 'rus', title: 'Дубляж', default: true }], [], '')],
+  }
+  return { show, season, episodes, movie, fresh }
+}
+
+/**
+ * The fake detector's TMDB: recommendations by seed. The show's: the server's unplayed movie
+ * («Похожее на сервере»), a catalog movie, a movie watched on the account (dropped) and one Plex
+ * doesn't know (dropped). The movie's: the show itself (a seed, dropped) and a catalog comedy.
+ */
+export const TMDB_RECOMMENDATIONS = {
+  'tv:1100': [
+    { tmdbId: 1210, type: 'movie', title: 'Неначатый фильм', year: 2022 },
+    { tmdbId: 5001, type: 'movie', title: 'Новый фильм', year: 2026 },
+    { tmdbId: 5003, type: 'movie', title: 'Просмотренный фильм', year: 2023 },
+    { tmdbId: 5009, type: 'movie', title: 'Неизвестный Plex фильм', year: 2001 },
+  ],
+  'movie:1200': [
+    { tmdbId: 1100, type: 'tv', title: 'Тестовый сериал', year: 2025 },
+    { tmdbId: 5004, type: 'movie', title: 'Тестовая комедия', year: 2023 },
+  ],
+}
+
+/**
+ * The fake detector's TMDB trailers (`/v1/videos`). The show: a Russian and an English one (and a
+ * key that is not a YouTube id, dropped); the catalog movie: a teaser; the server's movie: none.
+ */
+export const TMDB_VIDEOS = {
+  'tv:1100': [
+    { key: 'ruTrailer01', name: 'Тестовый сериал — трейлер', type: 'Trailer', language: 'ru', official: true },
+    { key: 'enTrailer01', name: 'Official Trailer', type: 'Trailer', language: 'en', official: true },
+    { key: 'not a youtube id', name: 'Broken', type: 'Trailer', language: 'en', official: false },
+  ],
+  'movie:5001': [{ key: 'newTeaser01', name: '', type: 'Teaser', language: 'ru', official: true }],
+}
+
+/** TMDB id → catalog key (`/library/metadata/matches`). */
+const TMDB_MATCHES = { 'movie:5001': 'cat-new-1', 'movie:5003': 'cat-seen-1', 'movie:5004': 'cat-test-1' }
+
+/** «More From This Cast & Crew» of the test show: itself, the server's movie, a watched one and two new. */
+const MORE_FROM_CREDITS = { 'cat-show-10': ['cat-show-10', 'cat-film-200', 'cat-seen-1', 'cat-cast-1', 'cat-cast-2'] }
+
+/** Plex's ready-made collections («Обзор»); the coming-soon one lists a new season of the test show. */
+const HUBS = {
+  'trending-plex': ['cat-new-1', 'cat-test-1', 'cat-show-10'],
+  top_watchlisted: ['cat-new-2', 'cat-new-3'],
+  'coming-soon': [{ season: 'cat-show-10', index: 2, originallyAvailableAt: '2027-01-15' }, 'cat-soon-1'],
+  'highly-anticipated-movies': ['cat-soon-2'],
 }
 
 // Next-up episodes of two other shows that the smoke never opens. Plex lists them before the
@@ -259,6 +339,120 @@ function otherShows(t) {
     },
   }
 }
+
+// MARK: Catalog
+
+// Pictures are absolute URLs on a host that doesn't exist: the app must only ever hand them to
+// the resizer (/photo), never load them itself.
+const CATALOG_IMAGES = 'https://catalog-images.invalid'
+
+function catalogItem(key, kind, title, year, summary, extra = {}) {
+  return {
+    ...extra,
+    ratingKey: key,
+    key: `/library/metadata/${key}`,
+    guid: `plex://${kind}/${key}`,
+    type: kind,
+    title,
+    year,
+    summary,
+    duration: kind === 'movie' ? 7_200_000 : 3_000_000,
+    thumb: `${CATALOG_IMAGES}/${key}-poster.jpg`,
+    art: `${CATALOG_IMAGES}/${key}-art.jpg`,
+    Genre: [{ tag: 'Драма' }, { tag: 'Фантастика' }],
+    ...(kind === 'show' ? { childCount: 3 } : {}),
+  }
+}
+
+/** Plex's catalog (same titles as the Apple app's fake), plus a catalog-only «Тест…» title. */
+export function makeCatalog() {
+  return [
+    catalogItem('cat-show-10', 'show', 'Тестовый сериал', 2025, 'Сериал для проверки интерфейса.'),
+    // The server's old-agent movie (no catalog key): recognised by kind, title and year.
+    catalogItem('cat-film-200', 'movie', 'Тестовый фильм', 2024, 'Фильм для проверки интерфейса.'),
+    catalogItem('cat-new-1', 'movie', 'Новый фильм', 2026, 'Фильма нет на сервере: его можно добавить в список.', {
+      contentRating: '16+',
+      audienceRating: 7.4,
+      // Details carry the other ids: TMDB's for its trailer.
+      Guid: [{ id: 'imdb://tt0005001' }, { id: 'tmdb://5001' }],
+    }),
+    catalogItem('cat-new-2', 'show', 'Новый сериал', 2025, 'Сериала нет на сервере.'),
+    catalogItem('cat-new-3', 'movie', 'Ещё один новый фильм', 2024, 'Третий тайтл каталога.'),
+    // Not out yet (by the pinned «today», 2026-11-22): soonest first, the day before the year-only one.
+    catalogItem('cat-soon-2', 'show', 'Будущий сериал', 2028, 'Объявлен на 2028 год.'),
+    catalogItem('cat-soon-1', 'movie', 'Скоро фильм', 2027, 'Выйдет в марте 2027.', { originallyAvailableAt: '2027-03-12' }),
+    // Watched elsewhere (Plex's watch history, USER_STATES): on the list but on no shelf.
+    catalogItem('cat-seen-1', 'movie', 'Просмотренный фильм', 2023, 'Уже посмотрен.'),
+    catalogItem('cat-seen-2', 'show', 'Начатый сериал', 2021, 'Начат в другом приложении.'),
+    // Only in the catalog: «тест» finds it next to the server's two titles.
+    catalogItem('cat-test-1', 'movie', 'Тестовая комедия', 2023, 'Комедии нет на сервере.'),
+    // The server's unplayed movie (modern agent).
+    catalogItem('cat-film-210', 'movie', 'Неначатый фильм', 2022, 'Его ещё не смотрели.'),
+    // «Ещё с актёрами «Тестовый сериал»».
+    catalogItem('cat-cast-1', 'movie', 'Фильм с теми же актёрами', 2022, 'Те же актёры.'),
+    catalogItem('cat-cast-2', 'show', 'Сериал с теми же актёрами', 2020, 'Те же актёры.'),
+  ]
+}
+
+/**
+ * The list after a reset: two missing titles («Хочу посмотреть»), one the server has, a watched
+ * movie and a started show (on no shelf), two not out yet («Ещё не вышло»).
+ */
+export const WATCHLIST_START = ['cat-new-2', 'cat-show-10', 'cat-new-3', 'cat-seen-1', 'cat-soon-2', 'cat-seen-2', 'cat-soon-1']
+
+/**
+ * The account's watch history, as `/library/metadata/<keys>/userState` gives it (the watchlist
+ * itself carries none): movies count plays, shows watched episodes.
+ */
+const USER_STATES = {
+  'cat-seen-1': { viewCount: 1, viewState: 'complete' },
+  'cat-seen-2': { viewedLeafCount: 12 },
+}
+
+/**
+ * Seasons and episodes in Plex's catalog (`/library/metadata/<key>/children`). «Тестовый сериал»:
+ * the server has season 1's first three episodes; the catalog has five (E4 marked on the
+ * account) and season 2, not out yet. «Новый сериал» (not on the server): two seasons.
+ */
+function catalogSeasons(show, seasons) {
+  const result = []
+  for (const [index, days] of seasons.entries()) {
+    const key = `${show}-s${index + 1}`
+    const episodes = days.map((day, e) => ({
+      ratingKey: `${key}-e${e + 1}`,
+      key: `/library/metadata/${key}-e${e + 1}`,
+      type: 'episode',
+      title: `Серия ${e + 1}`,
+      index: e + 1,
+      parentIndex: index + 1,
+      parentRatingKey: key,
+      grandparentRatingKey: show,
+      summary: `Серия ${e + 1} сезона ${index + 1} из каталога Plex.`,
+      originallyAvailableAt: day,
+      duration: 2_700_000,
+      thumb: `${CATALOG_IMAGES}/${key}-e${e + 1}-thumb.jpg`,
+    }))
+    result.push({
+      season: { ratingKey: key, key: `/library/metadata/${key}`, type: 'season', title: `Сезон ${index + 1}`, index: index + 1, parentRatingKey: show, leafCount: days.length, thumb: `${CATALOG_IMAGES}/${key}-poster.jpg` },
+      episodes,
+    })
+  }
+  return result
+}
+
+export const CATALOG_CHILDREN = {
+  'cat-show-10': catalogSeasons('cat-show-10', [
+    ['2025-01-01', '2025-01-02', '2025-01-03', '2025-01-04', '2025-01-05'],
+    ['2027-01-15', '2027-01-22'],
+  ]),
+  'cat-new-2': catalogSeasons('cat-new-2', [
+    ['2025-02-01', '2025-02-08'],
+    ['2025-09-01', '2025-09-08'],
+  ]),
+}
+
+/** Catalog episodes and movies the account marked watched, after a reset. */
+export const CATALOG_MARKS_START = ['cat-show-10-s1-e4']
 
 const defaultSegments = {
   112: [
@@ -357,6 +551,7 @@ export async function startFake(options = {}) {
     plextv: Number(options.plextvPort ?? process.env.FAKE_PLEXTV_PORT ?? 5181),
     pms: Number(options.pmsPort ?? process.env.FAKE_PMS_PORT ?? 5182),
     detector: Number(options.detectorPort ?? process.env.FAKE_DETECTOR_PORT ?? 5183),
+    discover: Number(options.discoverPort ?? process.env.FAKE_DISCOVER_PORT ?? 5184),
   }
   const host = '127.0.0.1'
   const urls = Object.fromEntries(Object.entries(ports).map(([k, p]) => [k, `http://${host}:${p}`]))
@@ -373,7 +568,43 @@ export async function startFake(options = {}) {
   const preferences = new Map()
   const pins = new Map()
   const requests = []
-  const state = { detectorDown: !!options.detectorDown, detectorDelayMs: 0, metadataDelayMs: 0, preferences, pins, library }
+  const catalog = makeCatalog()
+  const state = {
+    detectorDown: !!options.detectorDown,
+    detectorDelayMs: 0,
+    metadataDelayMs: 0,
+    /** Catalog seasons' episodes come this much later (the show's seasons do not). */
+    catalogEpisodesDelayMs: 0,
+    preferences,
+    pins,
+    library,
+    catalog,
+    /** Catalog keys on the account's Plex list, last added first. */
+    watchlist: [...WATCHLIST_START],
+    /** Refuse list changes, like Plex being down. */
+    watchlistFail: false,
+    /** Catalog search down: the app falls back to the server's titles. */
+    searchFail: false,
+    /** The detector answers 404 to TMDB questions (no TMDB key). */
+    tmdbMissing: false,
+    /** The fake YouTube can't be reached: its connections are dropped (a browser error page in the frame). */
+    youtubeDown: false,
+    /** The fake YouTube player reports this error code to the page (150: embedding not allowed). */
+    youtubeError: 0,
+    /** Plex's collections down. */
+    hubsFail: false,
+    /** The server refuses DELETE (deletion not allowed in its settings). */
+    deleteRefused: false,
+    /** Catalog titles and episodes marked watched on the account; scrobbles as [action, key]. */
+    catalogMarks: new Set(CATALOG_MARKS_START),
+    scrobbles: [],
+    scrobbleFail: false,
+    resetWatchlist() {
+      state.watchlist = [...WATCHLIST_START]
+      state.watchlistFail = false
+      state.searchFail = false
+    },
+  }
 
   const log = (server, req, url, body, res) => {
     const entry = {
@@ -381,7 +612,12 @@ export async function startFake(options = {}) {
       method: req.method,
       path: decodeURIComponent(url.pathname),
       query: Object.fromEntries(url.searchParams),
-      headers: { 'x-plex-token': req.headers['x-plex-token'], 'content-type': req.headers['content-type'] },
+      headers: {
+        'x-plex-token': req.headers['x-plex-token'],
+        'x-plex-language': req.headers['x-plex-language'],
+        'x-plex-client-identifier': req.headers['x-plex-client-identifier'],
+        'content-type': req.headers['content-type'],
+      },
       body,
       at: Date.now(),
     }
@@ -451,15 +687,28 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
     json(res, { error: 'not found' }, 404)
   })
 
-  const findItem = (ratingKey) => {
-    const { show, season, episodes, movie } = library
-    return [show, season, movie, ...episodes].find((i) => i.ratingKey === ratingKey)
+  const allItems = () => [library.show, library.season, library.movie, library.fresh, ...library.episodes]
+  /** Deleted items are gone from every answer (DELETE on the fake only). */
+  const findItem = (ratingKey) => allItems().find((i) => i.ratingKey === ratingKey && !i.deleted)
+  const alive = (list) => list.filter((i) => !i.deleted)
+  state.resetCatalogMarks = () => {
+    state.catalogMarks = new Set(CATALOG_MARKS_START)
+    state.scrobbles = []
+    state.scrobbleFail = false
+  }
+  state.restoreLibrary = () => {
+    for (const item of allItems()) delete item.deleted
+    state.deleteRefused = false
+    recountShow()
   }
   const container = (Metadata, extra = {}) => ({ MediaContainer: { size: Metadata.length, Metadata, ...extra } })
   const recountShow = () => {
-    const watched = library.episodes.filter((e) => (e.viewCount ?? 0) > 0).length
+    const left = library.episodes.filter((e) => !e.deleted)
+    const watched = left.filter((e) => (e.viewCount ?? 0) > 0).length
     library.show.viewedLeafCount = watched
     library.season.viewedLeafCount = watched
+    library.show.leafCount = left.length
+    library.season.leafCount = left.length
   }
   const sessions = new Map()
 
@@ -491,6 +740,17 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
     const { episodes, show, season, movie } = library
 
     try {
+      if (req.method === 'DELETE') {
+        // «Allow media deletion»: off answers 403 (state.deleteRefused).
+        const target = /^\/library\/metadata\/(\w+)$/.exec(p)
+        const item = target ? findItem(target[1]) : undefined
+        if (!item) return json(res, { error: 'not found' }, 404)
+        if (state.deleteRefused) return json(res, { error: 'forbidden' }, 403)
+        const gone = item.type === 'show' ? [show, season, ...episodes] : item.type === 'season' ? [season, ...episodes] : [item]
+        for (const i of gone) i.deleted = true
+        recountShow()
+        return text(res, '')
+      }
       if (p === '/identity') return json(res, { MediaContainer: { machineIdentifier: 'fake-server', version: '1.41.0' } })
       if (p === '/library/sections')
         return json(res, {
@@ -502,23 +762,38 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
             ],
           },
         })
-      if (p === '/library/sections/1/all') return json(res, container([movie]))
-      if (p === '/library/sections/2/all') return json(res, container([show]))
-      if (p === '/library/sections/1/recentlyAdded') return json(res, container([movie]))
-      if (p === '/library/sections/2/recentlyAdded') return json(res, container([...episodes].reverse()))
+      if (p === '/library/sections/1/all') return json(res, container([movie, library.fresh].filter((i) => !i.deleted)))
+      if (p === '/library/sections/2/all') return json(res, container(alive([show])))
+      if (p === '/library/sections/1/recentlyAdded') return json(res, container(alive([movie])))
+      if (p === '/library/sections/2/recentlyAdded') return json(res, container(alive([...episodes].reverse())))
+      if (p === '/status/sessions/history/all') {
+        // The owner's plays (accountID 1), newest first: the last episode, then the movie.
+        if (url.searchParams.get('accountID') !== '1') return json(res, container([]))
+        const t = now()
+        return json(
+          res,
+          container([
+            { ratingKey: '113', type: 'episode', grandparentKey: '/library/metadata/100', viewedAt: t - 50, accountID: 1 },
+            { ratingKey: '112', type: 'episode', grandparentKey: '/library/metadata/100', viewedAt: t - 80, accountID: 1 },
+            { ratingKey: '200', type: 'movie', viewedAt: t - 100, accountID: 1 },
+          ]),
+        )
+      }
       if (p === '/library/onDeck') {
-        const next = episodes.find((e) => !(e.viewCount > 0) && !e.viewOffset)
-        const inProgress = [movie, ...episodes].filter((i) => i.viewOffset > 0)
+        const next = alive(episodes).find((e) => !(e.viewCount > 0) && !e.viewOffset)
+        const inProgress = alive([movie, ...episodes]).filter((i) => i.viewOffset > 0)
         return json(res, container([...others.deck, ...(next ? [next] : []), ...inProgress]))
       }
       let m = /^\/library\/metadata\/(\w+(?:,\w+)+)$/.exec(p)
       if (m) {
-        // Several items at once; like PMS, a show's lastViewedAt is its latest watched episode.
-        const lastViewed = Math.max(0, ...library.episodes.map((e) => e.lastViewedAt ?? 0))
+        // Several items at once. The fake's own simplification: a show's lastViewedAt is its
+        // latest fully watched episode (not checked against PMS), so the half-watched episode
+        // doesn't tie with the next-up one in «Продолжить просмотр».
+        const lastViewed = Math.max(0, ...library.episodes.filter((e) => (e.viewCount ?? 0) > 0).map((e) => e.lastViewedAt ?? 0))
         const found = m[1].split(',').map((key) =>
           key === library.show.ratingKey ? { ...library.show, lastViewedAt: lastViewed || undefined } : others.shows[key] ?? findItem(key),
         )
-        return json(res, container(found.filter(Boolean)))
+        return json(res, container(found.filter((i) => i && !i.deleted)))
       }
       m = /^\/library\/metadata\/(\w+)$/.exec(p)
       if (m) {
@@ -528,11 +803,11 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
       }
       m = /^\/library\/metadata\/(\w+)\/children$/.exec(p)
       if (m) {
-        if (m[1] === show.ratingKey) return json(res, container([season]))
-        if (m[1] === season.ratingKey) return json(res, container(episodes))
+        if (m[1] === show.ratingKey) return json(res, container(alive([season])))
+        if (m[1] === season.ratingKey) return json(res, container(alive(episodes)))
         return json(res, container([]))
       }
-      if (p === `/library/metadata/${show.ratingKey}/allLeaves`) return json(res, container(episodes))
+      if (p === `/library/metadata/${show.ratingKey}/allLeaves`) return json(res, container(alive(episodes)))
 
       if (p === '/:/timeline') {
         const item = findItem(url.searchParams.get('ratingKey') ?? '')
@@ -615,18 +890,60 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
     cors(res, 'GET, PUT, OPTIONS', 'X-Plex-Token, Content-Type, Accept')
     if (req.method === 'OPTIONS') return res.writeHead(204).end()
     const body = req.method === 'PUT' ? await readBody(req) : undefined
+    // Stands in for TheIntroDB (segments when Loge Server is down); it knows nothing here.
+    if (url.pathname.startsWith('/theintrodb/')) {
+      log('theintrodb', req, url, body, res)
+      return json(res, { error: 'not found' }, 404)
+    }
     log('detector', req, url, body, res)
     if (state.detectorDown) return text(res, 'down', 503)
     // A slow detector (smoke test: leaving the player while it still loads).
     if (state.detectorDelayMs && url.pathname !== '/healthz') await new Promise((r) => setTimeout(r, state.detectorDelayMs))
     const p = decodeURIComponent(url.pathname)
     if (p === '/healthz') return text(res, 'ok')
+    // Stands in for YouTube's embed page (the trailer's iframe), so the browser never leaves the fakes.
+    // Like YouTube's player with enablejsapi=1, it answers the page's «listening» with onReady
+    // (and onError when `youtubeError` is set).
+    const embed = /^\/embed\/([\w-]+)$/.exec(p)
+    if (embed && state.youtubeDown) return req.socket.destroy()
+    if (embed)
+      return text(
+        res,
+        `<!doctype html><meta charset="utf-8"><body style="margin:0;background:#111;color:#eee;font:20px sans-serif;display:grid;place-items:center;height:100vh">Fake YouTube: ${embed[1]} (${escapeXML(url.searchParams.get('hl') ?? '')})<script>
+addEventListener('message', (e) => {
+  let data
+  try { data = JSON.parse(e.data) } catch { return }
+  if (data?.event !== 'listening' || window.answered) return
+  window.answered = true
+  const send = (event, info) => parent.postMessage(JSON.stringify({ event, info, id: data.id, channel: 'widget' }), '*')
+  send('initialDelivery', {})
+  send('onReady', null)
+  if (${Number(state.youtubeError) || 0}) send('onError', ${Number(state.youtubeError) || 0})
+})
+</script></body>`,
+        200,
+        'text/html; charset=utf-8',
+      )
     if (req.headers['x-plex-token'] !== SERVER_TOKEN) return json(res, { error: 'unauthorized' }, 401)
     let m = /^\/v1\/segments\/(\w+)$/.exec(p)
     if (m) return json(res, { ratingKey: m[1], segments: segments[m[1]] ?? [], analyzed: true })
     if (p === '/v1/segments') {
       const keys = (url.searchParams.get('ratingKeys') ?? '').split(',').filter(Boolean)
       return json(res, { items: keys.map((k) => ({ ratingKey: k, segments: segments[k] ?? [], analyzed: true })) })
+    }
+    if (p === '/v1/videos') {
+      if (state.tmdbMissing) return json(res, { error: 'tmdb not configured' }, 404)
+      const language = url.searchParams.get('language') ?? 'ru'
+      // Like the detector: the asked language first.
+      const videos = [...(TMDB_VIDEOS[url.searchParams.get('item') ?? ''] ?? [])].sort((a, b) => Number(b.language === language) - Number(a.language === language))
+      return json(res, { item: url.searchParams.get('item'), videos })
+    }
+    if (p === '/v1/recommendations') {
+      if (state.tmdbMissing) return json(res, { error: 'tmdb is not configured', configured: false }, 404)
+      const seeds = (url.searchParams.get('seeds') ?? '').split(',').filter(Boolean)
+      // Like Loge Server: the key is checked before the seeds (the app asks without seeds to learn whether it has one).
+      if (seeds.length === 0) return json(res, { error: 'seeds is required' }, 400)
+      return json(res, { items: seeds.map((seed) => (TMDB_RECOMMENDATIONS[seed] ? { seed, titles: TMDB_RECOMMENDATIONS[seed] } : { seed, failed: true })) })
     }
     m = /^\/v1\/preferences\/([^/]+)$/.exec(p)
     if (m && req.method === 'GET') {
@@ -649,6 +966,131 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
     json(res, { error: 'not found' }, 404)
   })
 
+  // Plex's catalog (discover.provider.plex.tv) and its image resizer (images.plex.tv) on one port.
+  const catalogByKey = new Map(catalog.map((c) => [c.ratingKey, c]))
+  const seasonByKey = new Map(Object.values(CATALOG_CHILDREN).flatMap((show) => show.map((s) => [s.season.ratingKey, s])))
+  const childByKey = new Map(Object.values(CATALOG_CHILDREN).flatMap((show) => show.flatMap((s) => [[s.season.ratingKey, s.season], ...s.episodes.map((e) => [e.ratingKey, e])])))
+  const discover = createServer(async (req, res) => {
+    const url = new URL(req.url, urls.discover)
+    // Like the real one: any origin, PUT allowed; headers limited to what the app sends.
+    cors(res, 'GET, HEAD, PUT, OPTIONS', 'Accept, X-Plex-Token, X-Plex-Client-Identifier, X-Plex-Product, X-Plex-Language')
+    if (req.method === 'OPTIONS') return res.writeHead(204).end()
+    log('discover', req, url, undefined, res)
+    const p = decodeURIComponent(url.pathname)
+    if (p === '/photo') {
+      // The resizer needs no token; the label comes from the catalog picture's URL.
+      const source = url.searchParams.get('url') ?? ''
+      const item = catalog.find((c) => c.thumb === source || c.art === source) ?? [...childByKey.values()].find((c) => c.thumb === source)
+      const w = Math.min(2000, Number(url.searchParams.get('width') ?? 300))
+      const h = Math.min(2000, Number(url.searchParams.get('height') ?? 300))
+      res.setHeader('Cache-Control', 'max-age=3600')
+      return text(res, artwork(item?.title ?? 'Plex', w, h), item ? 200 : 404, 'image/svg+xml')
+    }
+    // The account token (not the server's), in a header.
+    if (req.headers['x-plex-token'] !== USER_TOKEN) return json(res, { error: 'unauthorized' }, 401)
+    if (!req.headers['x-plex-client-identifier']) return json(res, { error: 'no client id' }, 400)
+    if (req.method === 'GET' && p === '/library/search') {
+      if (state.searchFail) return json(res, { error: 'down' }, 503)
+      const query = (url.searchParams.get('query') ?? '').toLowerCase()
+      const found = query ? catalog.filter((c) => c.title.toLowerCase().includes(query)) : []
+      const results = found.map((c, i) => ({ score: 0.9 - i * 0.05, Metadata: { ...c, summary: undefined } }))
+      // People come back too; the app drops them.
+      if (query && 'тестовый актёр'.includes(query)) results.push({ score: 0.4, Metadata: { ratingKey: 'person-1', type: 'person', title: 'Тестовый актёр' } })
+      return json(res, { MediaContainer: { size: results.length, SearchResults: [{ id: 'external', title: 'More Ways To Watch', size: results.length, SearchResult: results }] } })
+    }
+    if (req.method === 'GET' && p === '/library/sections/watchlist/all') {
+      const start = Number(url.searchParams.get('X-Plex-Container-Start') ?? 0)
+      const size = Number(url.searchParams.get('X-Plex-Container-Size') ?? 50)
+      // No watch state, `includeUserState` or not, as on a real account.
+      const all = state.watchlist
+        .map((k) => catalogByKey.get(k))
+        .filter(Boolean)
+        .map((c) => ({ ...c, userState: false }))
+      const page = all.slice(start, start + size)
+      return json(res, { MediaContainer: { offset: start, totalSize: all.length, size: page.length, Metadata: page } })
+    }
+    if (req.method === 'GET' && p === '/library/metadata/matches') {
+      const kind = url.searchParams.get('type') === '1' ? 'movie' : 'tv'
+      const id = /^tmdb:\/\/(\d+)$/.exec(url.searchParams.get('guid') ?? '')?.[1]
+      const key = id ? TMDB_MATCHES[`${kind}:${id}`] : undefined
+      // Like Plex: titles in English whatever the language asked.
+      return key ? json(res, { MediaContainer: { size: 1, Metadata: [{ ...catalogByKey.get(key), title: `${catalogByKey.get(key).title} (en)` }] } }) : json(res, { error: 'not found' }, 404)
+    }
+    if (req.method === 'GET' && p.startsWith('/hubs/sections/home/')) {
+      const list = HUBS[p.slice('/hubs/sections/home/'.length)]
+      if (!list || state.hubsFail) return json(res, { error: 'not found' }, state.hubsFail ? 503 : 404)
+      const items = list.map((entry) => {
+        if (typeof entry === 'string') return catalogByKey.get(entry)
+        const show = catalogByKey.get(entry.season)
+        return { ratingKey: `${entry.season}-s${entry.index}`, type: 'season', title: `Сезон ${entry.index}`, index: entry.index, parentRatingKey: entry.season, parentTitle: show.title, year: 2027, originallyAvailableAt: entry.originallyAvailableAt, thumb: show.thumb }
+      })
+      return json(res, { MediaContainer: { size: items.length, Metadata: items } })
+    }
+    let m = /^\/library\/metadata\/([\w-]+)\/more-from-credits$/.exec(p)
+    if (req.method === 'GET' && m) {
+      const keys = MORE_FROM_CREDITS[m[1]] ?? []
+      return json(res, { MediaContainer: { size: keys.length, Metadata: keys.map((k) => catalogByKey.get(k)) } })
+    }
+    m = /^\/library\/metadata\/([\w-]+)\/children$/.exec(p)
+    if (req.method === 'GET' && m) {
+      const show = CATALOG_CHILDREN[m[1]]
+      const season = show ? undefined : seasonByKey.get(m[1])
+      if (season && state.catalogEpisodesDelayMs) await new Promise((r) => setTimeout(r, state.catalogEpisodesDelayMs))
+      const items = show ? show.map((s) => s.season) : season ? season.episodes : undefined
+      return items ? json(res, { MediaContainer: { size: items.length, Metadata: items } }) : json(res, { error: 'not found' }, 404)
+    }
+    m = /^\/actions\/(scrobble|unscrobble)$/.exec(p)
+    if (m) {
+      // Marks for the account (on metadata.provider.plex.tv for real; the same fake here).
+      const key = url.searchParams.get('key') ?? ''
+      if (state.scrobbleFail || url.searchParams.get('identifier') !== 'com.plexapp.plugins.library') return json(res, { error: 'refused' }, 500)
+      state.scrobbles.push([m[1], key])
+      const show = CATALOG_CHILDREN[key]
+      const season = seasonByKey.get(key)
+      const keys = show ? show.flatMap((s) => s.episodes.map((e) => e.ratingKey)) : season ? season.episodes.map((e) => e.ratingKey) : [key]
+      for (const k of keys) {
+        if (m[1] === 'scrobble') state.catalogMarks.add(k)
+        else state.catalogMarks.delete(k)
+      }
+      return text(res, '')
+    }
+    m = /^\/library\/metadata\/([\w,-]+)\/userState$/.exec(p)
+    if (req.method === 'GET' && m) {
+      // Shaped like a real answer: movies with viewCount (0 when unwatched), shows with
+      // viewedLeafCount once an episode is watched; seasons count their marked episodes.
+      const marked = (k) => (state.catalogMarks.has(k) ? { viewCount: 1, viewState: 'complete' } : {})
+      const states = m[1]
+        .split(',')
+        .filter((k) => catalogByKey.has(k) || childByKey.has(k))
+        .map((k) => {
+          const season = seasonByKey.get(k)
+          if (season) {
+            const viewed = season.episodes.filter((e) => state.catalogMarks.has(e.ratingKey)).length
+            return { ratingKey: k, type: 'season', ...(viewed ? { viewedLeafCount: viewed } : {}), ...(viewed === season.episodes.length ? { viewState: 'complete' } : {}) }
+          }
+          if (childByKey.has(k)) return { ratingKey: k, type: 'episode', ...marked(k) }
+          const type = catalogByKey.get(k).type
+          return { ratingKey: k, type, ...(type === 'movie' ? { viewCount: 0, viewOffset: 0 } : {}), ...USER_STATES[k], ...marked(k), watchlistedAt: 1792598042 }
+        })
+      return json(res, { MediaContainer: { identifier: 'tv.plex.provider.discover', size: states.length, UserState: states } })
+    }
+    m = /^\/library\/metadata\/([\w-]+)$/.exec(p)
+    if (req.method === 'GET' && m) {
+      const item = catalogByKey.get(m[1])
+      return item ? json(res, { MediaContainer: { size: 1, Metadata: [item] } }) : json(res, { error: 'not found' }, 404)
+    }
+    m = /^\/actions\/(addToWatchlist|removeFromWatchlist)$/.exec(p)
+    if (m) {
+      if (req.method !== 'PUT') return json(res, { error: 'method' }, 405)
+      const key = url.searchParams.get('ratingKey') ?? ''
+      if (state.watchlistFail || !catalogByKey.has(key)) return json(res, { error: 'refused' }, 500)
+      state.watchlist = state.watchlist.filter((k) => k !== key)
+      if (m[1] === 'addToWatchlist') state.watchlist.unshift(key)
+      return text(res, '')
+    }
+    json(res, { error: 'not found' }, 404)
+  })
+
   // The built app.
   const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.map': 'application/json' }
   const app = createServer((req, res) => {
@@ -661,7 +1103,7 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
     createReadStream(file).pipe(res)
   })
 
-  const servers = { app, plextv, pms, detector }
+  const servers = { app, plextv, pms, detector, discover }
   await Promise.all(Object.entries(servers).map(([name, s]) => new Promise((ok, fail) => s.once('error', fail).listen(ports[name], host, ok))))
 
   return {

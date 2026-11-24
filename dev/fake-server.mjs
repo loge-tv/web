@@ -887,7 +887,9 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
   // Detector with the CORS the real one is getting.
   const detector = createServer(async (req, res) => {
     const url = new URL(req.url, urls.detector)
-    cors(res, 'GET, PUT, OPTIONS', 'X-Plex-Token, Content-Type, Accept')
+    // Like Loge Server: CORS on everything but /healthz (the real one has it on /v1 only), so a page
+    // can't read /healthz.
+    if (url.pathname !== '/healthz') cors(res, 'GET, PUT, OPTIONS', 'X-Plex-Token, Content-Type, Accept')
     if (req.method === 'OPTIONS') return res.writeHead(204).end()
     const body = req.method === 'PUT' ? await readBody(req) : undefined
     // Stands in for TheIntroDB (segments when Loge Server is down); it knows nothing here.

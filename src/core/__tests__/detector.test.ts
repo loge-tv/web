@@ -32,6 +32,24 @@ describe('DetectorClient', () => {
     expect(client.fileURL('1', { id: '', key: '/x.mkv', streams: [] })).toBeUndefined()
   })
 
+  it('reachable means a /v1 answer the page may read, not /healthz', async () => {
+    // Loge Server sends CORS headers on /v1 only: a browser can't read its /healthz, so a check
+    // there says «недоступен» about a server that works.
+    const mock = new MockFetch()
+    mock.stub('/healthz', 'ok\n')
+    expect(await new DetectorClient(base, 'tok', mock.fetch).isReachable()).toBe(false)
+    mock.stub('/v1/segments/0', JSON.stringify({ ratingKey: '0', segments: [], analyzed: false }))
+    expect(await new DetectorClient(base, 'tok', mock.fetch).isReachable()).toBe(true)
+    const asked = mock.requests.at(-1)!
+    expect(new URL(asked.url).pathname).toBe('/v1/segments/0')
+    expect(asked.headers.get('X-Plex-Token')).toBe('tok')
+    // Refused token or down: not reachable.
+    mock.stub('/v1/segments/0', '{}', 401)
+    expect(await new DetectorClient(base, 'bad', mock.fetch).isReachable()).toBe(false)
+    mock.fail('/v1/segments/0')
+    expect(await new DetectorClient(base, 'tok', mock.fetch).isReachable()).toBe(false)
+  })
+
   it('an unavailable detector gives no segments', async () => {
     const mock = new MockFetch()
     mock.fail('/v1/segments/1')

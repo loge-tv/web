@@ -1613,6 +1613,28 @@ await step('subtitles stand above the corner (countdown, skip button, next episo
   await wide.close()
 })
 
+await step('the trailer on a phone: a 16:9 picture inside the screen, upright and on its side', async () => {
+  const { phone, p } = await phoneContext({ width: 390, height: 844 })
+  await p.goto(`${app}/#/show/100`)
+  await p.getByRole('button', { name: 'Трейлер' }).click({ timeout: 10000 })
+  await p.frameLocator('.trailer-frame iframe').getByText(/Fake YouTube/).waitFor()
+  for (const size of [
+    { width: 390, height: 844 },
+    { width: 844, height: 390 },
+    { width: 667, height: 375 },
+    { width: 390, height: 844 },
+  ]) {
+    await p.setViewportSize(size)
+    await p.waitForTimeout(300)
+    const f = await p.locator('.trailer-frame').boundingBox()
+    // It used to shrink to a strip (≈770×113) in the dialog's column on a phone on its side.
+    assert.ok(Math.abs(f.width / f.height - 16 / 9) < 0.03, `16:9 at ${size.width}×${size.height}: ${JSON.stringify(f)}`)
+    assert.ok(f.x >= 0 && f.y >= 0 && f.x + f.width <= size.width && f.y + f.height <= size.height, `inside the screen at ${size.width}×${size.height}: ${JSON.stringify(f)}`)
+    if (size.width === 844) await p.screenshot({ path: join(screens, 'phone-landscape-trailer.png') })
+  }
+  await phone.close()
+})
+
 await step('the browser asked only the fakes (plus the never-answering fake plex.direct)', async () => {
   const outside = [...requestedHosts].filter((h) => !h.startsWith('127.0.0.1:') && !h.endsWith('.fake.plex.direct:32400'))
   assert.deepEqual(outside, [])

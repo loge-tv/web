@@ -1569,8 +1569,15 @@ a.settings-row:hover {
   padding: 0 8px;
 }
 
+/* As wide as the dialog, but on a phone on its side no taller than the screen leaves it (86 px:
+   the dialog's padding, the title row and the gap under it), as in the Apple app's sheet: the whole
+   picture stays on screen, 16:9 (it used to shrink to a strip in the dialog's column). */
 .trailer-frame {
   position: relative;
+  flex: none;
+  align-self: center;
+  width: min(100%, max(160px, (100vh - max(16px, env(safe-area-inset-top)) - max(16px, env(safe-area-inset-bottom)) - 86px) * 16 / 9));
+  width: min(100%, max(160px, (100dvh - max(16px, env(safe-area-inset-top)) - max(16px, env(safe-area-inset-bottom)) - 86px) * 16 / 9));
   aspect-ratio: 16 / 9;
   border-radius: 12px;
   overflow: hidden;

@@ -78,7 +78,9 @@ The interface is in Russian for now; the labels in quotes below are English tran
     appears when there are videos; it opens a dialog with the embedded YouTube player (`hl` and
     `cc_lang_pref` are the preferred language), a list of the other videos and "Open in YouTube".
     Only real YouTube ids go into the URL. The TMDB id comes from the title's `Guid` (the server gives
-    them with `includeGuids=1`, the catalog in its details).
+    them with `includeGuids=1`, the catalog in its details). The picture is 16:9, as wide as the
+    dialog but on a phone on its side no taller than the screen leaves it (the list and the link
+    scroll under it), as in the Apple app's sheet.
 - **Player**:
   - Direct play in `<video>` if the browser supports the container and codecs (MP4/M4V/MOV/WebM +
     `canPlayType`) and the chosen dub is the one the browser plays by default (in Safari
@@ -224,7 +226,7 @@ late (E3 still in view at 375 px and wide) → "⋯" low on a phone turned sidew
 sideways keeps its content out of the side safe areas (emulated in Chrome) → the phone layout without horizontal
 scrolling (search, the title page, the skip countdown and the settings pages included) → subtitles above the corner
 (countdown, skip button, next episode card), the bar shown and hidden, a phone turned P → L → P and wide → the
-browser talked only to the fakes.
+trailer 16:9 inside a phone's screen both ways → the browser talked only to the fakes.
 
 ## Deployment
 
@@ -364,6 +366,8 @@ hovering and clicking on the bar; dragging and touch, Safari and Firefox were no
   the browser (CORS not tested; Plex Web does the same from its own domain), the embedded YouTube
   player (in the smoke test a fake page stands in for it; some videos forbid embedding —
   for that there is "Open in YouTube"), the `/hubs/sections/home/*` collections.
+- New on 2026-11-24 — only in headless Chrome against the fakes; on iOS Safari — the trailer's size with
+  Safari's bars.
 - A title of an old Plex agent whose year on the server differs from the catalog's (or whose
   title is translated differently) is not "recognised": it stays in "Not on the server" and in "Want
   to watch".

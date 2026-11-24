@@ -135,7 +135,7 @@ The interface is in Russian for now; the labels in quotes below are English tran
   credits gets the full countdown, cut at their end. Without "Play automatically" the card
   comes at the credits and waits. In countdown mode, "Don't skip";
   seeking back before the intro skips it again.
-- **Show timing** in the player (the tracks button): shifts the start and end of the intro and
+- **Show timing** in the player (the gear button, «Дорожки и разметка»): shifts the start and end of the intro and
   credits by any number of seconds, applied at once. The adjustment and the dub are stored in
   `localStorage` and synced with Loge Server (`/v1/preferences/{showRatingKey}`) in the same JSON as
   Apple TV; unsaved changes are not overwritten by data from Loge Server; when Loge Server

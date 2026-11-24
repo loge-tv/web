@@ -71,12 +71,6 @@ export const VolumeIcon = ({ muted, ...p }: IconProps & { muted?: boolean }) => 
   </Icon>
 )
 
-export const TracksIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <path d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zm0 2v10h16V7H4zm2 6h5a1 1 0 1 1 0 2H6a1 1 0 1 1 0-2zm8 0h4a1 1 0 1 1 0 2h-4a1 1 0 1 1 0-2zM6 10h3a1 1 0 0 1 0 2H6a1 1 0 1 1 0-2zm6 0h6a1 1 0 1 1 0 2h-6a1 1 0 1 1 0-2z" />
-  </Icon>
-)
-
 export const CloseIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M6.3 6.3a1 1 0 0 1 1.4 0L12 10.6l4.3-4.3a1 1 0 1 1 1.4 1.4L13.4 12l4.3 4.3a1 1 0 0 1-1.4 1.4L12 13.4l-4.3 4.3a1 1 0 0 1-1.4-1.4l4.3-4.3-4.3-4.3a1 1 0 0 1 0-1.4z" />

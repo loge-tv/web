@@ -91,7 +91,10 @@ The interface is in Russian for now; the labels in quotes below are English tran
     embed page (a cross-origin frame's `load` fires for the browser's error page too), or that `HEAD`
     hanging 15 s while the player is silent; the player refusing the video (embedding forbidden,
     removed, …) — its `onError` over postMessage (`enablejsapi=1&origin=…`, the IFrame Player API's
-    "listening" handshake). A player that never answers is left alone.
+    "listening" handshake). A player that never answers is left alone. Error 150 doesn't say why:
+    YouTube gives it for a video whose author forbids embedding, but also for its "confirm you're
+    not a bot" sign-in wall and for a country block, so the text ("YouTube doesn't show this video
+    here — open it in YouTube") blames no one.
 - **Player**:
   - Direct play in `<video>` if the browser supports the container and codecs (MP4/M4V/MOV/WebM +
     `canPlayType`) and the chosen dub is the one the browser plays by default (in Safari
@@ -367,7 +370,10 @@ hovering and clicking on the bar; dragging and touch, Safari and Firefox were no
 - Chrome 142+ (Local Network Access): a page from the internet that talks to a plex.direct
   address with a local IP triggers a permission prompt for access to devices on the local
   network — it has to be allowed once.
-- Safari: native HLS and `audioTracks` switching are written but have not been run.
+- Safari: `audioTracks` switching is written but has not been run. Native HLS was run only in the
+  iOS simulators against the fake, and failed there ("ошибка 4"): Safari asks for the media playlist
+  under `start.m3u8` without `X-Plex-Token` (only hls.js adds it, in `xhrSetup`), and the fake answers
+  401. Whether a real PMS wants the token for `session/…/base/index.m3u8` is not known.
 - Firefox: no HEVC and no AC3/EAC3 — such files go through the transcoder.
 - Dolby Vision / HDR are not played as is in the browser: Plex re-encodes them (with
   tone mapping, if the server can), and only what `canPlayType` confirms plays directly.
@@ -387,11 +393,15 @@ hovering and clicking on the bar; dragging and touch, Safari and Firefox were no
   the browser (CORS not tested; Plex Web does the same from its own domain), the embedded YouTube
   player (in the smoke test a fake page stands in for it; some videos forbid embedding —
   for that there is "Open in YouTube"), the `/hubs/sections/home/*` collections.
-- New on 2026-11-24 — only in headless Chrome against the fakes: the embedded player's messages (the
-  "listening" handshake and `onError` are what the IFrame Player API is known to use; the fake answers
-  that way, the real YouTube wasn't asked) and the no-cors `HEAD` of a real embed page; on iOS Safari —
-  `-webkit-text-size-adjust` (only the style is checked), focus scrolling with `scroll-padding` (Chrome
-  honours it, Safari not checked), the compact header and the trailer's size with Safari's bars.
+- New on 2026-11-24 — the embedded player's messages: the real YouTube player in Mobile Safari answers
+  the "listening" handshake and sends `onError` as the fake does, but from the test machine's network
+  it wanted a sign-in ("confirm you're not a bot", error 150) for every video, so a real trailer
+  hasn't been seen playing in the page; the no-cors `HEAD` of a real embed page was run in headless
+  Chrome. In Mobile Safari (iOS 27.2 and 18.4 simulators) against the
+  fakes: subtitles above the corner, the trailer's 16:9 sideways, the refusal and no-connection
+  texts, the compact header, the TMDB note, no text enlarging sideways, and the player, the trailer
+  and the pages turned portrait → landscape → portrait. Not checked in Safari: focus scrolling with
+  `scroll-padding` (Chrome honours it; on an iPhone neither Tab nor Option+Tab moves the focus).
 - A title of an old Plex agent whose year on the server differs from the catalog's (or whose
   title is translated differently) is not "recognised": it stays in "Not on the server" and in "Want
   to watch".

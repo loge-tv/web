@@ -1677,11 +1677,11 @@ await step("«Трейлер» when YouTube can't show it (unreachable, offline,
   assert.equal(await alert().count(), 0)
   await page.keyboard.press('Escape')
   await dialog().waitFor({ state: 'detached' })
-  // The player refuses (150: its author allows it only on YouTube): no «Повторить».
+  // The player refuses (150: embedding forbidden, a sign-in wall, a country block): no «Повторить».
   fake.state.youtubeError = 150
   await open()
   await alert().waitFor({ timeout: 8000 })
-  assert.equal(await alert().locator('p').textContent(), 'Автор видео не разрешает смотреть его вне YouTube.')
+  assert.equal(await alert().locator('p').textContent(), 'YouTube не показывает это видео здесь — откройте его в YouTube.')
   assert.equal(await alert().getByRole('button', { name: 'Повторить' }).count(), 0)
   assert.equal(await dialog().getByRole('link', { name: 'Открыть в YouTube' }).getAttribute('href'), watch)
   await settledShot('trailer-refused')

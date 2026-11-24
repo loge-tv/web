@@ -52,7 +52,10 @@ export type TrailerFailure = { kind: 'network' } | { kind: 'player'; code: numbe
 
 export const TrailerText = {
   network: 'Трейлер не загрузился: нет связи с YouTube.',
-  notEmbeddable: 'Автор видео не разрешает смотреть его вне YouTube.',
+  // 101/150: YouTube's own refusal. Its author may forbid embedding, but YouTube answers 150 to
+  // its «confirm you're not a bot» sign-in wall too (seen for an embeddable Blender film), and
+  // to a video blocked in the viewer's country: the text names no cause.
+  notEmbeddable: 'YouTube не показывает это видео здесь — откройте его в YouTube.',
   removed: 'Это видео удалено или скрыто.',
   playerError: 'YouTube не смог показать это видео.',
   retry: 'Повторить',

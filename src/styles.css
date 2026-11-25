@@ -1286,7 +1286,7 @@ a.settings-row:hover {
   color: var(--text-secondary);
 }
 
-/* TMDB's logo as it is (colours, proportions), smaller than Loge's in the header. */
+/* TMDB's logo as it is (colours, proportions), smaller than the app's wordmark in the header. */
 .tmdb-logo {
   display: block;
   height: 12px;

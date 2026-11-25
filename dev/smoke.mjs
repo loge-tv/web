@@ -448,8 +448,8 @@ await step('settings: a list of four pages, Back returns to it; detector reachab
   await page.getByRole('link', { name: 'Настройки' }).click()
   await page.waitForURL(/#\/settings$/)
   await settingsPages().first().waitFor()
-  assert.deepEqual(await settingsPages().allTextContents(), ['Плеер', 'Главная и Обзор', 'Loge Server', 'Сервер и аккаунт'])
-  await page.getByText(/^Loge \d/).waitFor()
+  assert.deepEqual(await settingsPages().allTextContents(), ['Плеер', 'Главная и Обзор', 'Sepia Server', 'Сервер и аккаунт'])
+  await page.getByText(/^Sepia TV \d/).waitFor()
   // TMDB's attribution (its terms, §3): the sentence word for word and its logo from the bundle.
   await page.getByText('This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.').waitFor()
   const tmdbLogo = page.getByRole('img', { name: 'TMDB' })
@@ -457,10 +457,10 @@ await step('settings: a list of four pages, Back returns to it; detector reachab
   assert.ok(!/themoviedb|tmdb\.org/.test((await tmdbLogo.getAttribute('src')) ?? ''), 'the logo is not loaded from TMDB')
   await settledShot('settings')
   // Browser Back from a page lands on the list.
-  await settingsPages().filter({ hasText: 'Loge Server' }).click()
+  await settingsPages().filter({ hasText: 'Sepia Server' }).click()
   await page.waitForURL(/#\/settings\/detector$/)
-  await page.getByText('Loge Server отвечает').waitFor({ timeout: 8000 })
-  await page.getByText('Адрес вашего Loge Server: с ним заставки и титры находятся точнее. Без него они берутся из глав файла и TheIntroDB.').waitFor()
+  await page.getByText('Sepia Server отвечает').waitFor({ timeout: 8000 })
+  await page.getByText('Адрес вашего Sepia Server: с ним заставки и титры находятся точнее. Без него они берутся из глав файла и TheIntroDB.').waitFor()
   await page.goBack()
   await page.waitForURL(/#\/settings$/)
   // So does the page's own «Настройки».
@@ -538,7 +538,7 @@ await step('detector down: the episode still plays, without segments', async () 
   await until(async () => ((await video())?.time ?? 0) > 1, { timeout: 15000, message: 'playback without detector' })
   await page.getByRole('button', { name: 'Дорожки и разметка' }).click()
   // The fake files have no chapters; the fake TheIntroDB is asked by the show's TVDB id and knows nothing.
-  await page.getByText('Loge Server недоступен, а в главах файла и TheIntroDB разметки нет').waitFor()
+  await page.getByText('Sepia Server недоступен, а в главах файла и TheIntroDB разметки нет').waitFor()
   const introDB = find((r) => r.server === 'theintrodb' && r.query.tvdb_id === '100')
   assert.ok(introDB.length > 0, 'TheIntroDB asked by the show\'s TVDB id')
   assert.equal(introDB.at(-1).headers['x-plex-token'], undefined, 'no Plex token to TheIntroDB')
@@ -895,7 +895,7 @@ await step('«Трейлер»: TMDB trailers through the proxy in the preferred
   fake.state.tmdbStatus = 0
   await page.reload()
   await page.getByRole('button', { name: 'Трейлер' }).waitFor({ timeout: 10000 })
-  // Loge Server never asked about TMDB.
+  // Sepia Server never asked about TMDB.
   assert.equal(find((r) => r.server === 'detector' && /^\/v1\/(videos|recommendations|titles)/.test(r.path)).length, 0)
 })
 
@@ -1087,7 +1087,7 @@ await step('settings «Главная и Обзор»: every shelf off and on, m
   await page.getByRole('heading', { name: 'Полки Главной' }).waitFor()
   const text = (await page.locator('body').textContent()) ?? ''
   assert.doesNotMatch(text, /ключа TMDB|TMDB_API_KEY/)
-  // The server is «Loge Server» in every text, never «детектор».
+  // The server is «Sepia Server» in every text, never «детектор».
   assert.doesNotMatch(text, /детектор/i)
   fake.state.tmdbStatus = 0
   await page.goto(`${app}/#/`)
@@ -1560,7 +1560,7 @@ await step('phone layout: no horizontal scrolling on home, show and player', asy
   for (const id of ['playback', 'home', 'detector', 'server']) {
     await p.goto(`${app}/#/settings/${id}`)
     await p.getByRole('button', { name: 'Настройки' }).waitFor({ timeout: 8000 })
-    if (id === 'detector') await p.getByText('Loge Server отвечает').waitFor({ timeout: 8000 })
+    if (id === 'detector') await p.getByText('Sepia Server отвечает').waitFor({ timeout: 8000 })
     assert.ok((await overflow()) <= 0, `settings/${id} overflows by ${await overflow()} px`)
     await p.screenshot({ path: join(screens, `phone-settings-${id}.png`), fullPage: true })
   }
@@ -1755,7 +1755,7 @@ await step("a phone on its side: the title page's main action on the first scree
   }
 })
 
-await step('without Loge Server: trailers and recommendations still come from the proxy', async () => {
+await step('without Sepia Server: trailers and recommendations still come from the proxy', async () => {
   const fresh = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'ru-RU', storageState: await context.storageState() })
   recordHosts(fresh)
   const p = await fresh.newPage()
@@ -1771,7 +1771,7 @@ await step('without Loge Server: trailers and recommendations still come from th
   await p.goto(`${app}/#/show/100`)
   await p.getByRole('button', { name: 'Трейлер' }).waitFor({ timeout: 10000 })
   assert.ok(tmdb('/v1/recommendations', (r) => r.at > since).length > 0 && tmdb('/v1/videos', (r) => r.at > since).length > 0)
-  assert.equal(find((r) => r.server === 'detector' && r.path !== '/healthz' && r.at > since).length, 0, 'Loge Server not asked')
+  assert.equal(find((r) => r.server === 'detector' && r.path !== '/healthz' && r.at > since).length, 0, 'Sepia Server not asked')
   await fresh.close()
 })
 

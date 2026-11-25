@@ -136,7 +136,7 @@ function setup({
     savePreferences: vi.fn(async () => {}),
   }
   const store = new ShowPreferencesStore(new MemoryStorage())
-  // What an earlier session took from Loge Server (not a change of the user).
+  // What an earlier session took from Sepia Server (not a change of the user).
   if (cached) store.replace('100', cached)
   const sync = new ShowPreferencesSync(store, () => remote)
   const schedulePush = vi.spyOn(sync, 'schedulePush')
@@ -212,7 +212,7 @@ describe('PlayerSession start', () => {
     expect(s.session.getSnapshot().segmentSources).toEqual({ segments: [intro, credits], sources: ['server'] })
   })
 
-  it('starts with the dub cached for the show, without waiting for Loge Server', async () => {
+  it('starts with the dub cached for the show, without waiting for Sepia Server', async () => {
     const s = setup({ cached: { correction: { ...NO_CORRECTION }, audio: lostFilm } })
     await started(s, 40)
 
@@ -327,7 +327,7 @@ describe('PlayerSession start', () => {
     await flush()
     expect(s.session.getSnapshot().plan?.mode).toBe('direct')
 
-    // Loge Server usually answers before the file opens.
+    // Sepia Server usually answers before the file opens.
     s.segments.resolve([intro, credits])
     s.pulled.resolve({ correction: { ...NO_CORRECTION }, audio: lostFilm })
     await flush()

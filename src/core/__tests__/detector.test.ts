@@ -33,7 +33,7 @@ describe('DetectorClient', () => {
   })
 
   it('reachable means a /v1 answer the page may read, not /healthz', async () => {
-    // Loge Server sends CORS headers on /v1 only: a browser can't read its /healthz, so a check
+    // Sepia Server sends CORS headers on /v1 only: a browser can't read its /healthz, so a check
     // there says «недоступен» about a server that works.
     const mock = new MockFetch()
     mock.stub('/healthz', 'ok\n')
@@ -101,7 +101,7 @@ describe('DetectorClient', () => {
 
   it('normalizes the configured URL', () => {
     expect(normalizeDetectorURL(' https://d.test/ ')).toBe('https://d.test')
-    // No default: Loge Server is the person's own.
+    // No default: Sepia Server is the person's own.
     expect(normalizeDetectorURL('ftp://x')).toBe('')
     expect(normalizeDetectorURL('')).toBe('')
   })

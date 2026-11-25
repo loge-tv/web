@@ -1,4 +1,4 @@
-// The screens of Loge Web that the site shows: `npm run screens` (see CLAUDE.md, «Screens on the site»).
+// The screens of the web app that the site shows: `npm run screens` (see CLAUDE.md, «Screens on the site»).
 import { defineConfig } from '@playwright/test'
 
 export default defineConfig({

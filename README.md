@@ -1,7 +1,7 @@
-# Loge for the browser
+# Sepia TV for the browser
 
-The web version of Loge: a custom Plex client that skips intros and credits using data from Loge Server
-from [loge-tv/server](https://github.com/loge-tv/server). React + TypeScript + Vite, a static build with no backend.
+The web version of Sepia TV: a custom Plex client that skips intros and credits using data from Sepia Server
+from [sepiatv/server](https://github.com/sepiatv/server). React + TypeScript + Vite, a static build with no backend.
 Works on a computer and is adapted for phones. The reference for behaviour is the
 Apple TV app; the logic of skipping, track selection and moving between
 episodes is ported from SkipTVKit together with its tests.
@@ -31,7 +31,7 @@ The interface is in Russian for now; the labels in quotes below are English tran
   (minus what Plex history says was watched) makes a shelf per seed. While the proxy refuses (any
   status, 404 included) these shelves stay as they were (none on the first visit) and are asked again
   next time. "More with the cast of "…"" — the Plex catalog's
-  "More From This Cast & Crew" for a recent title, works without Loge Server too. They refresh at most
+  "More From This Cast & Crew" for a recent title, works without Sepia Server too. They refresh at most
   every 15 minutes and after a deletion.
   Every shelf ("Continue Watching", "Want to watch", "Not out yet", "Recently Added" of
   each library, the three recommendation shelves) can be turned off and moved in Settings →
@@ -104,9 +104,9 @@ The interface is in Russian for now; the labels in quotes below are English tran
     is re-encoded. If direct play fails after all, the player switches
     to the transcoder automatically.
   - Outside the home network (an address that is not among the server's local connections) the file for
-    direct play is served by Loge Server (`/v1/files`, the token in the query: `<video>` sends no
+    direct play is served by Sepia Server (`/v1/files`, the token in the query: `<video>` sends no
     headers): there Plex without Plex Pass answers the file itself with 403 "Downloading requires a
-    Remote Watch Pass or Plex Pass". If Loge Server didn't serve the file — direct play from Plex,
+    Remote Watch Pass or Plex Pass". If Sepia Server didn't serve the file — direct play from Plex,
     then the transcoder. The Plex transcoder from outside without Plex Pass is most likely closed too
     (not tested), so an MKV away from home may not play in the browser.
   - Audio and subtitles: the TrackSelector rules (audio in the preferred language, Russian by
@@ -137,8 +137,8 @@ The interface is in Russian for now; the labels in quotes below are English tran
   seeking back before the intro skips it again.
 - **Show timing** in the player (the gear button, «Дорожки и разметка»): shifts the start and end of the intro and
   credits by any number of seconds, applied at once. The adjustment and the dub are stored in
-  `localStorage` and synced with Loge Server (`/v1/preferences/{showRatingKey}`) in the same JSON as
-  Apple TV; unsaved changes are not overwritten by data from Loge Server; when Loge Server
+  `localStorage` and synced with Sepia Server (`/v1/preferences/{showRatingKey}`) in the same JSON as
+  Apple TV; unsaved changes are not overwritten by data from Sepia Server; when Sepia Server
   is unreachable the local copy works and is sent later.
 - **Search and the Plex watchlist** (the magnifier in the header): searches the server and the whole Plex
   catalog (Discover, `discover.provider.plex.tv`, 350 ms after typing stops). Results —
@@ -169,7 +169,7 @@ The interface is in Russian for now; the labels in quotes below are English tran
   Russian; a refusal pauses it for 5 minutes.
 - **Settings** — a list of sections, each with its own page (`#/settings/<section>`; the browser's
   "Back" and "‹ Settings" return to the list), under the list "About": the version and TMDB's
-  attribution — its logo (smaller than Loge's) and, word for word, the sentence its terms ask for
+  attribution — its logo (smaller than the app's wordmark) and, word for word, the sentence its terms ask for
   ("This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise
   approved by TMDB.", with a Russian translation):
   - **Player** — "Preferred language" (audio, subtitles and the trailer language; 13 languages),
@@ -181,9 +181,9 @@ The interface is in Russian for now; the labels in quotes below are English tran
     "Restore the default collection order" (`hiddenHubs`, `hubOrder`). In an empty search the
     watchlist is always shown in full. Settings stay in this browser (`localStorage`): unlike the
     Apple apps' iCloud, nothing syncs them;
-  - **Loge Server** — the address, empty until one is entered (with a check, and a reset or removal);
+  - **Sepia Server** — the address, empty until one is entered (with a check, and a reset or removal);
   - **Server and account** — server and connection address, reconnecting, switching servers, sign out.
-- Loge Server is optional: when it isn't set or can't be asked (down, refuses the token, no CORS), segments come from the
+- Sepia Server is optional: when it isn't set or can't be asked (down, refuses the token, no CORS), segments come from the
   file's own chapters ("Intro", "Credits", "Титры"…) and, for what they lack, from [TheIntroDB](https://theintrodb.org)
   (a request of its own, without the Plex token); the tracks panel says where they came from. Nothing there — no skipping.
 
@@ -192,7 +192,7 @@ The interface is in Russian for now; the labels in quotes below are English tran
 You need Node 20+.
 
 ```sh
-git clone https://github.com/loge-tv/web.git
+git clone https://github.com/sepiatv/web.git
 cd web
 npm ci
 npm run dev          # http://localhost:5173, real plex.tv
@@ -208,7 +208,7 @@ Server (libraries, metadata, timeline/scrobble, files with Range, BIF, SRT in cp
 an ffmpeg HLS transcoder), the Plex catalog (search, the watchlist page by page, watch history
 `/userState`, title details, `PUT /actions/*`, the `/photo` resizer; a refused list, a refused
 search and a reset — `state.watchlistFail`, `state.searchFail`, `state.resetWatchlist()`) and
-Loge Server (segments, preferences, CORS) with a fake TheIntroDB that knows nothing and a
+Sepia Server (segments, preferences, CORS) with a fake TheIntroDB that knows nothing and a
 fake YouTube embed page (it answers the player handshake; unreachable — `state.youtubeDown`, refusing the video —
 `state.youtubeError`), and `dev/fake-tmdb.mjs`, the TMDB proxy (its CORS, 400 to a Plex token, 401
 without the builds' token; any status — `state.tmdbStatus`, 429 with `Retry-After`). The `--mode fake` build points the catalog and the resizer there too and pins "today"
@@ -228,15 +228,15 @@ The screens the site shows have snapshot tests of their own, run locally against
 The smoke test uses the installed Google Chrome (`CHROME_PATH` for another path) and
 `ffmpeg` from PATH. It goes through: PIN sign-in → home (order, collapsing) → an episode from
 "Continue Watching" → direct play of MP4 with SRT in cp1251 → automatic intro skip → BIF preview →
-the timing adjustment goes to Loge Server → closing the panel starts the bar's 3 s over (it
+the timing adjustment goes to Sepia Server → closing the panel starts the bar's 3 s over (it
 stays, then hides; a pointer move restarts them) → timeline → the next episode card before the
 credits (a pause freezes it, scrobble only at the credits) → autoplay as the credits start of the next episode (MKV → HLS, resuming from 0:40) → seeking back before
 the offset restarts the transcoder → switching the dub (PUT streams, restart, the dub stored in
-Loge Server) → Esc (stopped, transcode stopped) → choosing the started episode → movie: ▶ plays
+Sepia Server) → Esc (stopped, transcode stopped) → choosing the started episode → movie: ▶ plays
 from where it was left without asking, marking as watched, filters → settings (a list of four
-pages, "Back" to the list, Loge Server, skip mode) → countdown mode ("Don't
+pages, "Back" to the list, Sepia Server, skip mode) → countdown mode ("Don't
 skip", the button inside the intro) → "Credits" on the next episode card (the credits play with
-the "Next episode" button, no autoplay) → Loge Server off (the fake TheIntroDB asked by the
+the "Next episode" button, no autoplay) → Sepia Server off (the fake TheIntroDB asked by the
 show's TVDB id, without the Plex token) → keys → leaving the player while
 it is still loading (nothing starts, no transcode is left behind) → the watchlist on
 Home ("Want to watch" / "Not out yet": order, dates; a watched movie, a started
@@ -257,7 +257,7 @@ scrolling (search, the title page, the skip countdown and the settings pages inc
 16:9 inside a phone's screen both ways → YouTube unreachable, offline, refusing: the app's message, "Retry", "Open in
 YouTube" → a phone on its side: the title page's main action on the first screen, a long title and summary too →
 the TMDB proxy's refusals (404, 429: no button, no shelves this time, back the next) and a catalog title named in Russian
-→ without Loge Server, trailers and recommendations still come from the proxy → focus
+→ without Sepia Server, trailers and recommendations still come from the proxy → focus
 scrolls clear of the tab bar and the top bar, `-webkit-text-size-adjust: 100%` → the browser talked only to the fakes.
 
 ## Deployment
@@ -269,9 +269,9 @@ without rewrite rules.
 - **HTTPS is required** (or `http://localhost`): from an HTTPS page only the server's HTTPS
   addresses are reachable — `*.plex.direct` from the plex.tv list. If the page is opened over HTTP
   on the local network, `http://192.168.…:32400` works too.
-- There is no default Loge Server address: everyone enters their own in settings, or it is set at
+- There is no default Sepia Server address: everyone enters their own in settings, or it is set at
   build time: `VITE_DETECTOR_URL=https://… npm run build`. Without one, segments come from the
-  file's chapters and TheIntroDB. Loge Server must
+  file's chapters and TheIntroDB. Sepia Server must
   send CORS headers (see below) and be on HTTPS if the app itself is on HTTPS.
 - `VITE_PLEX_TV_URL`, `VITE_PLEX_AUTH_URL`, `VITE_PLEX_DISCOVER_URL`, `VITE_PLEX_IMAGES_URL`,
   `VITE_YOUTUBE_URL`, `VITE_THEINTRODB_URL`, `VITE_TMDB_PROXY_URL`, `VITE_TODAY` — for the fakes only.
@@ -287,12 +287,12 @@ without rewrite rules.
   too: the trailer dialog sends a no-cors `HEAD` to the embed page to tell "YouTube unreachable"
   apart, and a blocked one reads as no connection. (The repository sets no policy.)
 
-## What Loge Server needs to provide
+## What Sepia Server needs to provide
 
-Every request to Loge Server carries the `X-Plex-Token` header, so the browser first sends a
-preflight `OPTIONS`. Loge Server sends CORS headers since version 0.1.9 (in `main`); checked on a
-running Loge Server: the preflight gets 204 with the headers below. Without CORS
-(an old or a custom Loge Server) segments come only from the file's chapters and TheIntroDB, and a show's
+Every request to Sepia Server carries the `X-Plex-Token` header, so the browser first sends a
+preflight `OPTIONS`. Sepia Server sends CORS headers since version 0.1.9 (in `main`); checked on a
+running Sepia Server: the preflight gets 204 with the headers below. Without CORS
+(an old or a custom Sepia Server) segments come only from the file's chapters and TheIntroDB, and a show's
 timing and dub live only in `localStorage`.
 
 - CORS: `Access-Control-Allow-Origin: *`, `Access-Control-Allow-Methods: GET, PUT, OPTIONS`,
@@ -300,8 +300,8 @@ timing and dub live only in `localStorage`.
   `OPTIONS` without a token check. Requests: `GET /v1/segments/{ratingKey}`,
   `GET/PUT /v1/preferences/{key}`, `GET /healthz`; the `X-Plex-Token` header is the access token
   for the Plex server (as on Apple TV).
-- TMDB is not asked of Loge Server any more: recommendations, trailers and titles come from the TMDB
-  proxy (loge-tv/tmdb-proxy) for everyone, Loge Server or not. Its paths and answers are Loge Server's:
+- TMDB is not asked of Sepia Server any more: recommendations, trailers and titles come from the TMDB
+  proxy (sepiatv/tmdb-proxy) for everyone, Sepia Server or not. Its paths and answers are Sepia Server's:
   `GET /v1/recommendations?seeds=…(≤5)&language=ru-RU`, `GET /v1/videos?item=…&language=…`,
   `GET /v1/titles?language=ru-RU&item=<movie|tv>:<year>:<tmdbId>:<title>` (≤60). Requests carry only
   `Accept` and `X-Client-Token`, never `X-Plex-Token` (the proxy refuses it: 400). Every refusal is
@@ -311,11 +311,11 @@ timing and dub live only in `localStorage`.
 ## Layout
 
 ```
-src/core/      pure logic without the DOM: Plex models, plex.tv/PMS/Loge Server and Plex
+src/core/      pure logic without the DOM: Plex models, plex.tv/PMS/Sepia Server and Plex
                catalog (plexDiscover) clients, matching the catalog with the library and the
                watchlist shelves (catalogMatch), SkipPolicy/SkipController, adjustment, show
                preferences and their sync, track selection, playback plan, BIF, subtitles,
-               segments without Loge Server (chapters, TheIntroDB). Tests are in src/core/__tests__
+               segments without Sepia Server (chapters, TheIntroDB). Tests are in src/core/__tests__
 src/app/       session state (sign-in, server, connection), the watchlist and the library index
                (watchlist.ts), recommendations (recommendations.ts), "Explore" (explore.ts),
                catalog seasons (catalogShow.ts); tests in src/app/__tests__; loading hooks
@@ -407,8 +407,8 @@ hovering and clicking on the bar; dragging and touch, Safari and Firefox were no
   with `X-Plex-Token`, `X-Plex-Client-Identifier`, `Accept`. Search, the list, `/userState`
   and `PUT /actions/*` were not called from the web with a token — only against the fake; the response
   formats come from the Apple app (the list and `/userState` checked there against a real account).
-- New on the night of 2026-11-23 — only against the fakes: Loge Server's recommendations (the home
-  Loge Server has `/v1/recommendations`; `/v1/videos` is on a Loge Server branch, not deployed yet, until
+- New on the night of 2026-11-23 — only against the fakes: Sepia Server's recommendations (the home
+  Sepia Server has `/v1/recommendations`; `/v1/videos` is on a Sepia Server branch, not deployed yet, until
   then there is no "Trailer" button), `DELETE` on a real PMS (the CORS preflight for DELETE and
   the answer with "Allow media deletion" off are not tested; the refusal texts fit any
   status), the catalog's `children` and `/actions/scrobble` on `metadata.provider.plex.tv` from

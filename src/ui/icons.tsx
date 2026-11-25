@@ -193,7 +193,7 @@ export const TrailerIcon = (p: IconProps) => (
 )
 
 /**
- * The Loge wordmark: DM Serif Display (SIL OFL) «L», «g», «e», the «o» is a play disc.
+ * The wordmark, still the old «Loge» until the new mark (labelled with APP_NAME, «Sepia TV»): DM Serif Display (SIL OFL) «L», «g», «e», the «o» is a play disc.
  * Same outline as app/brand/loge-wordmark.svg. `height` includes the descender of «g».
  */
 export const Wordmark = ({ height = 24, ...rest }: SVGProps<SVGSVGElement> & { height?: number }) => (

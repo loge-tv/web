@@ -1,4 +1,4 @@
-// Snapshot tests of the screens of Loge Web that the site shows (loge-tv/landing,
+// Snapshot tests of the screens of the web app that the site shows (sepiatv/landing,
 // assets/shots/web/<screen>.jpg). They run the fake build of this checkout against the landing
 // rig's fake.mjs (the Blender library the site's screenshots are shot on) and compare each screen
 // with dev/screens/baseline/<screen>.png. A red test here means the site shows an old screen:
@@ -8,7 +8,7 @@
 // and its picture is hidden (hide-video.css); the trailer plays the fake's stand-in for the
 // YouTube embed (never youtube.com); every request goes to the fakes on 127.0.0.1. TMDB (trailers,
 // recommendations, titles) comes from this checkout's fake proxy (dev/fake-tmdb.mjs) with the rig's
-// data: the rig's fake has TMDB on its Loge Server only.
+// data: the rig's fake has TMDB on its Sepia Server only.
 import { expect, test } from '@playwright/test'
 import { existsSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'

@@ -898,12 +898,12 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
   // Detector with the CORS the real one is getting.
   const detector = createServer(async (req, res) => {
     const url = new URL(req.url, urls.detector)
-    // Like Loge Server: CORS on everything but /healthz (the real one has it on /v1 only), so a page
+    // Like Sepia Server: CORS on everything but /healthz (the real one has it on /v1 only), so a page
     // can't read /healthz.
     if (url.pathname !== '/healthz') cors(res, 'GET, PUT, OPTIONS', 'X-Plex-Token, Content-Type, Accept')
     if (req.method === 'OPTIONS') return res.writeHead(204).end()
     const body = req.method === 'PUT' ? await readBody(req) : undefined
-    // Stands in for TheIntroDB (segments when Loge Server is down); it knows nothing here.
+    // Stands in for TheIntroDB (segments when Sepia Server is down); it knows nothing here.
     if (url.pathname.startsWith('/theintrodb/')) {
       log('theintrodb', req, url, body, res)
       return json(res, { error: 'not found' }, 404)
@@ -944,7 +944,7 @@ addEventListener('message', (e) => {
       const keys = (url.searchParams.get('ratingKeys') ?? '').split(',').filter(Boolean)
       return json(res, { items: keys.map((k) => ({ ratingKey: k, segments: segments[k] ?? [], analyzed: true })) })
     }
-    // TMDB (/v1/videos, /v1/recommendations) is the proxy's: the app never asks Loge Server.
+    // TMDB (/v1/videos, /v1/recommendations) is the proxy's: the app never asks Sepia Server.
     m = /^\/v1\/preferences\/([^/]+)$/.exec(p)
     if (m && req.method === 'GET') {
       const stored = preferences.get(m[1])

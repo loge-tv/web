@@ -25,12 +25,12 @@ import {
 } from '../settings'
 import { BackIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, ChevronUpIcon, ForwardEndIcon, HomeIcon, PlayIcon, ServerIcon } from '../ui/icons'
 
-/** Pages of the settings screen, the same in every Loge app (ids as in the Apple app). */
+/** Pages of the settings screen, the same in every app of the family (ids as in the Apple app). */
 const settingsPages: { id: string; title: string; icon: ComponentType<{ size?: number }>; content: ComponentType }[] = [
   { id: 'playback', title: 'Плеер', icon: PlayIcon, content: PlaybackSettings },
   // «Главная» and «Обзор» share a page, a section each.
   { id: 'home', title: 'Главная и Обзор', icon: HomeIcon, content: HomeSettings },
-  { id: 'detector', title: 'Loge Server', icon: ForwardEndIcon, content: DetectorSettings },
+  { id: 'detector', title: 'Sepia Server', icon: ForwardEndIcon, content: DetectorSettings },
   { id: 'server', title: 'Сервер и аккаунт', icon: ServerIcon, content: ServerSettings },
 ]
 
@@ -138,7 +138,7 @@ function DetectorStatus({ url, token }: { url: string; token?: string }) {
     }
   }, [base, token])
   if (!base) return <span className="status">Не задан</span>
-  const text = status === 'checking' ? 'Проверяю…' : status === 'ok' ? 'Loge Server отвечает' : 'Loge Server недоступен'
+  const text = status === 'checking' ? 'Проверяю…' : status === 'ok' ? 'Sepia Server отвечает' : 'Sepia Server недоступен'
   return <span className={`status status-${status}`}>{text}</span>
 }
 
@@ -185,7 +185,7 @@ function TMDBNotice() {
   return (
     <>
       <span lang="en">This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.</span>{' '}
-      Loge использует TMDB и API TMDB, но не одобрен, не сертифицирован и никак иначе не утверждён TMDB.
+      Sepia TV использует TMDB и API TMDB, но не одобрен, не сертифицирован и никак иначе не утверждён TMDB.
     </>
   )
 }
@@ -449,7 +449,7 @@ function DetectorSettings() {
   const { api } = useApp()
   const [detectorDraft, setDetectorDraft] = useState(settings.detectorURL)
   return (
-    <Section footer="Адрес вашего Loge Server: с ним заставки и титры находятся точнее. Без него они берутся из глав файла и TheIntroDB.">
+    <Section footer="Адрес вашего Sepia Server: с ним заставки и титры находятся точнее. Без него они берутся из глав файла и TheIntroDB.">
       <form
         className="settings-row input-row"
         onSubmit={(e) => {
@@ -460,7 +460,7 @@ function DetectorSettings() {
       >
         <input
           type="url"
-          aria-label="Адрес Loge Server"
+          aria-label="Адрес Sepia Server"
           placeholder="https://…"
           value={detectorDraft}
           onChange={(e) => setDetectorDraft(e.target.value)}
@@ -479,7 +479,7 @@ function DetectorSettings() {
               settingsStore.update({ detectorURL: defaultDetectorURL })
             }}
           >
-            {defaultDetectorURL ? 'Сбросить адрес Loge Server' : 'Убрать адрес Loge Server'}
+            {defaultDetectorURL ? 'Сбросить адрес Sepia Server' : 'Убрать адрес Sepia Server'}
           </button>
         )}
       </div>

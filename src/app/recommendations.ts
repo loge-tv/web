@@ -21,7 +21,7 @@ export interface RecommendationsSnapshot {
 }
 
 /**
- * «Потому что вы смотрели…»: TMDB's recommendations (asked through the TMDB proxy, Loge Server
+ * «Потому что вы смотрели…»: TMDB's recommendations (asked through the TMDB proxy, Sepia Server
  * or not) for the titles last watched on the server, shown as Plex catalog titles; what the
  * server already has goes to a shelf of its own. While the proxy can't answer, TMDB's shelves stay
  * as they were and are asked again next time. Plus Plex's own «Ещё с актёрами «…»», which needs

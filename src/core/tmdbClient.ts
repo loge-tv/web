@@ -2,10 +2,10 @@ import { fetchWithTimeout, HTTPError, isRecord, joinURL, lossyInt, lossyString, 
 import { parseTMDBTitle, type TMDBTitle } from './recommendations'
 
 /**
- * Client of the TMDB proxy (loge-tv/tmdb-proxy): titles in Russian, trailers and
- * recommendations, from TMDB on the Loge author's key. It answers Loge Server's `/v1/titles`,
- * `/v1/videos` and `/v1/recommendations` with the same JSON. Everyone uses it, Loge Server or not
- * (trailer streams for TVs stay with Loge Server; the web embeds YouTube's player).
+ * Client of the TMDB proxy (sepiatv/tmdb-proxy): titles in Russian, trailers and
+ * recommendations, from TMDB on the app author's key. It answers Sepia Server's `/v1/titles`,
+ * `/v1/videos` and `/v1/recommendations` with the same JSON. Everyone uses it, Sepia Server or not
+ * (trailer streams for TVs stay with Sepia Server; the web embeds YouTube's player).
  *
  * Requests carry only `Accept` and the builds' `X-Client-Token`, which is all the proxy's CORS
  * allows. No Plex token: the proxy refuses one (400). Every refusal is temporary, so it throws:

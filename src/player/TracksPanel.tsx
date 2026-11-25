@@ -20,7 +20,7 @@ export function formatOffset(seconds: number): string {
 }
 
 /**
- * "Заставка 0:20–0:45 · Титры 41:10–43:00", with the correction applied; without Loge Server
+ * "Заставка 0:20–0:45 · Титры 41:10–43:00", with the correction applied; without Sepia Server
  * also where the markup comes from ("… · из глав файла").
  */
 export function segmentsSummary(s: PlayerSnapshot): string {
@@ -31,7 +31,7 @@ export function segmentsSummary(s: PlayerSnapshot): string {
   // The segments come after the video has started.
   if (!s.segmentSources && !s.error && parts.length === 0) return 'Загрузка разметки…'
   const note = s.segmentSources ? FoundSegments.note(s.segmentSources) : undefined
-  if (parts.length === 0) return note ?? 'В этой серии Loge Server ничего не нашёл'
+  if (parts.length === 0) return note ?? 'В этой серии Sepia Server ничего не нашёл'
   return (note ? [...parts, note] : parts).join(' · ')
 }
 

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 export const REPO = resolve(here, '..', '..')
-/** loge-tv/landing's screenshot rig (shots-raw/harness, not in git): its fake.mjs and the pictures. */
+/** sepiatv/landing's screenshot rig (shots-raw/harness, not in git): its fake.mjs and the pictures. */
 export const RIG = resolve(process.env.LOGE_SHOTS_RIG ?? join(REPO, '..', 'landing', 'shots-raw', 'harness'))
 export const FAKE = join(RIG, 'tools', 'web', 'fake.mjs')
 /** The fake build of this checkout (`--mode fake`, the YouTube embed on the fake detector). */

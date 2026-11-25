@@ -8,7 +8,7 @@ import { FoundSegments, SegmentFinder, ServerAvailability } from '../segmentFind
 import { DEFAULT_THEINTRODB_URL, parseTheIntroDBMedia, TheIntroDBCache, TheIntroDBClient, type TheIntroDBLookup } from '../theIntroDB'
 import { MockFetch, testClient } from './support'
 
-// Port of SegmentFallbackTests.swift: segments without Loge Server, chapters of the file and
+// Port of SegmentFallbackTests.swift: segments without Sepia Server, chapters of the file and
 // TheIntroDB. The JSON is what the real Plex and TheIntroDB answered for «Дипломатка» S4E1
 // (2026-11-23).
 
@@ -290,7 +290,7 @@ describe('SegmentFinder', () => {
     })
     const found = await finder(mock).find(episode)
     expect(found).toEqual<FoundSegments>({ segments: [], sources: [] })
-    expect(FoundSegments.note(found)).toBe('Loge Server недоступен, а в главах файла и TheIntroDB разметки нет')
+    expect(FoundSegments.note(found)).toBe('Sepia Server недоступен, а в главах файла и TheIntroDB разметки нет')
   })
 
   // Web only.
@@ -333,7 +333,7 @@ describe('SegmentFinder', () => {
     expect(await new DetectorClient('https://server.test', 'tok', hanging, 20).segmentsIfAvailable('1')).toBeNull()
   })
 
-  it('without a Loge Server at all: straight to the fallback', async () => {
+  it('without a Sepia Server at all: straight to the fallback', async () => {
     const found = await new SegmentFinder({ detector: null, theIntroDB: null, availability: new ServerAvailability(), show: async () => undefined }).find(
       item(episodeJSON),
     )

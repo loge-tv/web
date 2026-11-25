@@ -280,9 +280,9 @@ without rewrite rules.
 - TMDB (Russian names of catalog titles, trailers, recommendations) comes from the TMDB proxy,
   `TMDB_PROXY_URL` in `src/config.ts` (`https://api.sepiatv.com`, one constant). It wants the builds' token in `X-Client-Token`, given at build time:
   `VITE_TMDB_PROXY_TOKEN=… npm run build`. Never commit it; it ends up in the page's code, where
-  anyone can read it (it keeps out scanners, not people). Without it the proxy answers 401: no
-  trailers, TMDB shelves or Russian names. CI builds without it, so its artifact is not for
-  deploying. `VITE_TMDB_PROXY_URL` is for the fakes only.
+  anyone can read it (it keeps out scanners, not people). Without it no header is sent: fine while
+  the proxy has no `CLIENT_TOKEN`, but once it has one it answers 401 (no trailers, TMDB shelves or
+  Russian names). CI builds without it, so its artifact is not for deploying. `VITE_TMDB_PROXY_URL` is for the fakes only.
 - If the hosting adds a `Content-Security-Policy`, `connect-src` needs the TMDB proxy, and YouTube needs `frame-src` and `connect-src`
   too: the trailer dialog sends a no-cors `HEAD` to the embed page to tell "YouTube unreachable"
   apart, and a blocked one reads as no connection. (The repository sets no policy.)

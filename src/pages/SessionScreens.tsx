@@ -62,8 +62,8 @@ export function ServerPicker({ servers }: { servers: PlexServer[] }) {
 }
 
 /**
- * Launch and connecting screen: the wordmark fades in, then a tilted band of light sweeps across
- * the dimmed letters (1.1 s sweep, 0.9 s rest). Without `text` the line stays empty so the logo
+ * Launch and connecting screen: the lockup fades in, then a tilted band of light sweeps across
+ * the dimmed lockup (1.1 s sweep, 0.9 s rest). Without `text` the line stays empty so the logo
  * doesn't jump when it appears.
  */
 export function SplashScreen({ text }: { text?: string }) {

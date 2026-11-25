@@ -216,6 +216,9 @@ npm run smoke                        # build + headless Chrome + checks, screens
 FAKE_HLS=absolute npm run smoke      # HLS timeline from the start of the file instead of "from offset"
 ```
 
+The screens the site shows have snapshot tests of their own, run locally against the landing rig:
+`npm run screens` (see CLAUDE.md, «Screens on the site»).
+
 The smoke test uses the installed Google Chrome (`CHROME_PATH` for another path) and
 `ffmpeg` from PATH. It goes through: PIN sign-in → home (order, collapsing) → an episode from
 "Continue Watching" → direct play of MP4 with SRT in cp1251 → automatic intro skip → BIF preview →
@@ -306,7 +309,7 @@ src/player/    PlayerSession (engine: <video>/hls.js, file time, skipping, progr
 src/pages/     home, libraries, movie, show, search, catalog title, settings, sign-in screens
 src/ui/        cards, shelves, icons, shared layout, dialogs, the "More" menu, deletion,
                trailers, catalog seasons and episodes
-dev/           fake servers and the smoke test
+dev/           fake servers and the smoke test; dev/screens: snapshot tests of the site's screens
 ```
 
 ## Decisions

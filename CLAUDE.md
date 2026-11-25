@@ -1,11 +1,11 @@
-# Loge Web: notes for Claude
+# Sepia TV web: notes for Claude
 
 The app, its commands and its layout are in README.md. This file covers what README doesn't: the
 screens of this app that the site shows.
 
 ## Screens on the site
 
-The site (loge.stream, repo loge-tv/landing) shows seven screens of this app in
+The site (sepiatv.com, repo sepiatv/landing) shows seven screens of this app in
 `assets/shots/web/<screen>.jpg`. When a change alters one of them (layout, text, an icon, a colour,
 spacing; shared styles and icons count too), the site goes on showing the old interface until the
 screen is reshot. So a change to these screens isn't done until the snapshot tests are updated and
@@ -24,7 +24,7 @@ the site has the new shots.
 `src/styles.css` and `src/ui/icons.tsx` reach all of them.
 
 TMDB (trailers, recommendations, titles) comes from the TMDB proxy. The rig's `fake.mjs` has TMDB
-only on its Loge Server, so the snapshot tests and the rig's `shots.mjs` and `trailer.mjs` start this
+only on its Sepia Server, so the snapshot tests and the rig's `shots.mjs` and `trailer.mjs` start this
 checkout's fake proxy (`dev/fake-tmdb.mjs`) with the rig's data. It gives no Russian names, so the
 Blender films keep their English ones.
 

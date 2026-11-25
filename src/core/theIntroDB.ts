@@ -74,7 +74,7 @@ const imdbID = /^tt[0-9]+$/
 /**
  * TheIntroDB (theintrodb.org): a community database of intro, recap, credits and preview
  * times, by the show's TVDB/TMDB/IMDb id plus season and episode. Used only without
- * Loge Server. Anonymous reads: 30 requests per 10 s and 5,000 a day per IP address.
+ * Sepia Server. Anonymous reads: 30 requests per 10 s and 5,000 a day per IP address.
  *
  * `GET https://api.theintrodb.org/v4/media?tvdb_id=415239&season=4&episode=1&duration_ms=2932576`
  * → `{"tvdb_id":415239,"type":"tv","season":4,"episode":1,"credits":[{"start_ms":2655450,"end_ms":null}]}`;

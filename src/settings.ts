@@ -19,7 +19,7 @@ export interface Settings {
   seekBack: number
   /** → step, seconds. */
   seekForward: number
-  /** Loge Server base URL; empty: none (segments from the file's chapters and TheIntroDB). */
+  /** Sepia Server base URL; empty: none (segments from the file's chapters and TheIntroDB). */
   detectorURL: string
   /** Preferred server connection URL (empty: automatic). */
   preferredConnection: string

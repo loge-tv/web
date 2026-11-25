@@ -1,4 +1,4 @@
-// A stand-in for the TMDB proxy (loge-tv/tmdb-proxy): `/v1/videos`, `/v1/recommendations` and
+// A stand-in for the TMDB proxy (sepiatv/tmdb-proxy): `/v1/videos`, `/v1/recommendations` and
 // `/v1/titles` with the proxy's CORS and refusals. A Plex token is refused (400), a wrong or
 // missing builds' token too (401); `state.tmdbStatus` makes every `/v1` answer that status
 // (429 with `Retry-After: state.tmdbRetryAfter`).

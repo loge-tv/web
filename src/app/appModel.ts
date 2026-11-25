@@ -75,7 +75,7 @@ export class AppModel {
     this.listeners.forEach((l) => l())
   }
 
-  /** The TMDB proxy: titles, trailers and recommendations, Loge Server or not. One client: a 429 holds them all. */
+  /** The TMDB proxy: titles, trailers and recommendations, Sepia Server or not. One client: a 429 holds them all. */
   readonly tmdb = new TMDBClient(TMDB_PROXY_URL, TMDB_PROXY_TOKEN)
   /** Russian names of catalog titles, kept in storage. */
   readonly catalogTitles = new CatalogTitles((queries) => this.tmdb.titles(queries), {
@@ -83,7 +83,7 @@ export class AppModel {
     save: (entries) => writeJSON(StorageKey.catalogTitles, entries),
   })
 
-  /** Loge Server bound to the server token; null until connected or when no address is set. */
+  /** Sepia Server bound to the server token; null until connected or when no address is set. */
   detector(): DetectorClient | null {
     const api = this.state.api
     const url = normalizeDetectorURL(settingsStore.get().detectorURL)

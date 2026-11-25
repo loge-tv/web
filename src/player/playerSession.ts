@@ -52,7 +52,7 @@ export interface PlayerSnapshot {
   nextEpisode?: PlexItem
   /** Detected segments, corrected (shown on the progress bar). */
   segments: Segment[]
-  /** Where they came from: Loge Server, or without it the file's chapters and TheIntroDB. */
+  /** Where they came from: Sepia Server, or without it the file's chapters and TheIntroDB. */
   segmentSources?: FoundSegments
   /** Skip correction of the current show. */
   correction: SkipCorrection
@@ -312,7 +312,7 @@ export class PlayerSession {
     this.set({ item: full, duration: full.duration ? full.duration / 1000 : this.snapshot.duration })
 
     // Opening the media is the slow part: start it with what is cached here, the rest loads
-    // meanwhile. Loge Server alone may take seconds (its timeout, then the fallback), the
+    // meanwhile. Sepia Server alone may take seconds (its timeout, then the fallback), the
     // episode list of a long show about a second.
     const fullKey = preferencesKey(full)
     const preferences = this.deps.preferences.preferences(fullKey)
@@ -335,7 +335,7 @@ export class PlayerSession {
     void this.deps.preferencesSync.pull(fullKey).then(() => {
       if (token === this.loadToken) this.applyPulledPreferences(fullKey, preferences.audio)
     })
-    // From Loge Server; without it, from the file's chapters and TheIntroDB.
+    // From Sepia Server; without it, from the file's chapters and TheIntroDB.
     const detector = this.deps.detector()
     const theIntroDB = THEINTRODB_URL ? new TheIntroDBClient(THEINTRODB_URL) : undefined
     void new SegmentFinder({ detector, theIntroDB, show: (ratingKey) => api.item(ratingKey).catch(() => undefined) })
@@ -376,7 +376,7 @@ export class PlayerSession {
   }
 
   /**
-   * Loge Server's copy of the show's preferences came after the start. A changed correction
+   * Sepia Server's copy of the show's preferences came after the start. A changed correction
    * applies at once; a changed dub switches the track (it is not a new choice of the user,
    * so nothing is pushed). Nothing changed, nothing is reloaded.
    */

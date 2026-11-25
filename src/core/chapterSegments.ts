@@ -59,7 +59,7 @@ const prefixNames: [SegmentType, string[]][] = [
 /**
  * Skip segments from the file's own chapters, when they are named like "Intro", "Credits",
  * "Recap" or "Preview" (WEB-DL and Blu-ray releases often have "Credits"; anime has
- * "Opening"/"Ending"). Used only without Loge Server. Port of SkipTVKit ChapterSegments.
+ * "Opening"/"Ending"). Used only without Sepia Server. Port of SkipTVKit ChapterSegments.
  */
 export const ChapterSegments = {
   /**
@@ -108,7 +108,7 @@ export const ChapterSegments = {
 }
 
 /**
- * Checks shared by the sources used without Loge Server (chapters, TheIntroDB): both can
+ * Checks shared by the sources used without Sepia Server (chapters, TheIntroDB): both can
  * belong to another release of the episode or to another episode altogether.
  */
 export const FallbackSegments = {

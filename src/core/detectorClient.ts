@@ -20,8 +20,8 @@ function parseSegmentsResponse(raw: unknown): SegmentsResponse | null {
 }
 
 /**
- * Client of Loge Server (the detector): segments, files and show preferences. TMDB (titles,
- * trailers, recommendations) is the proxy's, `TMDBClient`, Loge Server or not. Segment lookups
+ * Client of Sepia Server (the detector): segments, files and show preferences. TMDB (titles,
+ * trailers, recommendations) is the proxy's, `TMDBClient`, Sepia Server or not. Segment lookups
  * never throw: when the detector is down (or blocks the browser by CORS) or knows nothing about
  * the item, playback simply has no segments. Requests carry only `X-Plex-Token`, `Accept` and
  * `Content-Type`.
@@ -63,7 +63,7 @@ export class DetectorClient implements PreferencesRemote {
 
   /**
    * The item's segments, or null when the server can't be asked: down, refuses the token
-   * (someone else's server), or isn't a Loge Server at all. An answer with no segments
+   * (someone else's server), or isn't a Sepia Server at all. An answer with no segments
    * (nothing found, not analysed yet) is `[]`, not null.
    */
   async segmentsIfAvailable(ratingKey: string): Promise<Segment[] | null> {
@@ -122,8 +122,8 @@ export class DetectorClient implements PreferencesRemote {
   }
 
   /**
-   * Whether this page can use Loge Server (the settings screen's status). It asks a /v1 route, not
-   * `/healthz`: Loge Server sends CORS headers on /v1 only, so the browser hides `/healthz`'s
+   * Whether this page can use Sepia Server (the settings screen's status). It asks a /v1 route, not
+   * `/healthz`: Sepia Server sends CORS headers on /v1 only, so the browser hides `/healthz`'s
    * answer and a working server would read as down. A cheap one — the segments of a key nobody
    * has — that also needs the token taken and CORS in place, which every real request needs.
    */
@@ -138,7 +138,7 @@ export class DetectorClient implements PreferencesRemote {
 }
 
 /**
- * A usable Loge Server base URL from user input; empty when there is none. Loge Server is the
+ * A usable Sepia Server base URL from user input; empty when there is none. Sepia Server is the
  * person's own server, so there is no default address.
  */
 export function normalizeDetectorURL(input: string): string {

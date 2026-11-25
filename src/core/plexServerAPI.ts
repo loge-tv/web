@@ -111,7 +111,7 @@ export class PlexServerAPI {
 
   /**
    * Full item with media parts, streams, its other ids (`Guid`: TMDB for trailers, TVDB/TMDB/IMDb
-   * for TheIntroDB) and chapters (skip segments without Loge Server).
+   * for TheIntroDB) and chapters (skip segments without Sepia Server).
    */
   async item(ratingKey: string, signal?: AbortSignal): Promise<PlexItem | undefined> {
     return (await this.metadata(`/library/metadata/${ratingKey}`, { includeGuids: '1', includeChapters: '1' }, signal))[0]

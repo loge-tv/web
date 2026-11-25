@@ -1,5 +1,5 @@
 /** The product name (also index.html's title fallback); the logo is `Wordmark` in ui/icons.tsx. */
-export const APP_NAME = 'Loge'
+export const APP_NAME = 'Sepia TV'
 
 export const APP_VERSION = '0.1.0'
 
@@ -18,8 +18,8 @@ export const PLEX_IMAGES_URL: string = import.meta.env.VITE_PLEX_IMAGES_URL || '
 /** Fakes only: «today» for release dates, so the smoke's «Ещё не вышло» doesn't go stale. */
 export const PINNED_TODAY: string | undefined = import.meta.env.VITE_TODAY || undefined
 /**
- * The TMDB proxy (loge-tv/tmdb-proxy): titles in Russian, trailers and recommendations for
- * everyone, Loge Server or not. The one place of its address.
+ * The TMDB proxy (sepiatv/tmdb-proxy): titles in Russian, trailers and recommendations for
+ * everyone, Sepia Server or not. The one place of its address.
  * Overridable at build time for the fakes.
  */
 export const TMDB_PROXY_URL: string = import.meta.env.VITE_TMDB_PROXY_URL || 'https://api.sepiatv.com'
@@ -29,7 +29,7 @@ export const TMDB_PROXY_URL: string = import.meta.env.VITE_TMDB_PROXY_URL || 'ht
  * it keeps out scanners, not people (a known limit for the beta).
  */
 export const TMDB_PROXY_TOKEN: string = import.meta.env.VITE_TMDB_PROXY_TOKEN || ''
-/** Loge Server used until the user sets another one in the settings; none by default. */
+/** Sepia Server used until the user sets another one in the settings; none by default. */
 export const DEFAULT_DETECTOR: string | undefined = import.meta.env.VITE_DETECTOR_URL || undefined
 /**
  * YouTube, where trailers play (`/embed/<id>`). Overridable for the fakes only: the smoke test
@@ -37,7 +37,7 @@ export const DEFAULT_DETECTOR: string | undefined = import.meta.env.VITE_DETECTO
  */
 export const YOUTUBE_URL: string = import.meta.env.VITE_YOUTUBE_URL || 'https://www.youtube.com'
 /**
- * TheIntroDB, asked for segments when Loge Server can't be. Overridable for the fakes only:
+ * TheIntroDB, asked for segments when Sepia Server can't be. Overridable for the fakes only:
  * the smoke test must not reach the real one.
  */
 export const THEINTRODB_URL: string | undefined = import.meta.env.VITE_THEINTRODB_URL || undefined

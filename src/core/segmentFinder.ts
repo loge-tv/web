@@ -10,7 +10,7 @@ export type SegmentSource = 'server' | 'chapters' | 'theIntroDB'
 export interface FoundSegments {
   segments: Segment[]
   /**
-   * `['server']` when Loge Server answered (even with nothing); otherwise the fallback
+   * `['server']` when Sepia Server answered (even with nothing); otherwise the fallback
    * sources that gave something, possibly none.
    */
   sources: SegmentSource[]
@@ -21,7 +21,7 @@ export const FoundSegments = {
     return found.sources.length === 1 && found.sources[0] === 'server'
   },
 
-  /** For the player's markup panel: where the markup comes from, undefined for Loge Server. */
+  /** For the player's markup panel: where the markup comes from, undefined for Sepia Server. */
   note(found: FoundSegments): string | undefined {
     if (FoundSegments.fromServer(found)) return undefined
     const chapters = found.sources.includes('chapters')
@@ -29,12 +29,12 @@ export const FoundSegments = {
     if (chapters && theIntroDB) return 'из глав файла и TheIntroDB'
     if (chapters) return 'из глав файла'
     if (theIntroDB) return 'из TheIntroDB'
-    return 'Loge Server недоступен, а в главах файла и TheIntroDB разметки нет'
+    return 'Sepia Server недоступен, а в главах файла и TheIntroDB разметки нет'
   },
 }
 
 /**
- * Remembers for a few minutes that Loge Server couldn't be asked, so that the next
+ * Remembers for a few minutes that Sepia Server couldn't be asked, so that the next
  * episodes don't wait for its timeout before the fallback.
  */
 export class ServerAvailability {
@@ -72,7 +72,7 @@ export interface SegmentFinderOptions {
 }
 
 /**
- * Where the player gets skip segments: Loge Server; when it can't be asked (down, refuses
+ * Where the player gets skip segments: Sepia Server; when it can't be asked (down, refuses
  * the token, no server at all), the file's named chapters, and TheIntroDB for the types
  * the chapters don't have. Chapters win: they belong to this very file.
  * Port of SkipTVKit SegmentFinder.

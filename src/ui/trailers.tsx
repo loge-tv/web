@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { appModel } from '../app/appModel'
 import { YOUTUBE_URL } from '../config'
-import { isYouTubeID, trailerWatchURL, type TrailerVideo } from '../core/detectorClient'
+import { isYouTubeID, trailerWatchURL, type TrailerVideo } from '../core/tmdbClient'
 import { Language } from '../core/mediaTrack'
 import { parseYouTubeMessage, trailerFailureText, TrailerText, youTubeEmbedURL, youTubeHandshake, type TrailerFailure } from '../core/youtubeEmbed'
 import { useSettings } from '../settings'
@@ -10,21 +10,20 @@ import { PlayIcon, TrailerIcon } from './icons'
 import { IconAction } from './iconAction'
 
 /**
- * TMDB's trailers of a page's title (`movie:603` / `tv:1396`) through the detector, the
- * preferred language first. Empty without a TMDB id, without a detector with a TMDB key, or when
- * TMDB has none.
+ * TMDB's trailers of a page's title (`movie:603` / `tv:1396`) through the TMDB proxy, the
+ * preferred language first. Empty without a TMDB id, while the proxy can't answer, or when TMDB
+ * has none.
  */
 export function useTrailers(item: string | undefined): TrailerVideo[] {
   const { preferredLanguage } = useSettings()
   const key = `${item ?? ''}|${preferredLanguage}`
   const [loaded, setLoaded] = useState<{ key: string; videos: TrailerVideo[] }>()
   useEffect(() => {
-    const detector = appModel.detector()
-    if (!item || !detector) return
+    if (!item) return
     let cancelled = false
-    detector.videos(item, preferredLanguage).then(
+    appModel.tmdb.videos(item, preferredLanguage).then(
       (videos) => {
-        if (!cancelled) setLoaded({ key, videos: (videos ?? []).filter((v) => isYouTubeID(v.key)) })
+        if (!cancelled) setLoaded({ key, videos: videos.filter((v) => isYouTubeID(v.key)) })
       },
       (error: unknown) => console.warn('trailers', item, error),
     )

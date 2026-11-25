@@ -58,7 +58,9 @@ export class LibraryIndex {
   item(entry: DiscoverItem): PlexItem | undefined {
     const exact = this.byCatalogKey.get(entry.ratingKey)
     if (exact || entry.year === undefined) return exact
-    return this.byTitle.get(titleKey(entry.kind, entry.title, entry.year))
+    // Plex's own name first: `title` may be a Russian translation of it (`CatalogTitles`).
+    const own = this.byTitle.get(titleKey(entry.kind, entry.catalogTitle ?? entry.title, entry.year))
+    return own ?? (entry.catalogTitle ? this.byTitle.get(titleKey(entry.kind, entry.title, entry.year)) : undefined)
   }
 
   /** The library movie or show with this TMDB id (`movie` or `tv`). */

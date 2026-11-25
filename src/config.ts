@@ -17,6 +17,18 @@ export const PLEX_DISCOVER_URL: string = import.meta.env.VITE_PLEX_DISCOVER_URL 
 export const PLEX_IMAGES_URL: string = import.meta.env.VITE_PLEX_IMAGES_URL || 'https://images.plex.tv'
 /** Fakes only: «today» for release dates, so the smoke's «Ещё не вышло» doesn't go stale. */
 export const PINNED_TODAY: string | undefined = import.meta.env.VITE_TODAY || undefined
+/**
+ * The TMDB proxy (loge-tv/tmdb-proxy): titles in Russian, trailers and recommendations for
+ * everyone, Loge Server or not. The one place of its address.
+ * Overridable at build time for the fakes.
+ */
+export const TMDB_PROXY_URL: string = import.meta.env.VITE_TMDB_PROXY_URL || 'https://api.sepiatv.com'
+/**
+ * The builds' token the proxy asks for (`X-Client-Token`), given at build time
+ * (`VITE_TMDB_PROXY_TOKEN`), never in the repository. It is in the page's code for anyone to see:
+ * it keeps out scanners, not people (a known limit for the beta).
+ */
+export const TMDB_PROXY_TOKEN: string = import.meta.env.VITE_TMDB_PROXY_TOKEN || ''
 /** Loge Server used until the user sets another one in the settings; none by default. */
 export const DEFAULT_DETECTOR: string | undefined = import.meta.env.VITE_DETECTOR_URL || undefined
 /**

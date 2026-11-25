@@ -23,14 +23,14 @@ The interface is in Russian for now; the labels in quotes below are English tran
   the ▶ button over the artwork (on hover, always on a phone) plays it right away. There is no
   big card of the last show.
   Recommendations (as in the Apple apps): "Similar on the server" and "Because you watched
-  "…"" — from TMDB recommendations through Loge Server (`/v1/recommendations?seeds=movie:1,tv:2`):
+  "…"" — from TMDB recommendations through the TMDB proxy (`/v1/recommendations?seeds=movie:1,tv:2`, see below):
   the seeds are the three titles with a TMDB id watched last (the owner's history
   `/status/sessions/history/all`, without it the library's `lastViewedAt`); TMDB titles
   are matched with the Plex catalog (`/library/metadata/matches`, cached in `localStorage` for 30 days,
   "no match" for 7); what is on the server and not started goes to "Similar on the server", the rest
-  (minus what Plex history says was watched) makes a shelf per seed. Without a TMDB key on Loge Server
-  (404) these shelves are missing, and Settings say so (the settings page asks Loge Server itself, Home
-  needn't be opened first). "More with the cast of "…"" — the Plex catalog's
+  (minus what Plex history says was watched) makes a shelf per seed. While the proxy refuses (any
+  status, 404 included) these shelves stay as they were (none on the first visit) and are asked again
+  next time. "More with the cast of "…"" — the Plex catalog's
   "More From This Cast & Crew" for a recent title, works without Loge Server too. They refresh at most
   every 15 minutes and after a deletion.
   Every shelf ("Continue Watching", "Want to watch", "Not out yet", "Recently Added" of
@@ -77,8 +77,8 @@ The interface is in Russian for now; the labels in quotes below are English tran
     only the owner can delete, and Plex Media Server must have "Library → Allow media deletion" on.
     A deleted title leaves the library index at once (and is "Want to watch" again if on the list),
     recommendations are recomputed; after a movie or a show — back.
-  - **Trailer** of a movie and a show (downloaded or not): TMDB's YouTube videos through Loge Server
-    (`/v1/videos?item=movie:<tmdb>&language=ru`), the preferred language first. The button
+  - **Trailer** of a movie and a show (downloaded or not): TMDB's YouTube videos through the TMDB
+    proxy (`/v1/videos?item=movie:<tmdb>&language=ru`), the preferred language first. The button
     appears when there are videos; it opens a dialog with the embedded YouTube player (`hl` and
     `cc_lang_pref` are the preferred language), a list of the other videos and "Open in YouTube".
     Only real YouTube ids go into the URL. The TMDB id comes from the title's `Guid` (the server gives
@@ -161,7 +161,12 @@ The interface is in Russian for now; the labels in quotes below are English tran
   pops up with the reason. Overseerr / Seerr is not needed and affects nothing. The texts are the same as
   in the Apple apps. The catalog uses the plex.tv account token, not the server token; catalog
   pictures go through the Plex resizer `images.plex.tv/photo` (without a token), not straight from
-  image.tmdb.org.
+  image.tmdb.org. Titles Plex has only in English («Soulm8te») get TMDB's Russian name (as in the
+  Apple apps' `CatalogTitles`): `/v1/titles` of the TMDB proxy, up to 60 a request; names are kept in
+  `localStorage` (a name 30 days, none a day), new ones are waited for up to 4 s (search as you
+  type and "More with the cast" show only the known ones), the catalog's own name stays for matching
+  with the library. Only when the browser's language (the one Plex's catalog is asked in) is
+  Russian; a refusal pauses it for 5 minutes.
 - **Settings** — a list of sections, each with its own page (`#/settings/<section>`; the browser's
   "Back" and "‹ Settings" return to the list), under the list "About": the version and TMDB's
   attribution — its logo (smaller than Loge's) and, word for word, the sentence its terms ask for
@@ -203,9 +208,10 @@ Server (libraries, metadata, timeline/scrobble, files with Range, BIF, SRT in cp
 an ffmpeg HLS transcoder), the Plex catalog (search, the watchlist page by page, watch history
 `/userState`, title details, `PUT /actions/*`, the `/photo` resizer; a refused list, a refused
 search and a reset — `state.watchlistFail`, `state.searchFail`, `state.resetWatchlist()`) and
-Loge Server (segments, preferences, CORS; no TMDB key — `state.tmdbMissing`) with a fake TheIntroDB that knows nothing and a
+Loge Server (segments, preferences, CORS) with a fake TheIntroDB that knows nothing and a
 fake YouTube embed page (it answers the player handshake; unreachable — `state.youtubeDown`, refusing the video —
-`state.youtubeError`). The `--mode fake` build points the catalog and the resizer there too and pins "today"
+`state.youtubeError`), and `dev/fake-tmdb.mjs`, the TMDB proxy (its CORS, 400 to a Plex token, 401
+without the builds' token; any status — `state.tmdbStatus`, 429 with `Retry-After`). The `--mode fake` build points the catalog and the resizer there too and pins "today"
 (`VITE_TODAY=2026-11-22`), so release dates in the fake don't go stale. The video is generated by
 ffmpeg into `dev/.media` (not in git).
 
@@ -250,7 +256,8 @@ scrolling (search, the title page, the skip countdown and the settings pages inc
 (countdown, skip button, next episode card), the bar shown and hidden, a phone turned P → L → P and wide → the trailer
 16:9 inside a phone's screen both ways → YouTube unreachable, offline, refusing: the app's message, "Retry", "Open in
 YouTube" → a phone on its side: the title page's main action on the first screen, a long title and summary too →
-the settings page learns about the TMDB key by itself (no Home first; the key there, Loge Server down) → focus
+the TMDB proxy's refusals (404, 429: no button, no shelves this time, back the next) and a catalog title named in Russian
+→ without Loge Server, trailers and recommendations still come from the proxy → focus
 scrolls clear of the tab bar and the top bar, `-webkit-text-size-adjust: 100%` → the browser talked only to the fakes.
 
 ## Deployment
@@ -267,10 +274,16 @@ without rewrite rules.
   file's chapters and TheIntroDB. Loge Server must
   send CORS headers (see below) and be on HTTPS if the app itself is on HTTPS.
 - `VITE_PLEX_TV_URL`, `VITE_PLEX_AUTH_URL`, `VITE_PLEX_DISCOVER_URL`, `VITE_PLEX_IMAGES_URL`,
-  `VITE_YOUTUBE_URL`, `VITE_THEINTRODB_URL`, `VITE_TODAY` — for the fakes only.
+  `VITE_YOUTUBE_URL`, `VITE_THEINTRODB_URL`, `VITE_TMDB_PROXY_URL`, `VITE_TODAY` — for the fakes only.
 - The app name is a single constant, `APP_NAME` in `src/config.ts` (and `<title>` in
   `index.html`).
-- If the hosting adds a `Content-Security-Policy`, YouTube needs `frame-src` and `connect-src`
+- TMDB (Russian names of catalog titles, trailers, recommendations) comes from the TMDB proxy,
+  `TMDB_PROXY_URL` in `src/config.ts` (`https://api.sepiatv.com`, one constant). It wants the builds' token in `X-Client-Token`, given at build time:
+  `VITE_TMDB_PROXY_TOKEN=… npm run build`. Never commit it; it ends up in the page's code, where
+  anyone can read it (it keeps out scanners, not people). Without it no header is sent: fine while
+  the proxy has no `CLIENT_TOKEN`, but once it has one it answers 401 (no trailers, TMDB shelves or
+  Russian names). CI builds without it, so its artifact is not for deploying. `VITE_TMDB_PROXY_URL` is for the fakes only.
+- If the hosting adds a `Content-Security-Policy`, `connect-src` needs the TMDB proxy, and YouTube needs `frame-src` and `connect-src`
   too: the trailer dialog sends a no-cors `HEAD` to the embed page to tell "YouTube unreachable"
   apart, and a blocked one reads as no connection. (The repository sets no policy.)
 
@@ -287,11 +300,13 @@ timing and dub live only in `localStorage`.
   `OPTIONS` without a token check. Requests: `GET /v1/segments/{ratingKey}`,
   `GET/PUT /v1/preferences/{key}`, `GET /healthz`; the `X-Plex-Token` header is the access token
   for the Plex server (as on Apple TV).
-- For recommendations and trailers — `GET /v1/recommendations?seeds=…&language=ru-RU` and
-  `GET /v1/videos?item=…&language=…` (Loge Server with a TMDB key, branch `recommendations`;
-  without the key they answer 404, and those shelves and the button are missing). The settings page asks
-  `GET /v1/recommendations` without seeds to learn whether there is a key: 404 — none, 400 (the seeds are
-  missing, checked after the key) — there is one; TMDB itself isn't asked. The browser never talks to TMDB.
+- TMDB is not asked of Loge Server any more: recommendations, trailers and titles come from the TMDB
+  proxy (loge-tv/tmdb-proxy) for everyone, Loge Server or not. Its paths and answers are Loge Server's:
+  `GET /v1/recommendations?seeds=…(≤5)&language=ru-RU`, `GET /v1/videos?item=…&language=…`,
+  `GET /v1/titles?language=ru-RU&item=<movie|tv>:<year>:<tmdbId>:<title>` (≤60). Requests carry only
+  `Accept` and `X-Client-Token`, never `X-Plex-Token` (the proxy refuses it: 400). Every refusal is
+  temporary: 404 is not "no key", 401 is a wrong builds' token, 429 holds every route until its
+  `Retry-After`. The browser never talks to TMDB itself.
 
 ## Layout
 
@@ -400,6 +415,9 @@ hovering and clicking on the bar; dragging and touch, Safari and Firefox were no
   the browser (CORS not tested; Plex Web does the same from its own domain), the embedded YouTube
   player (in the smoke test a fake page stands in for it; some videos forbid embedding —
   for that there is "Open in YouTube"), the `/hubs/sections/home/*` collections.
+- New on 2026-11-25 — only against the fakes: the TMDB proxy. `api.sepiatv.com` didn't resolve yet,
+  so its CORS (`*`, `X-Client-Token` allowed, `Retry-After` exposed, refusals included) was read
+  from its code, not seen from a browser.
 - New on 2026-11-24 — the embedded player's messages: the real YouTube player in Mobile Safari answers
   the "listening" handshake and sends `onError` as the fake does, but from the test machine's network
   it wanted a sign-in ("confirm you're not a bot", error 150) for every video, so a real trailer

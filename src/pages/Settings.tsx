@@ -23,7 +23,6 @@ import {
   shelfShown,
   useSettings,
 } from '../settings'
-import { useRecommendations } from '../app/hooks'
 import { BackIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, ChevronUpIcon, ForwardEndIcon, HomeIcon, PlayIcon, ServerIcon } from '../ui/icons'
 
 /** Pages of the settings screen, the same in every Loge app (ids as in the Apple app). */
@@ -179,8 +178,8 @@ export function SettingsPage() {
 
 /**
  * TMDB's terms (§3) want this sentence, word for word, with one of their logos (as it is, less
- * prominent than the app's own) in an "About" or "Credits" section: recommendations and trailers
- * come from TMDB through Loge Server. The logo is in the bundle, nothing is loaded from TMDB.
+ * prominent than the app's own) in an "About" or "Credits" section: titles, recommendations and
+ * trailers come from TMDB through the TMDB proxy. The logo is in the bundle, nothing is loaded from TMDB.
  */
 function TMDBNotice() {
   return (
@@ -322,9 +321,7 @@ const PlaybackSettingsText = {
 /** Texts of the «Главная и Обзор» page (same as the Apple apps, the moving hint is the web's). */
 export const HomeSettingsText = {
   moveShelf: 'Порядок полок — как на Главной: переставьте полку стрелками ↑ и ↓ слева.',
-  footer: 'В пустом поиске список Plex виден всегда. Рекомендации TMDB приходят через Loge Server: без него или без ключа TMDB на нём их нет.',
-  tmdbMissing:
-    'Loge Server ответил, что ключа TMDB на нём нет: полок «Похожее на сервере» и «Потому что вы смотрели…» не будет, пока на нём не задан TMDB_API_KEY.',
+  footer: 'В пустом поиске список Plex виден всегда.',
   resetOrder: 'Вернуть порядок по умолчанию',
   moveHub: 'Порядок подборок — как в «Обзоре»: переставьте подборку стрелками ↑ и ↓ слева.',
   resetHubOrder: 'Вернуть порядок подборок по умолчанию',
@@ -333,12 +330,7 @@ export const HomeSettingsText = {
 
 function HomeSettings() {
   const settings = useSettings()
-  const { sections, api } = useApp()
-  const { unavailable } = useRecommendations()
-  // Whether Loge Server has a TMDB key, asked here: Home may not have loaded its shelves yet.
-  useEffect(() => {
-    if (api) void appModel.recommendations.checkTMDB()
-  }, [api, settings.detectorURL])
+  const { sections } = useApp()
   const order = homeShelfOrder(settings, sections)
   const hubs = exploreHubOrder(settings)
   return (
@@ -351,13 +343,6 @@ function HomeSettings() {
             <br />
             <br />
             {HomeSettingsText.footer}
-            {unavailable && (
-              <>
-                <br />
-                <br />
-                {HomeSettingsText.tmdbMissing}
-              </>
-            )}
           </>
         }
       >

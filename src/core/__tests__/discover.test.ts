@@ -233,6 +233,12 @@ describe('Catalog match', () => {
     expect(makeWatchlistShelves([entry('e2010', 'Ёлки', 2010)], index, '2026-11-22').wanted).toEqual([])
   })
 
+  it('a catalog title named in Russian matches by Plex’s own name', () => {
+    const index = new LibraryIndex([library('30', 'Soulm8te', 'com.plexapp.agents.imdb://tt3', 'movie', 2026)])
+    const named = makeDiscoverItem({ ratingKey: 'c30', kind: 'movie', title: 'СОУЛМ8ЙТ', catalogTitle: 'Soulm8te', year: 2026 })
+    expect(index.item(named)?.ratingKey).toBe('30')
+  })
+
   it('title search ignores case and diacritics', () => {
     expect(foldTitle('Ёлки')).toBe(foldTitle('елки'))
     const index = new LibraryIndex([library('1', 'Ёлки', undefined), library('2', 'Мой сосед Тоторо', undefined), library('3', 'Amélie', undefined)])

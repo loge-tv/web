@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 import { SERVER_TOKEN, startFake, USER_TOKEN } from './fake-server.mjs'
+import { CLIENT_TOKEN } from './fake-tmdb.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const screens = join(here, '.out', 'screens')
@@ -80,6 +81,9 @@ async function until(fn, { timeout = 15000, interval = 150, message = 'condition
 const find = (pred) => fake.requests.filter(pred)
 const pms = (path, extra = () => true) => find((r) => r.server === 'pms' && r.path === path && extra(r))
 const discover = (path, extra = () => true) => find((r) => r.server === 'discover' && r.path === path && extra(r))
+const tmdb = (path, extra = () => true) => find((r) => r.server === 'tmdb' && r.path === path && extra(r))
+/** What a request to the TMDB proxy must carry: the builds' token, never a Plex one. */
+const proxyHeaders = (r) => [r.headers['x-client-token'], r.headers['x-plex-token']]
 /** "title | subtitle" of the cards of a home shelf or a search section (null when absent). */
 const cardsUnder = (root, selector, title) =>
   root.$$eval(
@@ -824,14 +828,14 @@ await step('title pages: one wide button, the rest round icons (filled when on) 
   fake.state.resetWatchlist()
 })
 
-await step('«Трейлер»: TMDB trailers through the detector in the preferred language, a YouTube player in the page', async () => {
-  const videos = (since) => find((r) => r.server === 'detector' && r.path === '/v1/videos' && r.at > since)
+await step('«Трейлер»: TMDB trailers through the proxy in the preferred language, a YouTube player in the page', async () => {
+  const videos = (since) => tmdb('/v1/videos', (r) => r.at > since)
   const dialog = () => page.getByRole('dialog', { name: 'Трейлер' })
   const frame = () => dialog().locator('iframe')
   let since = Date.now()
   await page.goto(`${app}/#/show/100`)
   await page.getByRole('button', { name: 'Трейлер' }).click({ timeout: 10000 })
-  assert.deepEqual(videos(since).map((r) => [r.query.item, r.query.language, r.headers['x-plex-token']]), [['tv:1100', 'ru', SERVER_TOKEN]])
+  assert.deepEqual(videos(since).map((r) => [r.query.item, r.query.language, ...proxyHeaders(r)]), [['tv:1100', 'ru', CLIENT_TOKEN, undefined]])
   await dialog().waitFor()
   // The Russian one plays first; the broken key is dropped; the English one is in the list.
   const detector = fake.urls.detector
@@ -877,15 +881,35 @@ await step('«Трейлер»: TMDB trailers through the detector in the prefer
     const settings = JSON.parse(localStorage.getItem('settings') ?? '{}')
     localStorage.setItem('settings', JSON.stringify({ ...settings, preferredLanguage: 'ru' }))
   })
-  // A detector without a TMDB key: no button.
-  fake.state.tmdbMissing = true
-  since = Date.now()
-  await page.goto(`${app}/#/catalog/cat-new-1`)
+  // The proxy refusing (404 is not «no key», 429 holds it for a while): no button this time,
+  // asked again on the next visit.
+  for (const status of [404, 429]) {
+    fake.state.tmdbStatus = status
+    since = Date.now()
+    await page.goto(`${app}/#/catalog/cat-new-1`)
+    await page.reload()
+    await until(() => videos(since).some((r) => r.status === status), { message: `asked (${status})` })
+    await page.waitForTimeout(300)
+    assert.equal(await page.getByRole('button', { name: 'Трейлер' }).count(), 0)
+  }
+  fake.state.tmdbStatus = 0
   await page.reload()
-  await until(() => videos(since).length > 0, { message: 'asked' })
-  await page.waitForTimeout(300)
-  assert.equal(await page.getByRole('button', { name: 'Трейлер' }).count(), 0)
-  fake.state.tmdbMissing = false
+  await page.getByRole('button', { name: 'Трейлер' }).waitFor({ timeout: 10000 })
+  // Loge Server never asked about TMDB.
+  assert.equal(find((r) => r.server === 'detector' && /^\/v1\/(videos|recommendations|titles)/.test(r.path)).length, 0)
+})
+
+await step('a catalog title Plex has only in English: its Russian name from the proxy, kept', async () => {
+  const since = Date.now()
+  await page.goto(`${app}/#/catalog/cat-en-1`)
+  await page.getByRole('heading', { name: 'Тихая гавань', exact: true }).waitFor({ timeout: 10000 })
+  const asked = tmdb('/v1/titles', (r) => r.at > since)
+  assert.deepEqual(asked.map((r) => [r.query.item, r.query.language, ...proxyHeaders(r)]), [['movie:2019:0:The Quiet Harbor', 'ru-RU', CLIENT_TOKEN, undefined]])
+  // Kept: named at once next time, not asked again.
+  const again = Date.now()
+  await page.reload()
+  await page.getByRole('heading', { name: 'Тихая гавань', exact: true }).waitFor({ timeout: 10000 })
+  assert.equal(tmdb('/v1/titles', (r) => r.at > again).length, 0)
 })
 
 await step('catalog down: the server\'s titles with a note; «Ничего не нашлось» when nothing matches', async () => {
@@ -960,7 +984,7 @@ await step('settings «Главная»: «Ещё не вышло» off is gone 
 
 const homeTitles = () => page.$$eval('section.shelf .shelf-title', (list) => list.map((h) => h.textContent))
 
-await step('home: TMDB recommendations through the detector, «Ещё с актёрами», cached catalog matches', async () => {
+await step('home: TMDB recommendations through the proxy, «Ещё с актёрами», cached catalog matches', async () => {
   fake.state.resetWatchlist()
   const started = Date.now()
   await page.goto(`${app}/#/`)
@@ -970,10 +994,10 @@ await step('home: TMDB recommendations through the detector, «Ещё с акт�
   // Seeds: the owner's last plays on the server (the show, then the movie), each once.
   const history = pms('/status/sessions/history/all', (r) => r.at > started)
   assert.ok(history.length > 0 && history.every((r) => r.query.accountID === '1' && r.query.sort === 'viewedAt:desc'), 'owner history')
-  const asked = find((r) => r.server === 'detector' && r.path === '/v1/recommendations' && r.at > started)
+  const asked = tmdb('/v1/recommendations', (r) => r.at > started)
   assert.equal(asked[0]?.query.seeds, 'tv:1100,movie:1200')
   assert.equal(asked[0]?.query.language, 'ru-RU')
-  assert.equal(asked[0]?.headers['x-plex-token'], SERVER_TOKEN)
+  assert.deepEqual(proxyHeaders(asked[0]), [CLIENT_TOKEN, undefined])
   // The server's unplayed movie; seeds and begun titles are not recommended.
   assert.deepEqual(await shelfCards('Похожее на сервере'), ['Неначатый фильм | 2022'])
   // TMDB's (Russian) title, not the catalog's English one; the watched movie and the one Plex lacks are dropped.
@@ -999,7 +1023,7 @@ await step('home: TMDB recommendations through the detector, «Ещё с акт�
   await page.waitForURL(/#\/catalog\/cat-test-1$/)
 })
 
-await step('settings «Главная и Обзор»: every shelf off and on, moved, default order back; no TMDB key', async () => {
+await step('settings «Главная и Обзор»: every shelf off and on, moved, default order back; the proxy refusing', async () => {
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('settings') ?? '{}'))
   await page.goto(`${app}/#/settings/home`)
   await page.getByRole('heading', { name: 'Полки Главной' }).waitFor()
@@ -1041,8 +1065,7 @@ await step('settings «Главная и Обзор»: every shelf off and on, m
   await page.reload()
   await page.getByText('Все полки выключены. Включите нужные в Настройки → Главная и Обзор.').waitFor()
   await settledShot('home-all-off')
-  // (Settings ask without seeds whether Loge Server has a key: that is not a question to TMDB.)
-  assert.equal(find((r) => r.server === 'detector' && r.path === '/v1/recommendations' && r.query.seeds && r.at > off).length, 0, 'TMDB not asked')
+  assert.equal(tmdb('/v1/recommendations', (r) => r.at > off).length, 0, 'TMDB not asked')
   // Back: all on, the default order.
   await page.goto(`${app}/#/settings/home`)
   for (const name of await rows()) await page.locator('label.toggle', { has: page.getByRole('switch', { name, exact: true }) }).click()
@@ -1051,8 +1074,9 @@ await step('settings «Главная и Обзор»: every shelf off and on, m
   await until(async () => (await stored()).shelfOrder.length === 0, { message: 'order reset' })
   assert.equal((await rows())[0], 'Продолжить просмотр')
   assert.ok(await reset.isDisabled())
-  // A detector without a TMDB key: no TMDB shelves, settings say why.
-  fake.state.tmdbMissing = true
+  // The proxy refusing (404 is not «no key»): no TMDB shelves this time, nothing said in the
+  // settings, the shelves back once it answers.
+  fake.state.tmdbStatus = 404
   await page.goto(`${app}/#/`)
   await page.reload()
   await page.getByRole('heading', { name: 'Ещё с актёрами «Тестовый сериал»' }).waitFor({ timeout: 15000 })
@@ -1060,11 +1084,15 @@ await step('settings «Главная и Обзор»: every shelf off and on, m
   assert.ok(!titles.includes('Похожее на сервере') && !titles.some((t) => t.startsWith('Потому что')), `home: ${titles}`)
   await page.getByRole('link', { name: 'Настройки' }).click()
   await settingsPages().filter({ hasText: 'Главная и Обзор' }).click()
-  await page.getByText('Loge Server ответил, что ключа TMDB на нём нет', { exact: false }).waitFor()
+  await page.getByRole('heading', { name: 'Полки Главной' }).waitFor()
+  const text = (await page.locator('body').textContent()) ?? ''
+  assert.doesNotMatch(text, /ключа TMDB|TMDB_API_KEY/)
   // The server is «Loge Server» in every text, never «детектор».
-  assert.doesNotMatch((await page.locator('body').textContent()) ?? '', /детектор/i)
-  await settledShot('settings-home-no-tmdb')
-  fake.state.tmdbMissing = false
+  assert.doesNotMatch(text, /детектор/i)
+  fake.state.tmdbStatus = 0
+  await page.goto(`${app}/#/`)
+  await page.reload()
+  await page.getByRole('heading', { name: 'Похожее на сервере' }).waitFor({ timeout: 15000 })
 })
 
 await step('«Обзор»: Plex collections, a new season stands for its show; each can be turned off', async () => {
@@ -1727,38 +1755,23 @@ await step("a phone on its side: the title page's main action on the first scree
   }
 })
 
-await step('settings «Главная и Обзор» ask Loge Server about the TMDB key themselves (Home not opened first)', async () => {
-  const note = 'Loge Server ответил, что ключа TMDB на нём нет'
-  const asked = (since) => find((r) => r.server === 'detector' && r.path === '/v1/recommendations' && r.at > since)
+await step('without Loge Server: trailers and recommendations still come from the proxy', async () => {
   const fresh = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'ru-RU', storageState: await context.storageState() })
   recordHosts(fresh)
   const p = await fresh.newPage()
   p.on('pageerror', (e) => pageErrors.push(`fresh: ${e}`))
-  const open = async () => {
-    const since = Date.now()
-    await p.goto(`${app}/#/settings/home`)
-    await p.reload()
-    await p.getByRole('heading', { name: 'Полки Главной' }).waitFor({ timeout: 15000 })
-    await until(() => asked(since).some((r) => r.status), { message: 'Loge Server asked' })
-    await p.waitForTimeout(300)
-    return since
-  }
-  fake.state.tmdbMissing = true
-  let since = await open()
-  await p.getByText(note, { exact: false }).waitFor({ timeout: 5000 })
-  // Asked once, without seeds: not a question to TMDB.
-  assert.deepEqual(asked(since).map((r) => [r.query.seeds, r.status]), [[undefined, 404]])
-  await p.waitForTimeout(400)
-  await p.screenshot({ path: join(screens, 'settings-home-no-tmdb-direct.png') })
-  fake.state.tmdbMissing = false
-  since = await open()
-  assert.deepEqual(asked(since).map((r) => r.status), [400])
-  assert.equal(await p.getByText(note, { exact: false }).count(), 0)
-  // Loge Server down: nothing known, no note.
-  fake.state.detectorDown = true
-  await open()
-  assert.equal(await p.getByText(note, { exact: false }).count(), 0)
-  fake.state.detectorDown = false
+  await p.goto(`${app}/#/`)
+  await p.evaluate(() => {
+    const settings = JSON.parse(localStorage.getItem('settings') ?? '{}')
+    localStorage.setItem('settings', JSON.stringify({ ...settings, detectorURL: '' }))
+  })
+  const since = Date.now()
+  await p.reload()
+  await p.getByRole('heading', { name: 'Потому что вы смотрели «Тестовый фильм»' }).waitFor({ timeout: 15000 })
+  await p.goto(`${app}/#/show/100`)
+  await p.getByRole('button', { name: 'Трейлер' }).waitFor({ timeout: 10000 })
+  assert.ok(tmdb('/v1/recommendations', (r) => r.at > since).length > 0 && tmdb('/v1/videos', (r) => r.at > since).length > 0)
+  assert.equal(find((r) => r.server === 'detector' && r.path !== '/healthz' && r.at > since).length, 0, 'Loge Server not asked')
   await fresh.close()
 })
 
@@ -1819,8 +1832,8 @@ const failures = fake.requests.filter(
     r.status >= 400 &&
     r.server !== 'theintrodb' &&
     !(r.server === 'detector' && fake.state.detectorDown) &&
-    // Settings ask without seeds whether Loge Server has a TMDB key: 400 says it has.
-    !(r.server === 'detector' && r.path === '/v1/recommendations' && !r.query.seeds),
+    // The proxy's refusals the smoke asks for.
+    !(r.server === 'tmdb' && [404, 429].includes(r.status)),
 )
 if (failures.length) console.log(`non-2xx responses:\n  ${failures.map((r) => `${r.status} ${r.server} ${r.method} ${r.path}`).join('\n  ')}`)
 if (consoleErrors.length) console.log(`console errors (${consoleErrors.length}):\n  ${[...new Set(consoleErrors)].slice(0, 10).join('\n  ')}`)

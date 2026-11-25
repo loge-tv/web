@@ -6,11 +6,12 @@
 //   FAKE_HLS=absolute node dev/fake-server.mjs
 //
 // Ports (env): FAKE_APP_PORT 5180, FAKE_PLEXTV_PORT 5181, FAKE_PMS_PORT 5182, FAKE_DETECTOR_PORT 5183,
-// FAKE_DISCOVER_PORT 5184.
+// FAKE_DISCOVER_PORT 5184, FAKE_TMDB_PORT 5185 (the TMDB proxy, dev/fake-tmdb.mjs).
 
 import { execFile } from 'node:child_process'
 import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
+import { startFakeTMDB } from './fake-tmdb.mjs'
 import { dirname, extname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
@@ -271,7 +272,7 @@ export function makeLibrary() {
 }
 
 /**
- * The fake detector's TMDB: recommendations by seed. The show's: the server's unplayed movie
+ * The fake TMDB proxy's recommendations by seed. The show's: the server's unplayed movie
  * («Похожее на сервере»), a catalog movie, a movie watched on the account (dropped) and one Plex
  * doesn't know (dropped). The movie's: the show itself (a seed, dropped) and a catalog comedy.
  */
@@ -289,7 +290,7 @@ export const TMDB_RECOMMENDATIONS = {
 }
 
 /**
- * The fake detector's TMDB trailers (`/v1/videos`). The show: a Russian and an English one (and a
+ * The fake TMDB proxy's trailers (`/v1/videos`). The show: a Russian and an English one (and a
  * key that is not a YouTube id, dropped); the catalog movie: a teaser; the server's movie: none.
  */
 export const TMDB_VIDEOS = {
@@ -300,6 +301,12 @@ export const TMDB_VIDEOS = {
   ],
   'movie:5001': [{ key: 'newTeaser01', name: '', type: 'Teaser', language: 'ru', official: true }],
 }
+
+/**
+ * The fake TMDB proxy's Russian names (`/v1/titles`) of catalog titles Plex has in English:
+ * `<kind>:<Plex's title>`.
+ */
+export const TMDB_TITLES = { 'movie:The Quiet Harbor': { tmdbId: 5020, title: 'Тихая гавань' } }
 
 /** TMDB id → catalog key (`/library/metadata/matches`). */
 const TMDB_MATCHES = { 'movie:5001': 'cat-new-1', 'movie:5003': 'cat-seen-1', 'movie:5004': 'cat-test-1' }
@@ -388,6 +395,8 @@ export function makeCatalog() {
     catalogItem('cat-test-1', 'movie', 'Тестовая комедия', 2023, 'Комедии нет на сервере.'),
     // The server's unplayed movie (modern agent).
     catalogItem('cat-film-210', 'movie', 'Неначатый фильм', 2022, 'Его ещё не смотрели.'),
+    // Plex has it only in English: the proxy names it in Russian (TMDB_TITLES). Opened by key only.
+    catalogItem('cat-en-1', 'movie', 'The Quiet Harbor', 2019, 'Названия по-русски у Plex нет.'),
     // «Ещё с актёрами «Тестовый сериал»».
     catalogItem('cat-cast-1', 'movie', 'Фильм с теми же актёрами', 2022, 'Те же актёры.'),
     catalogItem('cat-cast-2', 'show', 'Сериал с теми же актёрами', 2020, 'Те же актёры.'),
@@ -585,8 +594,9 @@ export async function startFake(options = {}) {
     watchlistFail: false,
     /** Catalog search down: the app falls back to the server's titles. */
     searchFail: false,
-    /** The detector answers 404 to TMDB questions (no TMDB key). */
-    tmdbMissing: false,
+    /** The TMDB proxy answers every /v1 question with this status (0: as usual; 429 with Retry-After). */
+    tmdbStatus: 0,
+    tmdbRetryAfter: 30,
     /** The fake YouTube can't be reached: its connections are dropped (a browser error page in the frame). */
     youtubeDown: false,
     /** The fake YouTube player reports this error code to the page (150: embedding not allowed). */
@@ -616,6 +626,7 @@ export async function startFake(options = {}) {
         'x-plex-token': req.headers['x-plex-token'],
         'x-plex-language': req.headers['x-plex-language'],
         'x-plex-client-identifier': req.headers['x-plex-client-identifier'],
+        'x-client-token': req.headers['x-client-token'],
         'content-type': req.headers['content-type'],
       },
       body,
@@ -933,20 +944,7 @@ addEventListener('message', (e) => {
       const keys = (url.searchParams.get('ratingKeys') ?? '').split(',').filter(Boolean)
       return json(res, { items: keys.map((k) => ({ ratingKey: k, segments: segments[k] ?? [], analyzed: true })) })
     }
-    if (p === '/v1/videos') {
-      if (state.tmdbMissing) return json(res, { error: 'tmdb not configured' }, 404)
-      const language = url.searchParams.get('language') ?? 'ru'
-      // Like the detector: the asked language first.
-      const videos = [...(TMDB_VIDEOS[url.searchParams.get('item') ?? ''] ?? [])].sort((a, b) => Number(b.language === language) - Number(a.language === language))
-      return json(res, { item: url.searchParams.get('item'), videos })
-    }
-    if (p === '/v1/recommendations') {
-      if (state.tmdbMissing) return json(res, { error: 'tmdb is not configured', configured: false }, 404)
-      const seeds = (url.searchParams.get('seeds') ?? '').split(',').filter(Boolean)
-      // Like Loge Server: the key is checked before the seeds (the app asks without seeds to learn whether it has one).
-      if (seeds.length === 0) return json(res, { error: 'seeds is required' }, 400)
-      return json(res, { items: seeds.map((seed) => (TMDB_RECOMMENDATIONS[seed] ? { seed, titles: TMDB_RECOMMENDATIONS[seed] } : { seed, failed: true })) })
-    }
+    // TMDB (/v1/videos, /v1/recommendations) is the proxy's: the app never asks Loge Server.
     m = /^\/v1\/preferences\/([^/]+)$/.exec(p)
     if (m && req.method === 'GET') {
       const stored = preferences.get(m[1])
@@ -1107,12 +1105,22 @@ addEventListener('message', (e) => {
 
   const servers = { app, plextv, pms, detector, discover }
   await Promise.all(Object.entries(servers).map(([name, s]) => new Promise((ok, fail) => s.once('error', fail).listen(ports[name], host, ok))))
+  // The TMDB proxy: titles, trailers and recommendations.
+  const tmdb = await startFakeTMDB({
+    port: options.tmdbPort,
+    videos: TMDB_VIDEOS,
+    recommendations: TMDB_RECOMMENDATIONS,
+    titles: TMDB_TITLES,
+    state,
+    log: (req, url, res) => log('tmdb', req, url, undefined, res),
+  })
+  urls.tmdb = tmdb.url
 
   return {
     urls,
     requests,
     state,
-    close: () => Promise.all(Object.values(servers).map((s) => new Promise((ok) => (s.closeAllConnections?.(), s.close(ok))))),
+    close: () => Promise.all([...Object.values(servers).map((s) => new Promise((ok) => (s.closeAllConnections?.(), s.close(ok)))), tmdb.close()]),
   }
 }
 

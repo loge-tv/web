@@ -1,5 +1,6 @@
 import { fetchChecked, fetchJSON, HTTPError, isRecord, joinURL, lossyDouble, lossyInt, lossyString, type FetchFn } from './http'
 import type { PlexClientInfo } from './plexAccount'
+import type { CatalogTitles } from './catalogTitles'
 import { catalogKey, parseGuids, parseMetadata, tmdbIDFromGuids, type PlexItem } from './plexModels'
 
 export type DiscoverKind = 'movie' | 'show'
@@ -28,6 +29,11 @@ export interface DiscoverItem {
   guid: string
   kind: DiscoverKind
   title: string
+  /**
+   * Plex's own name when `title` is a translation (`CatalogTitles`): «Soulm8te» for «СОУЛМ8ЙТ».
+   * Matching library items by name uses it.
+   */
+  catalogTitle?: string
   year?: number
   summary?: string
   /** Absolute picture URLs (TMDB, Plex's own CDN). */
@@ -275,7 +281,18 @@ export class PlexDiscoverAPI {
     readonly imageBase = PlexDiscoverAPI.defaultImageBase,
     /** `X-Plex-Language`: titles and descriptions come in this language when Plex has them. */
     readonly language = 'ru',
+    /** Russian names of titles Plex has only in English (`/v1/titles`); Russian only, like Apple's. */
+    readonly titles?: CatalogTitles,
   ) {}
+
+  /**
+   * `items` with Russian names where Plex has only English ones. `waitMs` 0: names already known
+   * now, the rest next time (search as you type, long filmographies).
+   */
+  async named(items: DiscoverItem[], waitMs?: number): Promise<DiscoverItem[]> {
+    if (!this.titles || !this.language.startsWith('ru') || items.length === 0) return items
+    return this.titles.localize(items, waitMs)
+  }
 
   /**
    * Auth in headers (as the Apple app does), unlike the server and plex.tv clients: this is
@@ -305,7 +322,7 @@ export class PlexDiscoverAPI {
       searchProviders: 'discover',
       includeMetadata: '1',
     })
-    return parseDiscoverSearch(await fetchJSON(this.fetchFn, url, this.init('GET', signal)))
+    return this.named(parseDiscoverSearch(await fetchJSON(this.fetchFn, url, this.init('GET', signal))), 0)
   }
 
   /** The account's watchlist, as Plex orders it (last added first), up to `limit` items. */
@@ -329,7 +346,7 @@ export class PlexDiscoverAPI {
       start += pageSize
       if (page.items.length === 0 || start >= (page.totalSize ?? 0)) break
     }
-    return result.slice(0, limit)
+    return this.named(result.slice(0, limit))
   }
 
   /** Watch state of many titles: `chunk` keys per request (50 checked on a real account). */
@@ -345,7 +362,8 @@ export class PlexDiscoverAPI {
 
   /**
    * The catalog title with this TMDB id (`/library/metadata/matches`), undefined when Plex has
-   * none. One request per title: callers cache the answers.
+   * none. One request per title: callers cache the answers, so it comes with Plex's name; `named`
+   * gives it the Russian one when shown.
    */
   async match(tmdbID: number, kind: DiscoverKind): Promise<DiscoverItem | undefined> {
     const url = joinURL(this.base, '/library/metadata/matches', { type: kind === 'movie' ? '1' : '2', guid: `tmdb://${tmdbID}` })
@@ -360,13 +378,13 @@ export class PlexDiscoverAPI {
   /** «More From This Cast & Crew»: other titles of the cast and crew of a catalog title. */
   async moreFromCredits(ratingKey: string): Promise<DiscoverItem[]> {
     const url = joinURL(this.base, `/library/metadata/${encodeURIComponent(ratingKey)}/more-from-credits`)
-    return parseDiscoverItems(await fetchJSON(this.fetchFn, url, this.init())).items
+    return this.named(parseDiscoverItems(await fetchJSON(this.fetchFn, url, this.init())).items, 0)
   }
 
   /** One of the catalog's ready-made collections (`/hubs/sections/home/<id>`). */
   async hub(hub: CatalogHub): Promise<DiscoverItem[]> {
     const url = joinURL(this.base, `/hubs/sections/home/${encodeURIComponent(hub)}`)
-    return parseDiscoverItems(await fetchJSON(this.fetchFn, url, this.init())).items
+    return this.named(parseDiscoverItems(await fetchJSON(this.fetchFn, url, this.init())).items)
   }
 
   /** Seasons of a catalog show or episodes of a catalog season, in the server's format. */
@@ -402,7 +420,8 @@ export class PlexDiscoverAPI {
   /** Full catalog entry: description, genres, rating. */
   async details(ratingKey: string, signal?: AbortSignal): Promise<DiscoverItem | undefined> {
     const url = joinURL(this.base, `/library/metadata/${encodeURIComponent(ratingKey)}`)
-    return parseDiscoverItems(await fetchJSON(this.fetchFn, url, this.init('GET', signal))).items[0]
+    const items = parseDiscoverItems(await fetchJSON(this.fetchFn, url, this.init('GET', signal))).items.slice(0, 1)
+    return (await this.named(items))[0]
   }
 
   async addToWatchlist(ratingKey: string) {

@@ -22,6 +22,8 @@ export const StorageKey = {
   pendingPin: 'plexPendingPin',
   settings: 'settings',
   volume: 'playerVolume',
+  /** Russian names of catalog titles (`CatalogTitles`): not the account's, kept across sign-outs. */
+  catalogTitles: 'catalogTitles',
 } as const
 
 export function readJSON<T>(key: string): T | undefined {

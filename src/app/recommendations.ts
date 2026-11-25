@@ -1,4 +1,3 @@
-import type { DetectorClient } from '../core/detectorClient'
 import { catalogKey, type PlexItem } from '../core/plexModels'
 import type { DiscoverItem, DiscoverUserState, PlexDiscoverAPI } from '../core/plexDiscover'
 import type { PlexServerAPI } from '../core/plexServerAPI'
@@ -13,28 +12,27 @@ import {
   type RecommendationShelves,
   type TMDBTitle,
 } from '../core/recommendations'
+import type { TMDBClient } from '../core/tmdbClient'
 import { readJSON, writeJSON } from '../storage'
 import type { Watchlist } from './watchlist'
 
 export interface RecommendationsSnapshot {
   shelves: RecommendationShelves
-  /** The detector answered that it has no TMDB key (settings say so). */
-  unavailable: boolean
 }
 
 /**
- * «Потому что вы смотрели…»: TMDB's recommendations (asked through the detector, which keeps the
- * TMDB key) for the titles last watched on the server, shown as Plex catalog titles; what the
- * server already has goes to a shelf of its own. Without a detector with a TMDB key there are
- * none, and Home simply has no such shelves. Plus Plex's own «Ещё с актёрами «…»», which needs
+ * «Потому что вы смотрели…»: TMDB's recommendations (asked through the TMDB proxy, Loge Server
+ * or not) for the titles last watched on the server, shown as Plex catalog titles; what the
+ * server already has goes to a shelf of its own. While the proxy can't answer, TMDB's shelves stay
+ * as they were and are asked again next time. Plus Plex's own «Ещё с актёрами «…»», which needs
  * only the Plex account.
  */
 export class Recommendations {
-  private state: RecommendationsSnapshot = { shelves: emptyRecommendations, unavailable: false }
+  private state: RecommendationsSnapshot = { shelves: emptyRecommendations }
   private listeners = new Set<() => void>()
   private discover?: PlexDiscoverAPI
   private server?: PlexServerAPI
-  private detector: () => DetectorClient | null = () => null
+  private tmdb?: TMDBClient
   /** The server's owner sees everyone's history: only account 1 (the owner) is asked then. */
   private owner = true
   private loadedAt?: number
@@ -56,28 +54,15 @@ export class Recommendations {
     this.listeners.forEach((l) => l())
   }
 
-  configure(discover: PlexDiscoverAPI | undefined, server: PlexServerAPI | undefined, owner: boolean, detector: () => DetectorClient | null) {
+  configure(discover: PlexDiscoverAPI | undefined, server: PlexServerAPI | undefined, owner: boolean, tmdb: TMDBClient) {
     this.generation += 1
     this.discover = discover
     this.server = server
     this.owner = owner
-    this.detector = detector
+    this.tmdb = tmdb
     this.loadedAt = undefined
     this.running = undefined
-    this.set({ shelves: emptyRecommendations, unavailable: false })
-  }
-
-  /**
-   * Asks Loge Server whether it has a TMDB key (the settings' note), without waiting for Home to
-   * load the recommendations. An answer that says nothing (down, refused) changes nothing.
-   */
-  async checkTMDB() {
-    const detector = this.detector()
-    if (!detector) return
-    const generation = this.generation
-    const configured = await detector.hasTMDB()
-    if (configured === undefined || generation !== this.generation) return
-    if (this.state.unavailable === configured) this.set({ unavailable: !configured })
+    this.set({ shelves: emptyRecommendations })
   }
 
   /** The library changed (something was deleted): the next look asks again. */
@@ -93,8 +78,8 @@ export class Recommendations {
   }
 
   /**
-   * Asks again when the last answer is older than `maxAgeMs` (cheap: the detector keeps TMDB's
-   * answers for a day, catalog matches are in storage). While the detector is down TMDB's
+   * Asks again when the last answer is older than `maxAgeMs` (cheap: the proxy keeps TMDB's
+   * answers for a day, catalog matches are in storage). While the proxy can't answer TMDB's
    * shelves stay as they were.
    */
   async refresh(watchlist: Watchlist, maxAgeMs = 15 * 60_000) {
@@ -103,7 +88,7 @@ export class Recommendations {
     const discover = this.discover
     const server = this.server
     if (!discover || !server) return
-    const detector = this.detector()
+    const tmdb = this.tmdb
     const generation = this.generation
     const task = (async () => {
       await watchlist.refreshIndex()
@@ -119,20 +104,16 @@ export class Recommendations {
       // A history without a usable row (or an empty one) too.
       if (recent.length === 0) recent = RecommendationSeeds.recentFromIndex(index)
       const seeds = RecommendationSeeds.pick(recent)
-      // TMDB through the detector. Null: it has no TMDB key. A failure costs only these
-      // shelves, Plex's list below doesn't need the detector. Not asked or no answer: whether
-      // it has a key stays as last known (`checkTMDB`).
+      // TMDB through the proxy. Any refusal is temporary (404 and 401 included): it costs only
+      // these shelves, which stay as they were; Plex's list below doesn't need the proxy.
       let titles: Record<string, TMDBTitle[]> = {}
-      let configured: boolean | undefined
-      let detectorFailed = false
-      if (detector && seeds.length > 0) {
+      let tmdbFailed = false
+      if (tmdb && seeds.length > 0) {
         try {
-          const answer = await detector.recommendations(seeds.map(seedKey))
-          configured = answer !== null
-          if (answer) titles = answer
+          titles = await tmdb.recommendations(seeds.map(seedKey))
         } catch (error) {
-          console.warn('recommendations: detector', error)
-          detectorFailed = true
+          console.warn('recommendations: TMDB proxy', error)
+          tmdbFailed = true
         }
       }
       // Plex's «More From This Cast & Crew» of the last watched title the catalog knows that
@@ -149,6 +130,7 @@ export class Recommendations {
       }
       // Catalog entries of what the server lacks: from storage, the rest asked.
       const wanted = seeds.flatMap((s) => titles[seedKey(s)] ?? []).filter((t) => !index.itemByTMDB(t.type, t.tmdbId))
+      // Kept with Plex's (English) names: the shelves show TMDB's Russian ones.
       const catalog = await this.matches.entries(wanted, discover)
       const keys = [...new Set([...Object.values(catalog).map((c) => c.ratingKey), ...credits.map((c) => c.ratingKey)])]
       const states = await discover.userStates(keys).catch(() => new Map<string, DiscoverUserState>())
@@ -158,14 +140,14 @@ export class Recommendations {
         shelves.cast = makeCastShelf(castSeed, credits, index, states, shown)
       }
       if (generation !== this.generation) return
-      if (detectorFailed) {
+      if (tmdbFailed) {
         // Down for a moment: TMDB's shelves stay as they were, asked again next time.
         shelves.onServer = this.state.shelves.onServer
         shelves.because = this.state.shelves.because
       } else {
         this.loadedAt = Date.now()
       }
-      this.set({ shelves, unavailable: configured === undefined ? this.state.unavailable : !configured })
+      this.set({ shelves })
     })()
     this.running = task
     try {

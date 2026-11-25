@@ -211,8 +211,8 @@ export function makeRecommendationShelves(
         if (isWatchedInPlex(withUserState(entry, states.get(entry.ratingKey))) || shownCatalog.has(entry.ratingKey)) continue
         shownCatalog.add(entry.ratingKey)
         // `matches` answers in English whatever the language asked; TMDB's title comes in
-        // the language the detector asked for (ru-RU).
-        items.push(title.title ? { ...entry, title: title.title } : entry)
+        // the language asked for (ru-RU).
+        items.push(title.title && title.title !== entry.title ? { ...entry, catalogTitle: entry.catalogTitle ?? entry.title, title: title.title } : entry)
       }
     }
     if (items.length > 0) because.push({ seed, items })

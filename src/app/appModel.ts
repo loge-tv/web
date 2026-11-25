@@ -1,4 +1,5 @@
-import { PLEX_AUTH_URL, PLEX_DISCOVER_URL, PLEX_IMAGES_URL, PLEX_TV_URL } from '../config'
+import { PLEX_AUTH_URL, PLEX_DISCOVER_URL, PLEX_IMAGES_URL, PLEX_TV_URL, TMDB_PROXY_TOKEN, TMDB_PROXY_URL } from '../config'
+import { CatalogTitles, type TitleEntry } from '../core/catalogTitles'
 import { DetectorClient, normalizeDetectorURL } from '../core/detectorClient'
 import { HTTPError } from '../core/http'
 import { PlexAccountAPI, usableCandidateURLs, type PlexClientInfo, type PlexServer } from '../core/plexAccount'
@@ -6,6 +7,7 @@ import { PlexDiscoverAPI } from '../core/plexDiscover'
 import { sectionKind, type PlexItem, type PlexLibrarySection } from '../core/plexModels'
 import { PlexServerAPI } from '../core/plexServerAPI'
 import { ShowPreferencesStore, ShowPreferencesSync } from '../core/showPreferences'
+import { TMDBClient } from '../core/tmdbClient'
 import { makeClientInfo } from '../platform'
 import { settingsStore } from '../settings'
 import { readJSON, readString, storage, StorageKey, writeJSON, writeString } from '../storage'
@@ -73,6 +75,14 @@ export class AppModel {
     this.listeners.forEach((l) => l())
   }
 
+  /** The TMDB proxy: titles, trailers and recommendations, Loge Server or not. One client: a 429 holds them all. */
+  readonly tmdb = new TMDBClient(TMDB_PROXY_URL, TMDB_PROXY_TOKEN)
+  /** Russian names of catalog titles, kept in storage. */
+  readonly catalogTitles = new CatalogTitles((queries) => this.tmdb.titles(queries), {
+    load: () => readJSON<Record<string, TitleEntry>>(StorageKey.catalogTitles),
+    save: (entries) => writeJSON(StorageKey.catalogTitles, entries),
+  })
+
   /** Loge Server bound to the server token; null until connected or when no address is set. */
   detector(): DetectorClient | null {
     const api = this.state.api
@@ -85,7 +95,7 @@ export class AppModel {
   private discoverAPI(): PlexDiscoverAPI | undefined {
     if (!this.userToken) return undefined
     const language = navigator.language?.slice(0, 2) || 'ru'
-    return new PlexDiscoverAPI(this.userToken, this.client, undefined, PLEX_DISCOVER_URL, PLEX_IMAGES_URL, language)
+    return new PlexDiscoverAPI(this.userToken, this.client, undefined, PLEX_DISCOVER_URL, PLEX_IMAGES_URL, language, this.catalogTitles)
   }
 
   // MARK: Session
@@ -219,7 +229,7 @@ export class AppModel {
       const sections = (await api.sections()).filter((s) => sectionKind(s) === 'movie' || sectionKind(s) === 'show')
       const discover = this.discoverAPI()
       this.watchlist.configure(discover, api, sections)
-      this.recommendations.configure(discover, api, current.owned, () => this.detector())
+      this.recommendations.configure(discover, api, current.owned, this.tmdb)
       this.explore.configure(discover)
       this.set({ server: current, api, sections, phase: { kind: 'ready' } })
       // Changes made while the detector was unreachable.
@@ -258,7 +268,7 @@ export class AppModel {
 
   private unconfigure() {
     this.watchlist.configure(undefined, undefined, [])
-    this.recommendations.configure(undefined, undefined, true, () => null)
+    this.recommendations.configure(undefined, undefined, true, this.tmdb)
     this.explore.configure(undefined)
   }
 

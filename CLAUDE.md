@@ -23,6 +23,11 @@ the site has the new shots.
 
 `src/styles.css` and `src/ui/icons.tsx` reach all of them.
 
+TMDB (trailers, recommendations, titles) comes from the TMDB proxy. The rig's `fake.mjs` has TMDB
+only on its Loge Server, so the snapshot tests and the rig's `shots.mjs` and `trailer.mjs` start this
+checkout's fake proxy (`dev/fake-tmdb.mjs`) with the rig's data. It gives no Russian names, so the
+Blender films keep their English ones.
+
 ### Snapshot tests
 
 `dev/screens/` holds Playwright snapshot tests of these seven screens with baselines in

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { DetectorClient } from '../../core/detectorClient'
 import { PlexDiscoverAPI } from '../../core/plexDiscover'
 import { PlexServerAPI } from '../../core/plexServerAPI'
+import { TMDBClient } from '../../core/tmdbClient'
 import { MockFetch, testClient } from '../../core/__tests__/support'
 import { Explore } from '../explore'
 import { CatalogMatchCache, Recommendations } from '../recommendations'
@@ -24,8 +24,8 @@ function setUp() {
   discover.stub('/library/metadata/matches', container([{ ratingKey: 'cat-3', type: 'movie', title: 'Three (en)', year: 2003 }]))
   discover.stub('/library/metadata/cat-seed/more-from-credits', container([{ ratingKey: 'cat-4', type: 'show', title: 'Four', year: 2004 }]))
   discover.stub('/library/metadata/cat-3,cat-4/userState', JSON.stringify({ MediaContainer: { UserState: [] } }))
-  const detector = new MockFetch()
-  detector.stub(
+  const proxy = new MockFetch()
+  proxy.stub(
     '/v1/recommendations',
     JSON.stringify({ items: [{ seed: 'movie:1', titles: [{ tmdbId: 2, type: 'movie', title: 'Fresh' }, { tmdbId: 3, type: 'movie', title: 'Три' }] }] }),
   )
@@ -34,17 +34,16 @@ function setUp() {
   const watchlist = new Watchlist()
   watchlist.configure(api, server, [{ key: '1', title: 'Фильмы', type: 'movie' }])
   const recommendations = new Recommendations()
-  const client = new DetectorClient('http://det', 'srv', detector.fetch)
-  recommendations.configure(api, server, true, () => client)
-  return { pms, discover, detector, watchlist, recommendations }
+  recommendations.configure(api, server, true, new TMDBClient('http://tmdb', 'client', proxy.fetch))
+  return { pms, discover, proxy, watchlist, recommendations }
 }
 
 describe('Recommendations', () => {
-  it('TMDB shelves through the detector and Plex’s cast list', async () => {
-    const { discover, watchlist, recommendations } = setUp()
+  it('TMDB shelves through the proxy and Plex’s cast list', async () => {
+    const { discover, proxy, watchlist, recommendations } = setUp()
     await recommendations.refresh(watchlist)
-    const { shelves, unavailable } = recommendations.getSnapshot()
-    expect(unavailable).toBe(false)
+    const { shelves } = recommendations.getSnapshot()
+    expect(proxy.last.headers.get('X-Plex-Token')).toBeNull()
     expect(shelves.onServer.map((i) => i.title)).toEqual(['Fresh'])
     expect(shelves.because.map((b) => b.items.map((i) => i.title))).toEqual([['Три']])
     expect(shelves.cast?.items.map((i) => i.ratingKey)).toEqual(['cat-4'])
@@ -57,46 +56,23 @@ describe('Recommendations', () => {
     expect(recommendations.getSnapshot().shelves.onServer).toEqual([])
   })
 
-  it('a detector without TMDB: no TMDB shelves, the cast list still', async () => {
-    const { detector, watchlist, recommendations } = setUp()
-    detector.stub('/v1/recommendations', '{}', 404)
+  it('a refusal (404 too) is no «no key»: no TMDB shelves this time, the cast list still, asked again next time', async () => {
+    const { proxy, watchlist, recommendations } = setUp()
+    proxy.stub('/v1/recommendations', '{"error":"not found"}', 404)
     await recommendations.refresh(watchlist)
-    const { shelves, unavailable } = recommendations.getSnapshot()
-    expect(unavailable).toBe(true)
+    const { shelves } = recommendations.getSnapshot()
     expect(shelves.onServer).toEqual([])
     expect(shelves.because).toEqual([])
     expect(shelves.cast?.items).toHaveLength(1)
+    proxy.stub('/v1/recommendations', JSON.stringify({ items: [{ seed: 'movie:1', titles: [{ tmdbId: 3, type: 'movie', title: 'Три' }] }] }))
+    await recommendations.refresh(watchlist)
+    expect(recommendations.getSnapshot().shelves.because).toHaveLength(1)
   })
 
-  it('settings learn whether the detector has a TMDB key without Home; a refresh that asks nothing keeps it', async () => {
-    const { detector, pms, watchlist, recommendations } = setUp()
-    detector.stub('/v1/recommendations', '{}', 404)
-    await recommendations.checkTMDB()
-    expect(recommendations.getSnapshot().unavailable).toBe(true)
-    expect(detector.last.url.search).toBe('')
-    // No history to ask about: the refresh doesn't ask the detector and keeps what is known.
-    pms.stub('/status/sessions/history/all', container([]))
-    pms.stub('/library/sections/1/all', container([{ ratingKey: '2', type: 'movie', title: 'Fresh', guid: 'plex://movie/cat-fresh', Guid: [{ id: 'tmdb://2' }] }]))
-    const asked = detector.requests.length
+  it('the proxy down for a moment: the TMDB shelves stay', async () => {
+    const { proxy, watchlist, recommendations } = setUp()
     await recommendations.refresh(watchlist)
-    expect(detector.requests.length).toBe(asked)
-    expect(recommendations.getSnapshot().unavailable).toBe(true)
-    // The key added: the seedless question is refused for the seeds.
-    detector.stub('/v1/recommendations', JSON.stringify({ error: 'seeds is required' }), 400)
-    await recommendations.checkTMDB()
-    expect(recommendations.getSnapshot().unavailable).toBe(false)
-    // Down: nothing known, the note stays as it was.
-    detector.stub('/v1/recommendations', '{}', 404)
-    await recommendations.checkTMDB()
-    detector.fail('/v1/recommendations')
-    await recommendations.checkTMDB()
-    expect(recommendations.getSnapshot().unavailable).toBe(true)
-  })
-
-  it('the detector down for a moment: the TMDB shelves stay', async () => {
-    const { detector, watchlist, recommendations } = setUp()
-    await recommendations.refresh(watchlist)
-    detector.fail('/v1/recommendations')
+    proxy.fail('/v1/recommendations')
     recommendations.expire()
     await recommendations.refresh(watchlist)
     expect(recommendations.getSnapshot().shelves.because).toHaveLength(1)

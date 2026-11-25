@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { LibraryIndex } from '../catalogMatch'
-import { DetectorClient } from '../detectorClient'
 import { HTTPError } from '../http'
+import { TMDBClient } from '../tmdbClient'
 import { catalogHubs, makeDiscoverItem, PlexDiscoverAPI, upcomingCaption, type DiscoverItem, type DiscoverUserState } from '../plexDiscover'
 import { parseMetadata, tmdbID, type PlexItem } from '../plexModels'
 import { PlexServerAPI } from '../plexServerAPI'
@@ -93,7 +93,7 @@ describe('recommendations', () => {
     expect(RecommendationSeeds.pick(fromIndex).map(seedKey)).toEqual(['tv:2', 'movie:1'])
   })
 
-  it('detector recommendations', async () => {
+  it('recommendations from the TMDB proxy', async () => {
     const mock = new MockFetch()
     mock.stub(
       '/v1/recommendations',
@@ -104,23 +104,20 @@ describe('recommendations', () => {
         ],
       }),
     )
-    const detector = new DetectorClient('http://det', 'srv', mock.fetch)
-    const answer = await detector.recommendations(['movie:38142', 'tv:1418'])
+    const proxy = new TMDBClient('http://tmdb', 'client', mock.fetch)
+    const answer = await proxy.recommendations(['movie:38142', 'tv:1418'])
     expect(answer?.['movie:38142']).toEqual([{ tmdbId: 372058, type: 'movie', title: 'Твоё имя', year: 2016 }])
     expect(answer?.['tv:1418']).toBeUndefined() // a failed seed is left out
     expect(mock.last.url.searchParams.get('seeds')).toBe('movie:38142,tv:1418')
     expect(mock.last.url.searchParams.get('language')).toBe('ru-RU')
-    expect(mock.last.headers.get('X-Plex-Token')).toBe('srv')
-
-    const none = new MockFetch()
-    none.stub('/v1/recommendations', JSON.stringify({ error: 'tmdb is not configured', configured: false }), 404)
-    expect(await new DetectorClient('http://det', 'srv', none.fetch).recommendations(['movie:1'])).toBeNull()
+    expect(mock.last.headers.get('X-Plex-Token')).toBeNull()
 
     const down = new MockFetch()
     down.stub('/v1/recommendations', JSON.stringify({ error: 'tmdb is unreachable' }), 502)
-    await expect(new DetectorClient('http://det', 'srv', down.fetch).recommendations(['movie:1'])).rejects.toBeInstanceOf(HTTPError)
+    await expect(new TMDBClient('http://tmdb', 'client', down.fetch).recommendations(['movie:1'])).rejects.toBeInstanceOf(HTTPError)
     // Nothing to ask: no request.
-    expect(await new DetectorClient('http://det', 'srv', down.fetch).recommendations([])).toEqual({})
+    expect(await new TMDBClient('http://tmdb', 'client', down.fetch).recommendations([])).toEqual({})
+    expect(down.requests).toHaveLength(1)
   })
 
   /** The real answer of `/library/metadata/matches` for tmdb://603 (trimmed). */

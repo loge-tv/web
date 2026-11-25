@@ -1,5 +1,5 @@
 import { isRecord } from './http'
-import { isYouTubeID, type TrailerVideo } from './detectorClient'
+import { isYouTubeID, type TrailerVideo } from './tmdbClient'
 
 /**
  * YouTube's embedded player of a video, in `language`. `enablejsapi=1` and the page's `origin`

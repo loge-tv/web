@@ -6,10 +6,13 @@
 //
 // The screens are the site's states, made deterministic: the player is paused at a fixed position
 // and its picture is hidden (hide-video.css); the trailer plays the fake's stand-in for the
-// YouTube embed (never youtube.com); every request goes to the fakes on 127.0.0.1.
+// YouTube embed (never youtube.com); every request goes to the fakes on 127.0.0.1. TMDB (trailers,
+// recommendations, titles) comes from this checkout's fake proxy (dev/fake-tmdb.mjs) with the rig's
+// data: the rig's fake has TMDB on its Loge Server only.
 import { expect, test } from '@playwright/test'
 import { existsSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { startFakeTMDB } from '../fake-tmdb.mjs'
 import { APP_DIR, FAKE, RIG } from './paths.mjs'
 
 const HIDE_VIDEO = fileURLToPath(new URL('./hide-video.css', import.meta.url))
@@ -18,13 +21,17 @@ test.skip(!existsSync(FAKE), `needs the landing rig's fake.mjs at ${RIG} (or LOG
 // One worker runs them in this order (playwright.config.mjs); a failed screen doesn't stop the others.
 
 let fake
+let tmdb
 let app
 test.beforeAll(async () => {
-  const { startFake } = await import(pathToFileURL(FAKE).href)
+  const { startFake, TMDB_VIDEOS, TMDB_RECOMMENDATIONS } = await import(pathToFileURL(FAKE).href)
   fake = await startFake({ appDir: APP_DIR })
+  // The Blender films keep their English names (the site's approved state): no Russian ones.
+  tmdb = await startFakeTMDB({ videos: TMDB_VIDEOS, recommendations: TMDB_RECOMMENDATIONS })
   app = fake.urls.app
 })
 test.afterAll(async () => {
+  await tmdb?.close()
   await fake?.close()
 })
 

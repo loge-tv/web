@@ -24,7 +24,11 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      # The TMDB proxy's builds' token (X-Client-Token), from the repository secret. It ends up in
+      # the page's code anyway; pull requests from forks get no secrets and build without it.
       - run: npm run build
+        env:
+          VITE_TMDB_PROXY_TOKEN: ${{ secrets.VITE_TMDB_PROXY_TOKEN }}
       - uses: actions/upload-artifact@v4
         with:
           name: loge-web

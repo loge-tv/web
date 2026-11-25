@@ -16,7 +16,7 @@ the site has the new shots.
 | `home` | Home: «Продолжить просмотр», «Хочу посмотреть», «Недавно добавлено» | `src/pages/Home.tsx`, `src/ui/cards.tsx`, `src/ui/Layout.tsx` | `shots.mjs` home → `home.png` |
 | `recs` | Home with «Потому что вы смотрели» and «Похожее на сервере» at the top | `src/pages/Home.tsx`, `src/app/recommendations.ts`, `src/ui/cards.tsx` | `shots.mjs` recs → `recs.png` |
 | `show` | A show's page: Sprite Fright as a show of three episodes | `src/pages/Show.tsx`, `src/ui/catalogEpisodes.tsx` | `shots.mjs` show → `show.png` |
-| `trailer` | Sintel's page with the «Трейлер» dialog | `src/ui/trailers.tsx`, `src/core/youtubeEmbed.ts`, `src/pages/Movie.tsx` | `trailer.mjs` (real YouTube) → `trailer.png` |
+| `trailer` | Sintel's page with the «Трейлер» dialog | `src/ui/trailers.tsx`, `src/core/youtubeEmbed.ts`, `src/pages/Movie.tsx` | `trailer.mjs … 6.6` (real YouTube, the approved moment 6.6 s: Sintel in the snow) → `trailer-6.6.png` |
 | `playback` | The player with subtitles and the bar | `src/player/PlayerPage.tsx`, `ScrubBar.tsx`, `TracksPanel.tsx` | `shots.mjs` player → `player-bar.png` |
 | `intro` | The countdown before the intro is skipped | `src/player/PlayerPage.tsx`, `src/core/skipPolicy.ts` | `shots.mjs` intro → `intro.png` |
 | `skip` | The end credits with the «Следующая серия» card | `src/player/PlayerPage.tsx`, `src/player/playerSession.ts` | `shots.mjs` skip → `skip.png` |
@@ -33,7 +33,7 @@ embed with the fake's stand-in, so the tests never load youtube.com.
 
 ```sh
 npm run screens          # builds, then compares; diffs in dev/.out/screens-results
-SKIP_BUILD=1 npm run screens         # reuse the last build (dev/.out/screens-dist)
+SKIP_BUILD=1 npm run screens         # reuse the last build (dev/.out/screens-dist): only while src is unchanged
 npm run screens -- -g "intro|skip"   # some of them
 npm run screens:update   # write new baselines after an intended change
 ```
@@ -45,15 +45,17 @@ locally only and are not part of `npm test` or CI.
 
 ### When a change touches one of these screens
 
-1. Run `npm run screens`. A red test names a changed screen; check its diff.
+1. Run `npm run screens`. A red test names a changed screen; check its diff. The comparison is exact
+   and tied to this Mac's Chrome: if all seven go red without a UI change, it is a Chrome update, so
+   rewrite the baselines (`npm run screens:update`) and don't reshoot for the site.
 2. If the change is intended, run `npm run screens:update`. Look at the new baselines and commit them
    with the change.
 3. Reshoot the changed screens for the site on the rig. Run this from `../landing/shots-raw/harness`,
    after `npx vite build --mode fake --outDir <rig>/tools/.web-cache/dist --emptyOutDir` here:
    `ONLY=home,show node tools/web/shots.mjs <this checkout> tools/.web-cache/dist <out>`.
    The steps are listed in the table above; sign-in always runs. The trailer comes from
-   `tools/web/trailer.mjs` and needs a build with the real YouTube. Its header explains how to run
-   it. YouTube walls off an address that plays the trailer too often, so ask the other Loge sessions
+   `tools/web/trailer.mjs <this checkout> <build> <out> 6.6`, which needs a build with the real YouTube.
+   Its header explains how to run it. YouTube walls off an address that plays the trailer too often, so ask the other Loge sessions
    before playing it.
 4. Put the PNGs into `../landing/shots-raw/<date>/web-v2/<file>.png` and send their paths to the
    site's session (Landing loge), saying what changed. The site's `.jpg` files are made by it.

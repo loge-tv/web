@@ -1,0 +1,2 @@
+/* The player's picture is left out of the comparison: only the app's own UI over it counts. */
+video { visibility: hidden !important; }

@@ -4,13 +4,13 @@ import { appModel } from '../app/appModel'
 import { useApp } from '../app/hooks'
 import tmdbLogo from '../assets/tmdb-logo.svg'
 import { APP_NAME, APP_VERSION } from '../config'
-import { DetectorClient, normalizeDetectorURL } from '../core/detectorClient'
+import { normalizeDetectorURL } from '../core/detectorClient'
+import { statusText, type Verdict } from '../core/sepiaServer'
 import { skipModes, skipModeTitle, type SkipMode } from '../core/skipPolicy'
 import { Language } from '../core/mediaTrack'
 import { catalogHubs } from '../core/plexDiscover'
 import {
   countdownOptions,
-  defaultDetectorURL,
   exploreHubOrder,
   hasDefaultHubOrder,
   hasDefaultShelfOrder,
@@ -23,6 +23,7 @@ import {
   shelfShown,
   useSettings,
 } from '../settings'
+import { SepiaServerAddressForm, SepiaServerFinder } from './SepiaServerConnect'
 import { BackIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, ChevronUpIcon, ForwardEndIcon, HomeIcon, PlayIcon, ServerIcon } from '../ui/icons'
 
 /** Pages of the settings screen, the same in every app of the family (ids as in the Apple app). */
@@ -119,27 +120,32 @@ function Toggle({ label, detail, checked, onChange }: { label: string; detail?: 
   )
 }
 
-function DetectorStatus({ url, token }: { url: string; token?: string }) {
-  const [status, setStatus] = useState<'checking' | 'ok' | 'down'>('checking')
+/** Whether the kept Sepia Server answers for this Plex server and takes its token. */
+function SepiaServerStatus({ url }: { url: string }) {
+  const { api, server } = useApp()
   const base = normalizeDetectorURL(url)
+  // A new address drops the old state at once and is checked right away; a late answer about an
+  // address that is no longer kept is thrown away.
+  const [checked, setChecked] = useState<{ url: string; verdict: Verdict } | undefined>()
   useEffect(() => {
-    if (!base) return
+    if (!base || !api || !server) return
     let cancelled = false
-    setStatus('checking')
-    const client = new DetectorClient(base, token ?? '')
-    const timer = setTimeout(() => {
-      void client.isReachable().then((ok) => {
-        if (!cancelled) setStatus(ok ? 'ok' : 'down')
-      })
-    }, 400)
+    // Kept already: the user agreed to this address.
+    void appModel.checkSepiaServer(base, true).then((verdict) => {
+      if (!cancelled) setChecked({ url: base, verdict })
+    })
     return () => {
       cancelled = true
-      clearTimeout(timer)
     }
-  }, [base, token])
+  }, [base, api, server])
   if (!base) return <span className="status">Не задан</span>
-  const text = status === 'checking' ? 'Проверяю…' : status === 'ok' ? 'Sepia Server отвечает' : 'Sepia Server недоступен'
-  return <span className={`status status-${status}`}>{text}</span>
+  const verdict = checked?.url === base ? checked.verdict : undefined
+  const state = !verdict ? 'checking' : verdict.kind === 'ok' ? 'ok' : 'down'
+  return (
+    <span className={`status status-${state}`} role="status">
+      {statusText(verdict, server?.name ?? '')}
+    </span>
+  )
 }
 
 /** The settings screen: a list of pages, the version below it. */
@@ -446,42 +452,26 @@ function MovableRow({
 
 function DetectorSettings() {
   const settings = useSettings()
-  const { api } = useApp()
-  const [detectorDraft, setDetectorDraft] = useState(settings.detectorURL)
+  const [finding, setFinding] = useState(0)
   return (
     <Section footer="Адрес вашего Sepia Server: с ним заставки и титры находятся точнее. Без него они берутся из глав файла и TheIntroDB.">
-      <form
-        className="settings-row input-row"
-        onSubmit={(e) => {
-          e.preventDefault()
-          settingsStore.update({ detectorURL: normalizeDetectorURL(detectorDraft) })
-          setDetectorDraft(normalizeDetectorURL(detectorDraft))
-        }}
-      >
-        <input
-          type="url"
-          aria-label="Адрес Sepia Server"
-          placeholder="https://…"
-          value={detectorDraft}
-          onChange={(e) => setDetectorDraft(e.target.value)}
-          onBlur={() => settingsStore.update({ detectorURL: normalizeDetectorURL(detectorDraft) })}
-          spellCheck={false}
-          autoCapitalize="off"
-        />
-      </form>
       <div className="settings-row">
-        <DetectorStatus url={settings.detectorURL} token={api?.token} />
-        {settings.detectorURL !== defaultDetectorURL && (
-          <button
-            className="link-button"
-            onClick={() => {
-              setDetectorDraft(defaultDetectorURL)
-              settingsStore.update({ detectorURL: defaultDetectorURL })
-            }}
-          >
-            {defaultDetectorURL ? 'Сбросить адрес Sepia Server' : 'Убрать адрес Sepia Server'}
+        <span className="grow sepia-address">{settings.detectorURL || 'Sepia Server'}</span>
+        <SepiaServerStatus url={settings.detectorURL} />
+      </div>
+      <div className="settings-row sepia-settings">
+        {finding > 0 && <SepiaServerFinder key={finding} />}
+        <SepiaServerAddressForm key={settings.detectorURL} initial={settings.detectorURL} />
+        <div className="row gap wrap">
+          <button className="btn btn-secondary" onClick={() => setFinding((n) => n + 1)}>
+            Найти
           </button>
-        )}
+          {settings.detectorURL && (
+            <button className="link-button" onClick={() => appModel.setSepiaServer('')}>
+              Убрать адрес Sepia Server
+            </button>
+          )}
+        </div>
       </div>
     </Section>
   )

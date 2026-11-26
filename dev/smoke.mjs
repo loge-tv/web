@@ -32,7 +32,8 @@ const fake = await startFake({ hls: hlsMode })
 const browser = await chromium.launch({
   executablePath: CHROME,
   headless: !process.env.HEADED,
-  args: ['--autoplay-policy=no-user-gesture-required', '--mute-audio'],
+  // sepia.fake.example: an external-looking name for the fake Sepia Server (the consent for http).
+  args: ['--autoplay-policy=no-user-gesture-required', '--mute-audio', '--host-resolver-rules=MAP sepia.fake.example 127.0.0.1'],
 })
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ru-RU' })
 const page = await context.newPage()
@@ -459,7 +460,7 @@ await step('settings: a list of four pages, Back returns to it; detector reachab
   // Browser Back from a page lands on the list.
   await settingsPages().filter({ hasText: 'Sepia Server' }).click()
   await page.waitForURL(/#\/settings\/detector$/)
-  await page.getByText('Sepia Server отвечает').waitFor({ timeout: 8000 })
+  await page.getByText('Подключён · Фейковый сервер · 0.7.0-fake').waitFor({ timeout: 8000 })
   await page.getByText('Адрес вашего Sepia Server: с ним заставки и титры находятся точнее. Без него они берутся из глав файла и TheIntroDB.').waitFor()
   await page.goBack()
   await page.waitForURL(/#\/settings$/)
@@ -1560,7 +1561,7 @@ await step('phone layout: no horizontal scrolling on home, show and player', asy
   for (const id of ['playback', 'home', 'detector', 'server']) {
     await p.goto(`${app}/#/settings/${id}`)
     await p.getByRole('button', { name: 'Настройки' }).waitFor({ timeout: 8000 })
-    if (id === 'detector') await p.getByText('Sepia Server отвечает').waitFor({ timeout: 8000 })
+    if (id === 'detector') await p.getByText('Подключён · Фейковый сервер · 0.7.0-fake').waitFor({ timeout: 8000 })
     assert.ok((await overflow()) <= 0, `settings/${id} overflows by ${await overflow()} px`)
     await p.screenshot({ path: join(screens, `phone-settings-${id}.png`), fullPage: true })
   }
@@ -1846,8 +1847,121 @@ await step('sign-in by code: a short PIN typed at plex.tv/link on another device
   await fresh.close()
 })
 
+await step('a Plex server without Sepia Server: the step finds it on Plex’s host, «Подключить» keeps it', async () => {
+  const fresh = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'ru-RU' })
+  recordHosts(fresh)
+  // No address yet (not the fake build's default).
+  await fresh.addInitScript(() => {
+    if (!localStorage.getItem('settings')) localStorage.setItem('settings', JSON.stringify({ detectorURL: '' }))
+  })
+  const p = await fresh.newPage()
+  p.on('pageerror', (e) => pageErrors.push(`sepia step: ${e}`))
+  const since = Date.now()
+  await p.goto(`${app}/`)
+  await p.getByRole('button', { name: 'Войти через Plex' }).click()
+  await p.getByRole('heading', { name: 'Подключите Sepia Server' }).waitFor({ timeout: 30000 })
+  await p.getByText('Найден Sepia Server для «Фейковый сервер»').waitFor({ timeout: 15000 })
+  assert.equal(await p.locator('.sepia-found .sepia-address').textContent(), fake.urls.detector)
+  await p.screenshot({ path: join(screens, 'sepia-step-found.png') })
+  // Found by /v1/info alone: no token went anywhere yet.
+  assert.equal(find((r) => r.server === 'detector' && r.path === '/v1/stats' && r.at > since).length, 0)
+  await p.getByRole('button', { name: 'Подключить' }).click()
+  await p.locator('.topbar').waitFor({ timeout: 15000 })
+  const kept = await p.evaluate(() => [JSON.parse(localStorage.getItem('sepiaServers')), JSON.parse(localStorage.getItem('settings')).detectorURL])
+  assert.deepEqual(kept, [{ 'fake-server': fake.urls.detector }, fake.urls.detector])
+  // Kept for this Plex server: no step next time.
+  await p.reload()
+  await p.locator('.topbar').waitFor({ timeout: 15000 })
+  await fresh.close()
+})
+
+await step('the step: nothing found → by hand (another server’s, not yet, a refused token, external http asked first), «Пропустить»; the settings', async () => {
+  const fresh = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'ru-RU' })
+  recordHosts(fresh)
+  await fresh.addInitScript(() => {
+    if (!localStorage.getItem('settings')) localStorage.setItem('settings', JSON.stringify({ detectorURL: '' }))
+  })
+  const p = await fresh.newPage()
+  p.on('pageerror', (e) => pageErrors.push(`sepia by hand: ${e}`))
+  try {
+    // A server before 0.7.0 on Plex's host: /v1/info is 404, nothing is found.
+    fake.state.sepiaInfo = 'old'
+    await p.goto(`${app}/`)
+    await p.getByRole('button', { name: 'Войти через Plex' }).click()
+    await p.getByText('Sepia Server не найден. Введите его адрес.').waitFor({ timeout: 30000 })
+    const field = p.getByRole('textbox', { name: 'Адрес Sepia Server' })
+    const connect = p.locator('.sepia-form form').getByRole('button', { name: 'Подключить' })
+    fake.state.sepiaInfo = 'foreign'
+    await field.fill(fake.urls.detector)
+    await connect.click()
+    await p.getByText('Этот Sepia Server работает с другим сервером Plex.').waitFor()
+    fake.state.sepiaInfo = 'pending'
+    await connect.click()
+    await p.getByText('Sepia Server ещё запускается. Повторите чуть позже.').waitFor()
+    fake.state.sepiaInfo = 'ok'
+    fake.state.sepiaRejectToken = true
+    await p.getByRole('button', { name: 'Повторить' }).click()
+    await p.getByText('У этого аккаунта Plex нет доступа к серверу, с которым работает Sepia Server.').waitFor()
+    fake.state.sepiaRejectToken = false
+    // An external name over http (mapped to the fake): asked before the token goes there.
+    const external = `http://sepia.fake.example:${new URL(fake.urls.detector).port}`
+    const since = Date.now()
+    await field.fill(external)
+    await connect.click()
+    await p.getByText('Адрес не из домашней сети и без https: токен Plex пойдёт по сети открытым текстом. Всё равно подключить?').waitFor()
+    await p.screenshot({ path: join(screens, 'sepia-step-consent.png') })
+    assert.equal(find((r) => r.server === 'detector' && r.path === '/v1/stats' && r.at > since).length, 0, 'no token before the consent')
+    await p.getByRole('button', { name: 'Отмена' }).click()
+    await p.getByRole('button', { name: 'Пропустить' }).click()
+    await p.locator('.topbar').waitFor({ timeout: 15000 })
+    assert.deepEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('sepiaServers'))), { 'fake-server': '' })
+    await p.reload()
+    await p.locator('.topbar').waitFor({ timeout: 15000 })
+
+    // The settings: the same form; the consent keeps the external address.
+    await p.goto(`${app}/#/settings/detector`)
+    await field.fill(external)
+    await connect.click()
+    await p.locator('.sepia-consent').getByRole('button', { name: 'Подключить' }).click()
+    await p.getByText('Подключён · Фейковый сервер · 0.7.0-fake').waitFor({ timeout: 15000 })
+    assert.ok(find((r) => r.server === 'detector' && r.path === '/v1/stats' && r.at > since).length > 0)
+    assert.deepEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('sepiaServers'))), { 'fake-server': external })
+    // «Найти» finds the one on Plex's host.
+    await p.getByRole('button', { name: 'Найти' }).click()
+    await p.getByText('Найден Sepia Server для «Фейковый сервер»').waitFor({ timeout: 15000 })
+    await p.screenshot({ path: join(screens, 'settings-sepia-server.png') })
+    await p.locator('.sepia-found').getByRole('button', { name: 'Подключить' }).click()
+    await until(async () => (await p.evaluate(() => JSON.parse(localStorage.getItem('sepiaServers'))['fake-server'])) === fake.urls.detector, { message: 'the found address kept' })
+    // The new address is checked at once: another Plex server's now.
+    fake.state.sepiaInfo = 'foreign'
+    await field.fill('http://127.0.0.1:' + new URL(fake.urls.detector).port + '/')
+    await connect.click()
+    await p.getByText('Этот Sepia Server работает с другим сервером Plex.').waitFor()
+    fake.state.sepiaInfo = 'ok'
+    await p.getByText('Подключён · Фейковый сервер · 0.7.0-fake').waitFor()
+    await p.getByRole('button', { name: 'Убрать адрес Sepia Server' }).click()
+    await p.getByText('Не задан').waitFor()
+    assert.deepEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('sepiaServers'))), { 'fake-server': '' })
+    // A server before 0.7.0 typed by hand: taken by its token; the state shows no version.
+    fake.state.sepiaInfo = 'old'
+    await field.fill(fake.urls.detector)
+    await connect.click()
+    await p.getByText('Подключён · Фейковый сервер', { exact: true }).waitFor({ timeout: 15000 })
+    await p.screenshot({ path: join(screens, 'settings-sepia-server-old.png') })
+  } finally {
+    fake.state.sepiaInfo = 'ok'
+    fake.state.sepiaRejectToken = false
+    await fresh.close()
+  }
+})
+
 await step('the browser asked only the fakes (plus the never-answering fake plex.direct)', async () => {
-  const outside = [...requestedHosts].filter((h) => !h.startsWith('127.0.0.1:') && !h.endsWith('.fake.plex.direct:32400'))
+  // Also Sepia Server looked for on the fake Plex's never-answering remote address, and the fake
+  // Sepia Server under an external-looking name (both on 127.0.0.1 or nowhere).
+  const sepiaPort = new URL(fake.urls.detector).port
+  const outside = [...requestedHosts].filter(
+    (h) => !h.startsWith('127.0.0.1:') && !h.endsWith('.fake.plex.direct:32400') && h !== `10.255.255.1:${sepiaPort}` && h !== `sepia.fake.example:${sepiaPort}`,
+  )
   assert.deepEqual(outside, [])
 })
 
@@ -1861,7 +1975,9 @@ const failures = fake.requests.filter(
     r.server !== 'theintrodb' &&
     !(r.server === 'detector' && fake.state.detectorDown) &&
     // The proxy's refusals the smoke asks for.
-    !(r.server === 'tmdb' && [404, 429].includes(r.status)),
+    !(r.server === 'tmdb' && [404, 429].includes(r.status)) &&
+    // Sepia Server before 0.7.0 and the refused token the smoke asks for.
+    !(r.server === 'detector' && ((r.path === '/v1/info' && r.status === 404) || r.status === 401)),
 )
 if (failures.length) console.log(`non-2xx responses:\n  ${failures.map((r) => `${r.status} ${r.server} ${r.method} ${r.path}`).join('\n  ')}`)
 if (consoleErrors.length) console.log(`console errors (${consoleErrors.length}):\n  ${[...new Set(consoleErrors)].slice(0, 10).join('\n  ')}`)

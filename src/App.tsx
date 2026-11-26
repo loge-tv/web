@@ -7,6 +7,7 @@ import { Explore } from './pages/Explore'
 import { Home } from './pages/Home'
 import { Library } from './pages/Library'
 import { Movie } from './pages/Movie'
+import { SepiaServerStep } from './pages/SepiaServerConnect'
 import { FailedScreen, LoginScreen, ServerPicker, SplashScreen } from './pages/SessionScreens'
 import { Search } from './pages/Search'
 import { SettingsPage, SettingsSubpage } from './pages/Settings'
@@ -44,6 +45,8 @@ export function App() {
       return <ServerPicker servers={phase.servers} />
     case 'failed':
       return <FailedScreen message={phase.message} />
+    case 'sepiaServer':
+      return <SepiaServerStep />
     case 'ready':
       return (
         <HashRouter>

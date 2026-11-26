@@ -1,4 +1,4 @@
-import { PLEX_AUTH_URL, PLEX_DISCOVER_URL, PLEX_IMAGES_URL, PLEX_TV_URL, TMDB_PROXY_TOKEN, TMDB_PROXY_URL } from '../config'
+import { DEFAULT_DETECTOR, PLEX_AUTH_URL, PLEX_DISCOVER_URL, PLEX_IMAGES_URL, PLEX_TV_URL, SEPIA_SERVER_PORT, TMDB_PROXY_TOKEN, TMDB_PROXY_URL } from '../config'
 import { CatalogTitles, type TitleEntry } from '../core/catalogTitles'
 import { DetectorClient, normalizeDetectorURL } from '../core/detectorClient'
 import { HTTPError } from '../core/http'
@@ -6,6 +6,7 @@ import { PlexAccountAPI, usableCandidateURLs, type PlexClientInfo, type PlexServ
 import { PlexDiscoverAPI } from '../core/plexDiscover'
 import { sectionKind, type PlexItem, type PlexLibrarySection } from '../core/plexModels'
 import { PlexServerAPI } from '../core/plexServerAPI'
+import { blockedOnPage, checkAddress, discover, fetchInfo, identityOf, type Discovery, type Verdict } from '../core/sepiaServer'
 import { ShowPreferencesStore, ShowPreferencesSync } from '../core/showPreferences'
 import { TMDBClient } from '../core/tmdbClient'
 import { makeClientInfo } from '../platform'
@@ -26,6 +27,8 @@ export type Phase =
   | { kind: 'choosingServer'; servers: PlexServer[] }
   | { kind: 'connecting'; text: string }
   | { kind: 'failed'; message: string }
+  /** Connected; the Plex server has no Sepia Server yet: «Подключите Sepia Server» or skip. */
+  | { kind: 'sepiaServer' }
   | { kind: 'ready' }
 
 export interface AppSnapshot {
@@ -93,8 +96,95 @@ export class AppModel {
   detector(): DetectorClient | null {
     const api = this.state.api
     const url = normalizeDetectorURL(settingsStore.get().detectorURL)
-    if (!api || !url) return null
+    // Another Plex server's Sepia Server: its segments are of other items (rating keys are per server).
+    if (!api || !url || url === this.foreignSepiaServer) return null
     return new DetectorClient(url, api.token)
+  }
+
+  // MARK: Sepia Server
+
+  /** An address whose /v1/info names another Plex server: not used until it changes. */
+  private foreignSepiaServer: string | undefined
+
+  private get pageIsHTTPS(): boolean {
+    return window.location.protocol === 'https:'
+  }
+
+  /** The address kept for `server`: a URL, "" when skipped, undefined when never decided. */
+  sepiaServerOf(server: PlexServer): string | undefined {
+    const known = readJSON<Record<string, string>>(StorageKey.sepiaServers)?.[server.clientIdentifier]
+    return typeof known === 'string' ? known : undefined
+  }
+
+  /**
+   * The one writer of Sepia Server's address: kept for the current Plex server and used now. ""
+   * skips it (the step isn't offered again; the settings can still set one).
+   */
+  setSepiaServer(url: string) {
+    const server = this.state.server
+    if (server) writeJSON(StorageKey.sepiaServers, { ...readJSON<Record<string, string>>(StorageKey.sepiaServers), [server.clientIdentifier]: url })
+    settingsStore.update({ detectorURL: url })
+    this.foreignSepiaServer = undefined
+    if (this.state.phase.kind === 'sepiaServer') this.set({ phase: { kind: 'ready' } })
+    this.preferencesSync.schedulePush(0)
+  }
+
+  /** Looks for the current Plex server's Sepia Server on its hosts. */
+  async findSepiaServer(): Promise<Discovery> {
+    const server = this.state.server
+    if (!server) return { kind: 'none' }
+    return discover(server, { port: SEPIA_SERVER_PORT, pageIsHTTPS: this.pageIsHTTPS })
+  }
+
+  /** Whether `url` is the current Plex server's Sepia Server and takes its token. */
+  async checkSepiaServer(url: string, consented = false): Promise<Verdict> {
+    const server = this.state.server
+    const api = this.state.api
+    if (!server || !api) return { kind: 'down' }
+    return checkAddress(url, server, api.token, { pageIsHTTPS: this.pageIsHTTPS, consented })
+  }
+
+  /**
+   * After connecting: the address kept for this Plex server, used without waiting. A Plex server
+   * not seen yet takes the address set before addresses were kept per server (none kept at all
+   * yet), or the build's default; otherwise the «Подключите Sepia Server» step. Another Plex
+   * server's address is never carried over to it.
+   */
+  private sepiaServerOnConnect(server: PlexServer): Phase {
+    const kept = readJSON<Record<string, string>>(StorageKey.sepiaServers) ?? {}
+    const known = this.sepiaServerOf(server)
+    const current = normalizeDetectorURL(settingsStore.get().detectorURL)
+    const byDefault = normalizeDetectorURL(DEFAULT_DETECTOR ?? '')
+    let url: string
+    if (known !== undefined) url = normalizeDetectorURL(known)
+    else if (current && (Object.keys(kept).length === 0 || current === byDefault)) url = current
+    else {
+      // Not this Plex server's: unused while the step is open.
+      if (current) settingsStore.update({ detectorURL: '' })
+      return { kind: 'sepiaServer' }
+    }
+    if (known === undefined) writeJSON(StorageKey.sepiaServers, { ...kept, [server.clientIdentifier]: url })
+    if (url !== current) settingsStore.update({ detectorURL: url })
+    // The build's default is the fakes' (no token-less /v1/info there): taken as it is. An http
+    // address from an https page can't be asked at all.
+    if (url && url !== byDefault && !blockedOnPage(url, this.pageIsHTTPS)) void this.verifySepiaServer(server, url)
+    return { kind: 'ready' }
+  }
+
+  /**
+   * The kept address, checked in the background with /v1/info (no token). Another Plex server's
+   * stops being used; one that doesn't answer is looked for again on Plex's hosts. Found there,
+   * this Plex server's Sepia Server (its machineIdentifier) takes the address' place.
+   */
+  private async verifySepiaServer(server: PlexServer, url: string) {
+    const info = await fetchInfo(url)
+    if (this.state.server?.clientIdentifier !== server.clientIdentifier) return
+    const foreign = info.kind === 'sepia' && identityOf(info, server) === 'foreign'
+    if (foreign) this.foreignSepiaServer = url
+    if (!foreign && info.kind !== 'unreachable') return
+    const found = await this.findSepiaServer()
+    if (this.state.server?.clientIdentifier !== server.clientIdentifier) return
+    if (found.kind === 'found' && found.url !== url && normalizeDetectorURL(settingsStore.get().detectorURL) === url) this.setSepiaServer(found.url)
   }
 
   /** Plex's catalog for the signed-in account (the account token, not the server's). */
@@ -271,7 +361,8 @@ export class AppModel {
       this.watchlist.configure(discover, api, sections)
       this.recommendations.configure(discover, api, current.owned, this.tmdb)
       this.explore.configure(discover)
-      this.set({ server: current, api, sections, phase: { kind: 'ready' } })
+      this.set({ server: current, api, sections })
+      this.set({ phase: this.sepiaServerOnConnect(current) })
       // Changes made while the detector was unreachable.
       this.preferencesSync.schedulePush(0)
     } catch (error) {

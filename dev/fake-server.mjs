@@ -580,6 +580,14 @@ export async function startFake(options = {}) {
   const catalog = makeCatalog()
   const state = {
     detectorDown: !!options.detectorDown,
+    /**
+     * Sepia Server's /v1/info (contract v1, server 0.7.0): 'ok' names this fake Plex server,
+     * 'pending' hasn't reached Plex yet (no machineIdentifier), 'foreign' names another Plex
+     * server, 'old' is a server before 0.7.0 (404).
+     */
+    sepiaInfo: 'ok',
+    /** Sepia Server refuses the token as having no access to its Plex server (401 token_rejected). */
+    sepiaRejectToken: false,
     detectorDelayMs: 0,
     metadataDelayMs: 0,
     /** Catalog seasons' episodes come this much later (the show's seasons do not). */
@@ -773,6 +781,8 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
         return text(res, '')
       }
       if (p === '/identity') return json(res, { MediaContainer: { machineIdentifier: 'fake-server', version: '1.41.0' } })
+      // What a real Sepia Server (0.7.0) asks Plex to learn whose it is.
+      if (p === '/') return json(res, { MediaContainer: { machineIdentifier: 'fake-server', friendlyName: 'Фейковый сервер', version: '1.41.0' } })
       if (p === '/library/sections')
         return json(res, {
           MediaContainer: {
@@ -947,7 +957,17 @@ addEventListener('message', (e) => {
         200,
         'text/html; charset=utf-8',
       )
-    if (req.headers['x-plex-token'] !== SERVER_TOKEN) return json(res, { error: 'unauthorized' }, 401)
+    if (p === '/v1/info') {
+      // No token; CORS like every /v1 route.
+      if (state.sepiaInfo === 'old') return json(res, { error: 'not found' }, 404)
+      const machineIdentifier = { ok: 'fake-server', foreign: 'another-plex-server' }[state.sepiaInfo]
+      return json(res, { product: 'Sepia Server', version: '0.7.0-fake', ...(machineIdentifier ? { machineIdentifier } : {}) })
+    }
+    // 401 says why (contract v1.1); servers before 0.7.0 give only the error.
+    if (req.headers['x-plex-token'] === undefined) return json(res, { error: 'X-Plex-Token header is required', code: 'token_missing' }, 401)
+    if (req.headers['x-plex-token'] !== SERVER_TOKEN || state.sepiaRejectToken)
+      return json(res, { error: 'token has no access to this plex server', code: 'token_rejected' }, 401)
+    if (p === '/v1/stats') return json(res, { segments: Object.keys(segments).length })
     let m = /^\/v1\/segments\/(\w+)$/.exec(p)
     if (m) return json(res, { ratingKey: m[1], segments: segments[m[1]] ?? [], analyzed: true })
     if (p === '/v1/segments') {

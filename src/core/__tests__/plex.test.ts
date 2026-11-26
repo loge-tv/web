@@ -142,6 +142,16 @@ describe('plex.tv account', () => {
     expect(params.get('forwardUrl')).toBe('https://skiptv.example/app/')
     expect(params.get('context[device][product]')).toBe('SkipTV')
   })
+
+  it('a short PIN for plex.tv/link (the spare sign-in)', async () => {
+    const mock = new MockFetch()
+    mock.stub('/api/v2/pins', '{"id":7,"code":"K7Q2","authToken":null,"expiresIn":900}', 201)
+    const api = new PlexAccountAPI(testClient, mock.fetch, 'https://plex.test')
+    expect((await api.createPin(false)).code).toBe('K7Q2')
+    expect(mock.last.url.searchParams.get('strong')).toBe('false')
+    expect(api.linkPageURL).toBe('https://plex.test/link')
+    expect(PlexAccountAPI.linkName).toBe('plex.tv/link')
+  })
 })
 
 describe('Plex server API', () => {

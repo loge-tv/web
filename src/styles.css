@@ -309,6 +309,31 @@ p {
   font-size: 26px;
 }
 
+/* The spare sign-in: steps, then the plex.tv/link code, big enough to read off another screen. */
+.login-steps {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.login-steps a {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.login-code-value {
+  align-self: flex-start;
+  padding: 12px 24px;
+  border-radius: 16px;
+  background: var(--surface);
+  font: 700 44px/1 ui-monospace, 'SF Mono', Menlo, monospace;
+  letter-spacing: 0.18em;
+  user-select: all;
+}
+
 .server-list {
   display: flex;
   flex-direction: column;

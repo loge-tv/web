@@ -11,7 +11,10 @@ episodes is ported from SkipTVKit together with its tests.
 The interface is in Russian for now; the labels in quotes below are English translations.
 
 - **Sign-in** with a Plex account: a PIN (`plex.tv/api/v2/pins`, strong) → the
-  `app.plex.tv/auth` page → return to `forwardUrl` → polling the PIN (up to 90 s). The server list
+  `app.plex.tv/auth` page → return to `forwardUrl` → polling the PIN (up to 90 s). The spare way,
+  «Войти по коду», is a short PIN (`strong=false`) shown on the screen and typed at `plex.tv/link` on
+  any device; it is polled every 2 s and renewed when it expires. The strings are shared with the
+  Apple and Android apps. The server list
   comes from `plex.tv/api/v2/resources`, the addresses are checked in parallel (`/identity`), and the
   most preferred one that answers is used (local → remote → relay). On an HTTPS page only
   HTTPS addresses (plex.direct) are used, otherwise the browser blocks mixed content. The token is

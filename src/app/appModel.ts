@@ -18,7 +18,11 @@ import { Watchlist } from './watchlist'
 
 export type Phase =
   | { kind: 'starting' }
-  | { kind: 'login'; error?: string; waiting?: boolean }
+  /**
+   * `waiting`: the app.plex.tv page is opening or has sent the browser back and the PIN is being
+   * checked. `byCode`: the spare way is open (`code` once plex.tv gave it).
+   */
+  | { kind: 'login'; error?: string; waiting?: boolean; byCode?: boolean; code?: string }
   | { kind: 'choosingServer'; servers: PlexServer[] }
   | { kind: 'connecting'; text: string }
   | { kind: 'failed'; message: string }
@@ -60,6 +64,8 @@ export class AppModel {
   private listeners = new Set<() => void>()
   private userToken: string | undefined = readString(StorageKey.userToken)
   private started = false
+  /** Bumped to stop the code sign-in's polling (another way chosen, signed in, signed out). */
+  private codeLoginRun = 0
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener)
@@ -118,6 +124,7 @@ export class AppModel {
 
   /** Creates a PIN and sends the browser to app.plex.tv; it comes back to this page. */
   async beginLogin() {
+    this.codeLoginRun += 1
     try {
       this.set({ phase: { kind: 'login', waiting: true } })
       const pin = await this.account.createPin()
@@ -154,11 +161,44 @@ export class AppModel {
   }
 
   cancelLogin() {
+    this.codeLoginRun += 1
     writeJSON(StorageKey.pendingPin, undefined)
     this.set({ phase: { kind: 'login' } })
   }
 
+  /**
+   * The spare way to sign in: a short PIN the user types at plex.tv/link on any device (handy when
+   * Plex is signed in elsewhere, or the sign-in page can't come back here). Polled every 2 s and
+   * renewed when it expires, until signed in or another way is chosen.
+   */
+  async beginCodeLogin() {
+    const run = ++this.codeLoginRun
+    const current = () => run === this.codeLoginRun
+    this.set({ phase: { kind: 'login', byCode: true } })
+    try {
+      while (current()) {
+        const pin = await this.account.createPin(false)
+        if (!current()) return
+        this.set({ phase: { kind: 'login', byCode: true, code: pin.code } })
+        const deadline = Date.now() + Math.max(30, (pin.expiresIn ?? 900) - 10) * 1000
+        while (Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 2000))
+          if (!current()) return
+          const checked = await this.account.checkPin(pin)
+          if (!current()) return
+          if (checked.authToken) {
+            await this.didLogin(checked.authToken)
+            return
+          }
+        }
+      }
+    } catch (error) {
+      if (current()) this.set({ phase: { kind: 'login', byCode: true, error: `Не удалось связаться с plex.tv: ${errorText(error)}` } })
+    }
+  }
+
   async didLogin(token: string) {
+    this.codeLoginRun += 1
     this.userToken = token
     writeString(StorageKey.userToken, token)
     await this.loadServers()
@@ -258,6 +298,7 @@ export class AppModel {
   }
 
   logout() {
+    this.codeLoginRun += 1
     writeString(StorageKey.userToken, undefined)
     writeJSON(StorageKey.server, undefined)
     writeJSON(StorageKey.pendingPin, undefined)

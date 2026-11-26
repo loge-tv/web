@@ -11,6 +11,8 @@ const fakeEnv: Record<string, string> = {
   VITE_PLEX_TV_URL: `http://127.0.0.1:${process.env.FAKE_PLEXTV_PORT ?? 5181}`,
   VITE_PLEX_AUTH_URL: `http://127.0.0.1:${process.env.FAKE_PLEXTV_PORT ?? 5181}/auth`,
   VITE_DETECTOR_URL: `http://127.0.0.1:${process.env.FAKE_DETECTOR_PORT ?? 5183}`,
+  // Sepia Server is looked for on the Plex server's hosts at this port: the fake's.
+  VITE_SEPIA_SERVER_PORT: `${process.env.FAKE_DETECTOR_PORT ?? 5183}`,
   VITE_PLEX_DISCOVER_URL: `http://127.0.0.1:${process.env.FAKE_DISCOVER_PORT ?? 5184}`,
   VITE_PLEX_IMAGES_URL: `http://127.0.0.1:${process.env.FAKE_DISCOVER_PORT ?? 5184}`,
   // The TMDB proxy: a fake one (dev/fake-tmdb.mjs) with its token.

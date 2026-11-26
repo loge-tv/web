@@ -32,6 +32,11 @@ export const TMDB_PROXY_TOKEN: string = import.meta.env.VITE_TMDB_PROXY_TOKEN ||
 /** Sepia Server used until the user sets another one in the settings; none by default. */
 export const DEFAULT_DETECTOR: string | undefined = import.meta.env.VITE_DETECTOR_URL || undefined
 /**
+ * The port Sepia Server is looked for on, on the Plex server's hosts: its standard 32420.
+ * Overridable for the fakes only (their Sepia Server listens elsewhere).
+ */
+export const SEPIA_SERVER_PORT: number = Number(import.meta.env.VITE_SEPIA_SERVER_PORT) || 32420
+/**
  * YouTube, where trailers play (`/embed/<id>`). Overridable for the fakes only: the smoke test
  * must not reach the real YouTube.
  */

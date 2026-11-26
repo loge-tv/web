@@ -22,6 +22,11 @@ export const StorageKey = {
   pendingPin: 'plexPendingPin',
   settings: 'settings',
   volume: 'playerVolume',
+  /**
+   * Sepia Server of each Plex server: its `clientIdentifier` → the address, "" when the user
+   * skipped it. Kept across sign-outs, like a device setting.
+   */
+  sepiaServers: 'sepiaServers',
   /** Russian names of catalog titles (`CatalogTitles`): not the account's, kept across sign-outs. */
   catalogTitles: 'catalogTitles',
 } as const

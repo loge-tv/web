@@ -184,8 +184,24 @@ The interface is in Russian for now; the labels in quotes below are English tran
     "Restore the default collection order" (`hiddenHubs`, `hubOrder`). In an empty search the
     watchlist is always shown in full. Settings stay in this browser (`localStorage`): unlike the
     Apple apps' iCloud, nothing syncs them;
-  - **Sepia Server** — the address, empty until one is entered (with a check, and a reset or removal);
+  - **Sepia Server** — the address and its connection state ("Проверяем…", "Подключён · {Plex
+    server} · {version}", "Нет доступа: этот Sepia Server от другого сервера Plex", "Не отвечает",
+    "Нужен https-адрес"; a new address is checked at once), "Найти" (on Plex's hosts), an address
+    typed by hand, "Убрать адрес Sepia Server";
   - **Server and account** — server and connection address, reconnecting, switching servers, sign out.
+- **Connecting Sepia Server** (contract of sepiatv/server v1/v1.1, server 0.7.0). After a Plex
+  server is connected for the first time, the step "Подключите Sepia Server" looks for it on the
+  hosts of the Plex server's direct connections at port 32420 (`GET /v1/info`, no token) and offers
+  the one whose `machineIdentifier` is this Plex server's; or the address is typed by hand; or
+  "Пропустить". An address is kept only after `/v1/stats` takes the Plex token, per Plex server
+  (`sepiaServers` in `localStorage`, "" = skipped). The token goes over plain http only inside the
+  home network (private IPv4, link-local, IPv6 ULA, loopback, `.local`); an external http address
+  is used only after the user agrees, and nothing with the token goes there before that. From an
+  https page an http address (not loopback) is refused without asking it: the browser blocks mixed
+  content. Servers before 0.7.0 answer `/v1/info` with 404: they are found only by hand and
+  checked by the token. A kept address is checked again in the background on start-up: another
+  Plex server's stops being used; one that doesn't answer is looked for again on Plex's hosts. The
+  links `https://sepiatv.com/connect#url=…` and `sepiatv://server?url=…` are for the apps.
 - Sepia Server is optional: when it isn't set or can't be asked (down, refuses the token, no CORS), segments come from the
   file's own chapters ("Intro", "Credits", "Титры"…) and, for what they lack, from [TheIntroDB](https://theintrodb.org)
   (a request of its own, without the Plex token); the tracks panel says where they came from. Nothing there — no skipping.
@@ -237,7 +253,10 @@ credits (a pause freezes it, scrobble only at the credits) → autoplay as the c
 the offset restarts the transcoder → switching the dub (PUT streams, restart, the dub stored in
 Sepia Server) → Esc (stopped, transcode stopped) → choosing the started episode → movie: ▶ plays
 from where it was left without asking, marking as watched, filters → settings (a list of four
-pages, "Back" to the list, Sepia Server, skip mode) → countdown mode ("Don't
+pages, "Back" to the list, Sepia Server, skip mode) → the "Подключите Sepia Server" step (found
+on Plex's host and kept; nothing found → by hand: another Plex server's, not yet, a refused token,
+an external http address asked before the token goes there; "Пропустить"; the settings: consent,
+"Найти", a new address checked at once, removal, a server before 0.7.0) → countdown mode ("Don't
 skip", the button inside the intro) → "Credits" on the next episode card (the credits play with
 the "Next episode" button, no autoplay) → Sepia Server off (the fake TheIntroDB asked by the
 show's TVDB id, without the Plex token) → keys → leaving the player while
@@ -272,12 +291,14 @@ without rewrite rules.
 - **HTTPS is required** (or `http://localhost`): from an HTTPS page only the server's HTTPS
   addresses are reachable — `*.plex.direct` from the plex.tv list. If the page is opened over HTTP
   on the local network, `http://192.168.…:32400` works too.
-- There is no default Sepia Server address: everyone enters their own in settings, or it is set at
-  build time: `VITE_DETECTOR_URL=https://… npm run build`. Without one, segments come from the
+- There is no default Sepia Server address: it is found or entered after sign-in, or set at
+  build time: `VITE_DETECTOR_URL=https://… npm run build` (taken without the step and without the
+  background check). Without one, segments come from the
   file's chapters and TheIntroDB. Sepia Server must
   send CORS headers (see below) and be on HTTPS if the app itself is on HTTPS.
 - `VITE_PLEX_TV_URL`, `VITE_PLEX_AUTH_URL`, `VITE_PLEX_DISCOVER_URL`, `VITE_PLEX_IMAGES_URL`,
-  `VITE_YOUTUBE_URL`, `VITE_THEINTRODB_URL`, `VITE_TMDB_PROXY_URL`, `VITE_TODAY` — for the fakes only.
+  `VITE_YOUTUBE_URL`, `VITE_THEINTRODB_URL`, `VITE_TMDB_PROXY_URL`, `VITE_SEPIA_SERVER_PORT`,
+  `VITE_TODAY` — for the fakes only.
 - The app name is a single constant, `APP_NAME` in `src/config.ts` (and `<title>` in
   `index.html`).
 - TMDB (Russian names of catalog titles, trailers, recommendations) comes from the TMDB proxy,

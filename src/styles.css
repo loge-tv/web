@@ -334,6 +334,46 @@ p {
   user-select: all;
 }
 
+/* Connecting Sepia Server: the step after connecting and the settings section. */
+.sepia-found,
+.sepia-form,
+.sepia-consent {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+}
+
+.sepia-form form {
+  width: 100%;
+}
+
+.sepia-form input[type='url'] {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+
+.sepia-address {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 14px;
+}
+
+.settings-row.sepia-settings {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
 .server-list {
   display: flex;
   flex-direction: column;

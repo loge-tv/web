@@ -646,9 +646,12 @@ export async function startFake(options = {}) {
     if (req.method === 'POST' && p === '/api/v2/pins') {
       if (!url.searchParams.get('X-Plex-Client-Identifier')) return json(res, { error: 'no client id' }, 400)
       const id = pins.size + 1000
-      const pin = { id, code: `FAKE${id}`, approved: false, clientId: url.searchParams.get('X-Plex-Client-Identifier') }
+      // Not strong: a short code for plex.tv/link, as plex.tv gives (4 characters, 15 minutes).
+      const strong = url.searchParams.get('strong') === 'true'
+      const code = strong ? `FAKE${id}` : `K${String(id % 1000).padStart(3, '0')}`
+      const pin = { id, code, strong, approved: false, clientId: url.searchParams.get('X-Plex-Client-Identifier') }
       pins.set(id, pin)
-      return json(res, { id, code: pin.code, authToken: null, expiresIn: 1800 }, 201)
+      return json(res, { id, code: pin.code, authToken: null, expiresIn: strong ? 1800 : 900 }, 201)
     }
     const pinMatch = /^\/api\/v2\/pins\/(\d+)$/.exec(p)
     if (req.method === 'GET' && pinMatch) {
@@ -670,6 +673,13 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
         200,
         'text/html; charset=utf-8',
       )
+    }
+    if (p === '/link') {
+      // Stands in for plex.tv/link with a signed-in account: approves the short PIN typed there.
+      const code = (url.searchParams.get('code') ?? '').toUpperCase()
+      const pin = [...pins.values()].find((x) => !x.strong && x.code === code)
+      if (pin) pin.approved = true
+      return text(res, pin ? 'linked' : 'no such code', pin ? 200 : 404)
     }
     if (p === '/approve') {
       const code = url.searchParams.get('code')

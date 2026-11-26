@@ -1,6 +1,6 @@
 import { appModel, type Phase } from '../app/appModel'
 import { APP_NAME } from '../config'
-import type { PlexServer } from '../core/plexAccount'
+import { PlexAccountAPI, type PlexServer } from '../core/plexAccount'
 import { Wordmark } from '../ui/icons'
 
 export function LoginScreen({ phase }: { phase: Extract<Phase, { kind: 'login' }> }) {
@@ -11,15 +11,12 @@ export function LoginScreen({ phase }: { phase: Extract<Phase, { kind: 'login' }
           <Wordmark height={40} />
         </div>
         <h1>Войдите через аккаунт Plex</h1>
-        <p className="muted">
-          Откроется страница Plex: войдите в аккаунт и разрешите доступ, после этого вы вернётесь сюда. Пароль от Plex
-          {` ${APP_NAME}`} не видит.
-        </p>
+        <p className="muted">Откроется страница входа Plex. После входа вы вернётесь в приложение.</p>
         {phase.error && <p className="error-text">{phase.error}</p>}
         {phase.waiting ? (
           <div className="row gap center">
             <div className="spinner small" />
-            <span className="muted">Жду подтверждения от Plex…</span>
+            <span className="muted">Жду входа в Plex…</span>
             <button className="btn btn-secondary" onClick={() => appModel.cancelLogin()}>
               Отмена
             </button>
@@ -28,6 +25,31 @@ export function LoginScreen({ phase }: { phase: Extract<Phase, { kind: 'login' }
           <button className="btn btn-primary wide" onClick={() => void appModel.beginLogin()}>
             Войти через Plex
           </button>
+        )}
+        {phase.byCode ? (
+          <div className="login-code">
+            <p className="muted">
+              Откройте{' '}
+              <a href={appModel.account.linkPageURL} target="_blank" rel="noreferrer">
+                {PlexAccountAPI.linkName}
+              </a>{' '}
+              на любом устройстве и введите код
+            </p>
+            <div className="login-code-value" aria-live="polite">
+              {phase.code ?? '····'}
+            </div>
+            {phase.error && (
+              <button className="btn btn-secondary" onClick={() => void appModel.beginCodeLogin()}>
+                Повторить
+              </button>
+            )}
+          </div>
+        ) : (
+          !phase.waiting && (
+            <button className="btn btn-secondary wide" onClick={() => void appModel.beginCodeLogin()}>
+              Войти по коду
+            </button>
+          )
         )}
       </div>
     </div>

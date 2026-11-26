@@ -126,6 +126,8 @@ export function isLocalConnection(server: PlexServer, url: string): boolean {
 export class PlexAccountAPI {
   static readonly defaultBase = 'https://plex.tv'
   static readonly defaultAuthBase = 'https://app.plex.tv/auth'
+  /** Where a short PIN is typed, as the sign-in screen names it. */
+  static readonly linkName = 'plex.tv/link'
 
   constructor(
     readonly client: PlexClientInfo,
@@ -134,10 +136,18 @@ export class PlexAccountAPI {
     readonly authBase = PlexAccountAPI.defaultAuthBase,
   ) {}
 
-  /** Creates a strong PIN for the app.plex.tv sign-in page. */
-  async createPin(): Promise<PlexPin> {
-    const url = joinURL(this.base, '/api/v2/pins', { strong: 'true', ...plexParams(this.client) })
+  /**
+   * Creates a PIN: a strong one for the app.plex.tv sign-in page, or a short (4 character) one the
+   * user types at plex.tv/link on any device.
+   */
+  async createPin(strong = true): Promise<PlexPin> {
+    const url = joinURL(this.base, '/api/v2/pins', { strong: String(strong), ...plexParams(this.client) })
     return parsePin(await fetchJSON(this.fetchFn, url, { ...jsonInit, method: 'POST' }))
+  }
+
+  /** The plex.tv/link page, where a short PIN is typed. */
+  get linkPageURL(): string {
+    return joinURL(this.base, '/link')
   }
 
   /** Returns the PIN; `authToken` is set once the user has signed in. */

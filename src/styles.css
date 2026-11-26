@@ -309,20 +309,23 @@ p {
   font-size: 26px;
 }
 
-/* The spare sign-in: the plex.tv/link code, big enough to read off another device's screen. */
-.login-code {
+/* The spare sign-in: steps, then the plex.tv/link code, big enough to read off another screen. */
+.login-steps {
+  margin: 0;
+  padding-left: 22px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 12px;
+  gap: 6px;
+  color: var(--text-secondary);
 }
 
-.login-code a {
+.login-steps a {
   color: var(--text);
   font-weight: 600;
 }
 
 .login-code-value {
+  align-self: flex-start;
   padding: 12px 24px;
   border-radius: 16px;
   background: var(--surface);

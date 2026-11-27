@@ -1,11 +1,11 @@
-// Fake plex.tv, Plex Media Server, Plex's catalog (Discover + image resizer) and detector for
+// Fake plex.tv, Plex Media Server, Plex's catalog (Discover + image resizer) and Sepia Server for
 // local development and the smoke test. Nothing here talks to the real Plex. Media is generated
 // with ffmpeg into dev/.media.
 //
 //   node dev/fake-server.mjs            # serves dev/.out/dist (build with `npm run build:fake`)
 //   FAKE_HLS=absolute node dev/fake-server.mjs
 //
-// Ports (env): FAKE_APP_PORT 5180, FAKE_PLEXTV_PORT 5181, FAKE_PMS_PORT 5182, FAKE_DETECTOR_PORT 5183,
+// Ports (env): FAKE_APP_PORT 5180, FAKE_PLEXTV_PORT 5181, FAKE_PMS_PORT 5182, FAKE_SEPIA_SERVER_PORT 5183,
 // FAKE_DISCOVER_PORT 5184, FAKE_TMDB_PORT 5185 (the TMDB proxy, dev/fake-tmdb.mjs).
 
 import { execFile } from 'node:child_process'
@@ -156,7 +156,7 @@ export function makeLibrary() {
     title: 'Тестовый сериал',
     // Modern agent: the same title as the catalog's cat-show-10.
     guid: 'plex://show/cat-show-10',
-    // TMDB's id: the seed of «Потому что вы смотрели» (the fake detector knows it).
+    // TMDB's id: the seed of «Потому что вы смотрели» (the fake Sepia Server knows it).
     Guid: [{ id: 'imdb://tt0000100' }, { id: 'tmdb://1100' }, { id: 'tvdb://100' }],
     summary: 'Сериал из генератора тестового сигнала: счётчик на экране и ровный тон.',
     year: 2025,
@@ -559,7 +559,7 @@ export async function startFake(options = {}) {
     app: Number(options.appPort ?? process.env.FAKE_APP_PORT ?? 5180),
     plextv: Number(options.plextvPort ?? process.env.FAKE_PLEXTV_PORT ?? 5181),
     pms: Number(options.pmsPort ?? process.env.FAKE_PMS_PORT ?? 5182),
-    detector: Number(options.detectorPort ?? process.env.FAKE_DETECTOR_PORT ?? 5183),
+    sepiaServer: Number(options.sepiaServerPort ?? process.env.FAKE_SEPIA_SERVER_PORT ?? 5183),
     discover: Number(options.discoverPort ?? process.env.FAKE_DISCOVER_PORT ?? 5184),
   }
   const host = '127.0.0.1'
@@ -579,7 +579,7 @@ export async function startFake(options = {}) {
   const requests = []
   const catalog = makeCatalog()
   const state = {
-    detectorDown: !!options.detectorDown,
+    sepiaServerDown: !!options.sepiaServerDown,
     /**
      * Sepia Server's /v1/info (contract v1, server 0.7.0): 'ok' names this fake Plex server,
      * 'pending' hasn't reached Plex yet (no machineIdentifier), 'foreign' names another Plex
@@ -588,7 +588,7 @@ export async function startFake(options = {}) {
     sepiaInfo: 'ok',
     /** Sepia Server refuses the token as having no access to its Plex server (401 token_rejected). */
     sepiaRejectToken: false,
-    detectorDelayMs: 0,
+    sepiaServerDelayMs: 0,
     metadataDelayMs: 0,
     /** Catalog seasons' episodes come this much later (the show's seasons do not). */
     catalogEpisodesDelayMs: 0,
@@ -873,7 +873,7 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
         const item = key ? findItem(key) : undefined
         const w = Math.min(2000, Number(url.searchParams.get('width') ?? 300))
         const h = Math.min(2000, Number(url.searchParams.get('height') ?? 300))
-        const label = item ? (item.type === 'episode' ? `${item.index}. ${item.title}` : item.title) : 'SkipTV'
+        const label = item ? (item.type === 'episode' ? `${item.index}. ${item.title}` : item.title) : 'Sepia TV'
         res.setHeader('Cache-Control', 'max-age=3600')
         return text(res, artwork(label, w, h), 200, 'image/svg+xml')
       }
@@ -915,9 +915,9 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
     }
   })
 
-  // Detector with the CORS the real one is getting.
-  const detector = createServer(async (req, res) => {
-    const url = new URL(req.url, urls.detector)
+  // Sepia Server with the CORS the real one is getting.
+  const sepiaServer = createServer(async (req, res) => {
+    const url = new URL(req.url, urls.sepiaServer)
     // Like Sepia Server: CORS on everything but /healthz (the real one has it on /v1 only), so a page
     // can't read /healthz.
     if (url.pathname !== '/healthz') cors(res, 'GET, PUT, OPTIONS', 'X-Plex-Token, Content-Type, Accept')
@@ -928,10 +928,10 @@ fetch('/approve?code=' + encodeURIComponent(params.get('code')) + '&clientID=' +
       log('theintrodb', req, url, body, res)
       return json(res, { error: 'not found' }, 404)
     }
-    log('detector', req, url, body, res)
-    if (state.detectorDown) return text(res, 'down', 503)
-    // A slow detector (smoke test: leaving the player while it still loads).
-    if (state.detectorDelayMs && url.pathname !== '/healthz') await new Promise((r) => setTimeout(r, state.detectorDelayMs))
+    log('sepiaServer', req, url, body, res)
+    if (state.sepiaServerDown) return text(res, 'down', 503)
+    // A slow Sepia Server (smoke test: leaving the player while it still loads).
+    if (state.sepiaServerDelayMs && url.pathname !== '/healthz') await new Promise((r) => setTimeout(r, state.sepiaServerDelayMs))
     const p = decodeURIComponent(url.pathname)
     if (p === '/healthz') return text(res, 'ok')
     // Stands in for YouTube's embed page (the trailer's iframe), so the browser never leaves the fakes.
@@ -1133,7 +1133,7 @@ addEventListener('message', (e) => {
     createReadStream(file).pipe(res)
   })
 
-  const servers = { app, plextv, pms, detector, discover }
+  const servers = { app, plextv, pms, sepiaServer, discover }
   await Promise.all(Object.entries(servers).map(([name, s]) => new Promise((ok, fail) => s.once('error', fail).listen(ports[name], host, ok))))
   // The TMDB proxy: titles, trailers and recommendations.
   const tmdb = await startFakeTMDB({

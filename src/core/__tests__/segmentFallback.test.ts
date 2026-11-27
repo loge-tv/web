@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ChapterSegments, FallbackSegments } from '../chapterSegments'
-import { DetectorClient } from '../detectorClient'
+import { SepiaServerClient } from '../sepiaServerClient'
 import { externalID, makeItem, parseMetadata, type PlexChapter, type PlexItem } from '../plexModels'
 import { PlexServerAPI } from '../plexServerAPI'
 import type { Segment, SegmentType } from '../segment'
@@ -206,7 +206,7 @@ describe('SegmentFinder', () => {
   function finder(mock: MockFetch, { chaptersOnly = false, availability = new ServerAvailability() } = {}): SegmentFinder {
     const show = item(showJSON)
     return new SegmentFinder({
-      detector: new DetectorClient('https://server.test', 'tok', mock.fetch),
+      sepiaServer: new SepiaServerClient('https://server.test', 'tok', mock.fetch),
       theIntroDB: chaptersOnly ? null : introDB(mock),
       availability,
       show: async () => show,
@@ -232,7 +232,7 @@ describe('SegmentFinder', () => {
     expect(found.segments).toEqual([seg('intro', 60, 95), seg('credits', 2655.45, 2932.576)])
     expect(found.sources).toEqual(['chapters', 'theIntroDB'])
     expect(FoundSegments.note(found)).toBe('из глав файла и TheIntroDB')
-    // The detector's token stays with the detector.
+    // Sepia Server's token stays with Sepia Server.
     const [request] = introDBRequests(mock)
     expect([...request.headers.keys()]).toEqual(['accept'])
     expect(request.credentials).toBe('omit')
@@ -323,18 +323,18 @@ describe('SegmentFinder', () => {
     mock.stub('/v1/segments/1', '<html>')
     mock.stub('/v1/segments/2', '[]')
     mock.stub('/v1/segments/3', '{}')
-    const client = new DetectorClient('https://server.test', 'tok', mock.fetch)
+    const client = new SepiaServerClient('https://server.test', 'tok', mock.fetch)
     expect(await client.segmentsIfAvailable('1')).toBeNull()
     expect(await client.segmentsIfAvailable('2')).toBeNull()
     expect(await client.segmentsIfAvailable('3')).toEqual([])
     expect(await client.segmentsIfAvailable('4'), '404').toBeNull()
     const hanging = (_: string, init?: RequestInit) =>
       new Promise<Response>((_, reject) => init?.signal?.addEventListener('abort', () => reject(new Error('aborted'))))
-    expect(await new DetectorClient('https://server.test', 'tok', hanging, 20).segmentsIfAvailable('1')).toBeNull()
+    expect(await new SepiaServerClient('https://server.test', 'tok', hanging, 20).segmentsIfAvailable('1')).toBeNull()
   })
 
   it('without a Sepia Server at all: straight to the fallback', async () => {
-    const found = await new SegmentFinder({ detector: null, theIntroDB: null, availability: new ServerAvailability(), show: async () => undefined }).find(
+    const found = await new SegmentFinder({ sepiaServer: null, theIntroDB: null, availability: new ServerAvailability(), show: async () => undefined }).find(
       item(episodeJSON),
     )
     expect(found).toEqual<FoundSegments>({ segments: [seg('credits', 2655.45, 2932.576)], sources: ['chapters'] })

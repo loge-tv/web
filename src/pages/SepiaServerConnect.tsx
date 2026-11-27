@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { appModel } from '../app/appModel'
 import { useApp } from '../app/hooks'
-import { normalizeDetectorURL } from '../core/detectorClient'
+import { normalizeSepiaServerURL } from '../core/sepiaServerClient'
 import { verdictText, type Discovery, type Verdict } from '../core/sepiaServer'
 
 /**
@@ -95,7 +95,7 @@ export function SepiaServerAddressForm({ initial = '' }: { initial?: string }) {
   const [asked, setAsked] = useState<string | undefined>()
 
   const check = async (consented: boolean) => {
-    const url = normalizeDetectorURL(draft)
+    const url = normalizeSepiaServerURL(draft)
     if (!url) {
       setVerdict({ kind: 'down' })
       return

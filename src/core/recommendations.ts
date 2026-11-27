@@ -3,9 +3,9 @@ import { isRecord, lossyInt, lossyString } from './http'
 import { catalogKey, tmdbID, type PlexItem, type PlexItemType } from './plexModels'
 import { isWatchedInPlex, withUserState, type DiscoverItem, type DiscoverKind, type DiscoverUserState } from './plexDiscover'
 
-// Port of SkipTVKit's Recommendations.swift.
+// Port of the Apple app's Recommendations.swift.
 
-/** A title TMDB recommends, from the detector's `/v1/recommendations`. */
+/** A title TMDB recommends, from Sepia Server's `/v1/recommendations`. */
 export interface TMDBTitle {
   tmdbId: number
   /** `movie` or `tv`. */
@@ -163,7 +163,7 @@ export interface BecauseShelf {
 export interface RecommendationShelves {
   onServer: PlexItem[]
   because: BecauseShelf[]
-  /** Plex's own list (no TMDB): works without the detector. */
+  /** Plex's own list (no TMDB): works without Sepia Server. */
   cast?: CastShelf
 }
 

@@ -1,5 +1,5 @@
 import { ChapterSegments } from './chapterSegments'
-import type { DetectorClient } from './detectorClient'
+import type { SepiaServerClient } from './sepiaServerClient'
 import type { PlexItem } from './plexModels'
 import type { Segment, SegmentType } from './segment'
 import { TheIntroDBClient } from './theIntroDB'
@@ -62,7 +62,7 @@ export class ServerAvailability {
 }
 
 export interface SegmentFinderOptions {
-  detector: DetectorClient | null
+  sepiaServer: SepiaServerClient | null
   /** null turns TheIntroDB off. Default: the real TheIntroDB with the session cache. */
   theIntroDB?: TheIntroDBClient | null
   /** Default: shared by the whole app session. */
@@ -75,30 +75,30 @@ export interface SegmentFinderOptions {
  * Where the player gets skip segments: Sepia Server; when it can't be asked (down, refuses
  * the token, no server at all), the file's named chapters, and TheIntroDB for the types
  * the chapters don't have. Chapters win: they belong to this very file.
- * Port of SkipTVKit SegmentFinder.
+ * Port of the Apple app's SegmentFinder.
  */
 export class SegmentFinder {
-  readonly detector: DetectorClient | null
+  readonly sepiaServer: SepiaServerClient | null
   readonly theIntroDB: TheIntroDBClient | null
   readonly availability: ServerAvailability
   private readonly show: (ratingKey: string) => Promise<PlexItem | undefined>
 
   constructor(options: SegmentFinderOptions) {
-    this.detector = options.detector
+    this.sepiaServer = options.sepiaServer
     this.theIntroDB = options.theIntroDB === undefined ? new TheIntroDBClient() : options.theIntroDB
     this.availability = options.availability ?? ServerAvailability.shared
     this.show = options.show
   }
 
   async find(item: PlexItem): Promise<FoundSegments> {
-    const { detector, availability } = this
-    if (detector && !availability.isDown(detector.baseURL)) {
-      const segments = await detector.segmentsIfAvailable(item.ratingKey)
+    const { sepiaServer, availability } = this
+    if (sepiaServer && !availability.isDown(sepiaServer.baseURL)) {
+      const segments = await sepiaServer.segmentsIfAvailable(item.ratingKey)
       if (segments !== null) {
-        availability.markUp(detector.baseURL)
+        availability.markUp(sepiaServer.baseURL)
         return { segments, sources: ['server'] }
       }
-      availability.markDown(detector.baseURL)
+      availability.markDown(sepiaServer.baseURL)
     }
     return this.fallback(item)
   }

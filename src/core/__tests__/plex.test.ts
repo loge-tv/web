@@ -128,19 +128,19 @@ describe('plex.tv account', () => {
     expect(pin).toEqual({ id: 42, code: 'AB12xy', authToken: undefined, expiresIn: 900 })
     expect(mock.requests[0].method).toBe('POST')
     expect(mock.requests[0].url.searchParams.get('strong')).toBe('true')
-    expect(mock.requests[0].url.searchParams.get('X-Plex-Product')).toBe('SkipTV')
+    expect(mock.requests[0].url.searchParams.get('X-Plex-Product')).toBe('Sepia TV')
 
     const checked = await api.checkPin(pin)
     expect(checked.authToken).toBe('secret')
     expect(mock.last.url.searchParams.get('code')).toBe('AB12xy')
 
-    const auth = new URL(api.authURL(pin, 'https://skiptv.example/app/'))
+    const auth = new URL(api.authURL(pin, 'https://sepiatv.example/app/'))
     expect(auth.origin + auth.pathname).toBe('https://app.plex.tv/auth')
     const params = new URLSearchParams(auth.hash.slice(2))
     expect(params.get('clientID')).toBe('test-client')
     expect(params.get('code')).toBe('AB12xy')
-    expect(params.get('forwardUrl')).toBe('https://skiptv.example/app/')
-    expect(params.get('context[device][product]')).toBe('SkipTV')
+    expect(params.get('forwardUrl')).toBe('https://sepiatv.example/app/')
+    expect(params.get('context[device][product]')).toBe('Sepia TV')
   })
 
   it('a short PIN for plex.tv/link (the spare sign-in)', async () => {

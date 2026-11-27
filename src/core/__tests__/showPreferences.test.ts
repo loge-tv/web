@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DetectorClient } from '../detectorClient'
+import { SepiaServerClient } from '../sepiaServerClient'
 import { track, type MediaTrack } from '../mediaTrack'
 import { makeItem } from '../plexModels'
 import {
@@ -128,7 +128,7 @@ describe('ShowPreferencesStore', () => {
     store.replace('10', { correction: correction({ introEnd: -1 }) })
     expect(store.preferences('10').correction).toEqual(correction({ introEnd: -1 }))
     store.replace('10', null)
-    expect(store.preferences('10')).toEqual(emptyPreferences()) // deleted on the detector
+    expect(store.preferences('10')).toEqual(emptyPreferences()) // deleted on Sepia Server
   })
 
   it('entries from before sync are uploaded, not dropped', () => {
@@ -163,12 +163,12 @@ describe('ShowPreferencesStore', () => {
   })
 })
 
-describe('detector preferences', () => {
-  const base = 'https://detector.test'
+describe('Sepia Server preferences', () => {
+  const base = 'https://sepia.test'
 
   it('endpoints', async () => {
     const mock = new MockFetch()
-    const client = new DetectorClient(base, 'tok', mock.fetch)
+    const client = new SepiaServerClient(base, 'tok', mock.fetch)
     mock.stub(
       '/v1/preferences/10',
       '{"key":"10","preferences":{"correction":{"introEnd":2,"future":1},"audio":{"language":"eng","indexInLanguage":0},"newField":true},"updatedAt":"2026-11-21T20:00:00Z"}',
@@ -181,7 +181,7 @@ describe('detector preferences', () => {
     expect(await client.fetchPreferences('20')).toBeNull()
 
     mock.stub('/v1/preferences/30', '', 404)
-    // An old detector must not look like "no preferences".
+    // An old Sepia Server must not look like "no preferences".
     await expect(client.fetchPreferences('30')).rejects.toThrow()
 
     mock.stub('/v1/preferences/10', '{"key":"10","preferences":{}}')
@@ -198,7 +198,7 @@ describe('detector preferences', () => {
   it('sync pushes unsent changes and pulls when clean', async () => {
     const offline = new MockFetch()
     const store = new ShowPreferencesStore(new MemoryStorage())
-    const sync = new ShowPreferencesSync(store, () => new DetectorClient(base, 'tok', offline.fetch))
+    const sync = new ShowPreferencesSync(store, () => new SepiaServerClient(base, 'tok', offline.fetch))
 
     store.update('10', (p) => ({ ...p, correction: correction({ introStart: 1 }) }))
     offline.fail('/v1/preferences/10')
@@ -207,17 +207,17 @@ describe('detector preferences', () => {
 
     const online = new MockFetch()
     online.stub('/v1/preferences/10', '{"key":"10","preferences":{"correction":{"introStart":4}}}')
-    const onlineSync = new ShowPreferencesSync(store, () => new DetectorClient(base, 'tok', online.fetch))
+    const onlineSync = new ShowPreferencesSync(store, () => new SepiaServerClient(base, 'tok', online.fetch))
     await onlineSync.pull('10')
     expect(store.preferences('10').correction.introStart).toBe(1) // unsent local change is not overwritten
     await onlineSync.push()
     expect([...store.dirtyKeys]).toEqual([])
     expect(online.last.method).toBe('PUT')
     await onlineSync.pull('10')
-    expect(store.preferences('10').correction.introStart).toBe(4) // clean: the detector's copy wins
+    expect(store.preferences('10').correction.introStart).toBe(4) // clean: Sepia Server's copy wins
   })
 
-  it('no detector: nothing happens', async () => {
+  it('no Sepia Server: nothing happens', async () => {
     const store = new ShowPreferencesStore(new MemoryStorage())
     const sync = new ShowPreferencesSync(store, () => null)
     store.update('1', (p) => ({ ...p, correction: correction({ introEnd: 1 }) }))

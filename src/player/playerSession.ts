@@ -1,5 +1,5 @@
 import type Hls from 'hls.js'
-import type { DetectorClient } from '../core/detectorClient'
+import type { SepiaServerClient } from '../core/sepiaServerClient'
 import { EpisodeNavigator } from '../core/episodeNavigator'
 import { TrackSelector, tracksFromPart, type MediaTrack } from '../core/mediaTrack'
 import { browserDefaultAudio, planPlayback, type BrowserCapabilities, type PlaybackPlan } from '../core/playbackPlan'
@@ -71,7 +71,7 @@ export interface PlayerSettings {
 
 export interface PlayerDeps {
   api: PlexServerAPI
-  detector: () => DetectorClient | null
+  sepiaServer: () => SepiaServerClient | null
   settings: () => PlayerSettings
   preferences: ShowPreferencesStore
   preferencesSync: ShowPreferencesSync
@@ -116,7 +116,7 @@ function loadHls(): Promise<typeof Hls | undefined> {
 }
 
 /**
- * Drives one playback session: `<video>` (direct play or Plex HLS), detector segments,
+ * Drives one playback session: `<video>` (direct play or Plex HLS), Sepia Server segments,
  * Plex progress and episode chaining. The web counterpart of the tvOS PlayerModel.
  * All positions are file seconds; under HLS the stream may start at the transcode offset.
  */
@@ -158,10 +158,10 @@ export class PlayerSession {
   private creditsCountdown = false
   private reachedEnd = false
   private fellBackFromDirect = false
-  /** Direct play takes the file from the detector (outside the home network). */
-  private directFromDetector = false
-  /** The detector didn't give the file: direct play from Plex, then the transcoder. */
-  private fellBackFromDetector = false
+  /** Direct play takes the file from Sepia Server (outside the home network). */
+  private directFromSepiaServer = false
+  /** Sepia Server didn't give the file: direct play from Plex, then the transcoder. */
+  private fellBackFromSepiaServer = false
   private disposed = false
   private detach: (() => void)[] = []
 
@@ -268,7 +268,7 @@ export class PlayerSession {
     this.creditsCountdown = false
     this.reachedEnd = false
     this.fellBackFromDirect = false
-    this.fellBackFromDetector = false
+    this.fellBackFromSepiaServer = false
     this.failedTextSubtitles.clear()
     this.cues = []
     this.skip = undefined
@@ -336,9 +336,9 @@ export class PlayerSession {
       if (token === this.loadToken) this.applyPulledPreferences(fullKey, preferences.audio)
     })
     // From Sepia Server; without it, from the file's chapters and TheIntroDB.
-    const detector = this.deps.detector()
+    const sepiaServer = this.deps.sepiaServer()
     const theIntroDB = THEINTRODB_URL ? new TheIntroDBClient(THEINTRODB_URL) : undefined
-    void new SegmentFinder({ detector, theIntroDB, show: (ratingKey) => api.item(ratingKey).catch(() => undefined) })
+    void new SegmentFinder({ sepiaServer, theIntroDB, show: (ratingKey) => api.item(ratingKey).catch(() => undefined) })
       .find(full)
       .catch((): FoundSegments => ({ segments: [], sources: [] }))
       .then((found) => {
@@ -759,22 +759,22 @@ export class PlayerSession {
 
   /**
    * At home Plex gives the file itself. Through a public address or the relay Plex gives it
-   * only with Plex Pass or Remote Watch Pass (lists and artwork still load), so the detector
+   * only with Plex Pass or Remote Watch Pass (lists and artwork still load), so Sepia Server
    * serves it from its mount of the library.
    */
   private directURL(part: PlexPart): string {
-    const detector = this.deps.local || this.fellBackFromDetector ? null : this.deps.detector()
-    const url = detector?.fileURL(this.snapshot.item.ratingKey, part)
-    this.directFromDetector = url !== undefined
+    const sepiaServer = this.deps.local || this.fellBackFromSepiaServer ? null : this.deps.sepiaServer()
+    const url = sepiaServer?.fileURL(this.snapshot.item.ratingKey, part)
+    this.directFromSepiaServer = url !== undefined
     return url ?? this.deps.api.directPlayURL(part)
   }
 
   private onMediaError() {
     const video = this.video
     if (!video || this.mode === undefined || !video.error) return
-    if (this.mode === 'direct' && this.directFromDetector && !this.fellBackFromDetector) {
-      // The detector couldn't give the file (down, an old version): Plex may (Plex Pass).
-      this.fellBackFromDetector = true
+    if (this.mode === 'direct' && this.directFromSepiaServer && !this.fellBackFromSepiaServer) {
+      // Sepia Server couldn't give the file (down, an old version): Plex may (Plex Pass).
+      this.fellBackFromSepiaServer = true
       void this.startMedia(this.pendingSeekTarget ?? this.snapshot.position, true)
       return
     }

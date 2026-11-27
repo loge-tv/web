@@ -4,7 +4,7 @@ The web version of Sepia TV: a custom Plex client that skips intros and credits 
 from [sepiatv/server](https://github.com/sepiatv/server). React + TypeScript + Vite, a static build with no backend.
 Works on a computer and is adapted for phones. The reference for behaviour is the
 Apple TV app; the logic of skipping, track selection and moving between
-episodes is ported from SkipTVKit together with its tests.
+episodes is ported from the Apple app's shared code together with its tests.
 
 ## What it does
 
@@ -216,7 +216,7 @@ git clone https://github.com/sepiatv/web.git
 cd web
 npm ci
 npm run dev          # http://localhost:5173, real plex.tv
-npm test             # Vitest: logic from src/core (ported SkipTVKit tests + web)
+npm test             # Vitest: logic from src/core (tests ported from the Apple app + web)
 npm run lint         # tsc + ESLint
 npm run build        # dist/ — static files
 ```
@@ -293,7 +293,7 @@ without rewrite rules.
   addresses are reachable — `*.plex.direct` from the plex.tv list. If the page is opened over HTTP
   on the local network, `http://192.168.…:32400` works too.
 - There is no default Sepia Server address: it is found or entered after sign-in, or set at
-  build time: `VITE_DETECTOR_URL=https://… npm run build` (taken without the step and without the
+  build time: `VITE_SEPIA_SERVER_URL=https://… npm run build` (taken without the step and without the
   background check). Without one, segments come from the
   file's chapters and TheIntroDB. Sepia Server must
   send CORS headers (see below) and be on HTTPS if the app itself is on HTTPS.

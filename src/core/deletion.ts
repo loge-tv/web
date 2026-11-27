@@ -1,7 +1,7 @@
 import { HTTPError } from './http'
 import type { PlexItem } from './plexModels'
 
-// Texts of SkipTV's AppModel.swift (DeletionText, Deletion).
+// Texts of the Apple app's AppModel.swift (DeletionText, Deletion).
 
 /** Texts about deleting downloads from the server. */
 export const DeletionText = {

@@ -4,7 +4,7 @@ import { MemoryStorage } from './core/showPreferences'
 /** localStorage, or memory when it is unavailable (private mode, blocked site data). */
 function pickStorage(): KeyValueStorage {
   try {
-    const probe = '__skiptv_probe__'
+    const probe = '__sepiatv_probe__'
     window.localStorage.setItem(probe, '1')
     window.localStorage.removeItem(probe)
     return window.localStorage

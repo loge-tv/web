@@ -17,7 +17,7 @@ import { APP_DIR, FAKE, RIG } from './paths.mjs'
 
 const HIDE_VIDEO = fileURLToPath(new URL('./hide-video.css', import.meta.url))
 
-test.skip(!existsSync(FAKE), `needs the landing rig's fake.mjs at ${RIG} (or LOGE_SHOTS_RIG=<shots-raw/harness>)`)
+test.skip(!existsSync(FAKE), `needs the landing rig's fake.mjs at ${RIG} (or SEPIA_SHOTS_RIG=<shots-raw/harness>)`)
 // One worker runs them in this order (playwright.config.mjs); a failed screen doesn't stop the others.
 
 let fake

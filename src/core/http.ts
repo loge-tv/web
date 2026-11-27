@@ -1,4 +1,4 @@
-/** Minimal HTTP helpers shared by the Plex and detector clients. */
+/** Minimal HTTP helpers shared by the Plex and Sepia Server clients. */
 
 export type FetchFn = (input: string, init?: RequestInit) => Promise<Response>
 

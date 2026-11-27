@@ -1,7 +1,7 @@
 import type { DiscoverUserState, PlexDiscoverAPI } from '../core/plexDiscover'
 import type { PlexItem } from '../core/plexModels'
 
-// Port of SkipTVKit's CatalogShow.swift.
+// Port of the Apple app's CatalogShow.swift.
 
 export interface CatalogShowSnapshot {
   seasons: PlexItem[]

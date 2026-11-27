@@ -5,7 +5,7 @@ import type { PlexClientInfo } from '../plexAccount'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
-/** Fixtures copied from the tvOS SkipTVKit tests. */
+/** Fixtures copied from the Apple app's tests. */
 export function fixture(name: string): string {
   return readFileSync(join(here, 'fixtures', `${name}.json`), 'utf8')
 }
@@ -70,10 +70,10 @@ export function hostFetch(reachable: string[]) {
 
 export const testClient: PlexClientInfo = {
   clientIdentifier: 'test-client',
-  product: 'SkipTV',
+  product: 'Sepia TV',
   version: '1.0',
   platform: 'Chrome',
   platformVersion: '',
   device: 'Browser',
-  deviceName: 'SkipTV',
+  deviceName: 'Sepia TV',
 }

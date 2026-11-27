@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DetectorClient } from '../../core/detectorClient'
+import type { SepiaServerClient } from '../../core/sepiaServerClient'
 import { makeItem, type PlexItem, type PlexPart, type PlexStream } from '../../core/plexModels'
 import type { PlexServerAPI, TranscodeOptions } from '../../core/plexServerAPI'
 import type { Segment } from '../../core/segment'
@@ -127,8 +127,8 @@ function setup({
     stopTranscode: vi.fn(async () => {}),
     subtitleURL: vi.fn((id: number) => `http://pms.test:32400/library/streams/${id}`),
   }
-  const detector = {
-    baseURL: 'http://loge.test',
+  const sepiaServer = {
+    baseURL: 'http://sepia.test',
     segmentsIfAvailable: vi.fn(() => segments.promise),
   }
   const remote = {
@@ -145,7 +145,7 @@ function setup({
   const session = new PlayerSession(
     {
       api: api as unknown as PlexServerAPI,
-      detector: () => detector as unknown as DetectorClient,
+      sepiaServer: () => sepiaServer as unknown as SepiaServerClient,
       settings: () => ({ skipMode, autoplayNext, nextEpisodeCountdown: 5, forceTranscode: false }),
       preferences: store,
       preferencesSync: sync,
@@ -158,7 +158,7 @@ function setup({
   )
   session.attach(video as unknown as HTMLVideoElement)
   sessions.push(session)
-  return { session, video, api, detector, remote, store, schedulePush, segments, episodes, pulled }
+  return { session, video, api, sepiaServer, remote, store, schedulePush, segments, episodes, pulled }
 }
 
 /** Starts the session and lets the media load. */
@@ -187,7 +187,7 @@ describe('PlayerSession start', () => {
     await flush()
 
     expect(s.video.src).toBe('http://pms.test:32400/library/parts/11/file.mp4')
-    expect(s.detector.segmentsIfAvailable).toHaveBeenCalledWith('102')
+    expect(s.sepiaServer.segmentsIfAvailable).toHaveBeenCalledWith('102')
     expect(s.api.allEpisodes).toHaveBeenCalledWith('100')
     expect(s.remote.fetchPreferences).toHaveBeenCalledWith('100')
 

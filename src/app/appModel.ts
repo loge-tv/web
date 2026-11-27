@@ -2,7 +2,7 @@ import { DEFAULT_SEPIA_SERVER, PLEX_AUTH_URL, PLEX_DISCOVER_URL, PLEX_IMAGES_URL
 import { CatalogTitles, type TitleEntry } from '../core/catalogTitles'
 import { SepiaServerClient, normalizeSepiaServerURL } from '../core/sepiaServerClient'
 import { HTTPError } from '../core/http'
-import { PlexAccountAPI, usableCandidateURLs, type PlexClientInfo, type PlexServer } from '../core/plexAccount'
+import { PlexAccountAPI, usableCandidateURLs, type PlexClientInfo, type PlexPin, type PlexServer } from '../core/plexAccount'
 import { PlexDiscoverAPI } from '../core/plexDiscover'
 import { sectionKind, type PlexItem, type PlexLibrarySection } from '../core/plexModels'
 import { PlexServerAPI } from '../core/plexServerAPI'
@@ -44,6 +44,37 @@ interface PendingPin {
   id: number
   code: string
   createdAt: number
+  /** Seconds the PIN lives (plex.tv's `expiresIn`); missing in PINs kept before it was saved. */
+  expiresIn?: number
+}
+
+/** plex.tv can't be reached: no code to show (strings agreed with Apple and Android, 2026-11-27). */
+const NO_PLEX_TV = 'Нет связи с plex.tv. Проверьте интернет.'
+
+/**
+ * Waits `ms`, or less: as soon as the page is shown again or the network comes back. A phone
+ * freezes a page in the background and may cut its network: the sign-in goes on when it's back.
+ */
+function pause(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const done = () => {
+      window.clearTimeout(timer)
+      document.removeEventListener('visibilitychange', shown)
+      window.removeEventListener('online', done)
+      resolve()
+    }
+    const shown = () => {
+      if (document.visibilityState === 'visible') done()
+    }
+    const timer = window.setTimeout(done, ms)
+    document.addEventListener('visibilitychange', shown)
+    window.addEventListener('online', done)
+  })
+}
+
+/** plex.tv says the PIN is gone (expired); anything else failing is the network, for now. */
+function pinGone(error: unknown): boolean {
+  return error instanceof HTTPError && error.status === 404
 }
 
 function errorText(error: unknown): string {
@@ -219,36 +250,47 @@ export class AppModel {
     try {
       this.set({ phase: { kind: 'login', waiting: true } })
       const pin = await this.account.createPin()
-      writeJSON(StorageKey.pendingPin, { id: pin.id, code: pin.code, createdAt: Date.now() } satisfies PendingPin)
+      writeJSON(StorageKey.pendingPin, { id: pin.id, code: pin.code, createdAt: Date.now(), expiresIn: pin.expiresIn } satisfies PendingPin)
       const forward = window.location.origin + window.location.pathname + window.location.search
       window.location.assign(this.account.authURL(pin, forward))
-    } catch (error) {
-      this.set({ phase: { kind: 'login', error: `Не удалось связаться с plex.tv: ${errorText(error)}` } })
+    } catch {
+      this.set({ phase: { kind: 'login', error: NO_PLEX_TV } })
     }
   }
 
-  /** Back from app.plex.tv: waits for the PIN to get its token. */
+  /**
+   * Back from app.plex.tv: waits for the PIN to get its token. A failed check (the page frozen in
+   * the background, no network) ends nothing: the same PIN is asked again until it expires. Only
+   * plex.tv answering "not signed in" for 90 s, or the PIN gone, ends the wait.
+   */
   private async finishLogin() {
     const pending = readJSON<PendingPin>(StorageKey.pendingPin)
     if (!pending) return
+    const run = ++this.codeLoginRun
+    const current = () => run === this.codeLoginRun
     this.set({ phase: { kind: 'login', waiting: true } })
-    const deadline = Date.now() + 90_000
-    try {
-      while (Date.now() < deadline) {
-        const pin = await this.account.checkPin(pending)
-        if (pin.authToken) {
-          writeJSON(StorageKey.pendingPin, undefined)
-          await this.didLogin(pin.authToken)
-          return
-        }
-        await new Promise((r) => setTimeout(r, 1000))
+    const expires = pending.createdAt + (pending.expiresIn ?? 1800) * 1000
+    let notYetSince: number | undefined
+    while (current() && Date.now() < expires) {
+      let token: string | undefined
+      try {
+        token = (await this.account.checkPin(pending)).authToken
+      } catch (error) {
+        if (pinGone(error)) break
       }
-      writeJSON(StorageKey.pendingPin, undefined)
-      this.set({ phase: { kind: 'login', error: 'Вход не подтверждён. Попробуйте ещё раз.' } })
-    } catch (error) {
-      writeJSON(StorageKey.pendingPin, undefined)
-      this.set({ phase: { kind: 'login', error: `Не удалось войти: ${errorText(error)}` } })
+      if (!current()) return
+      if (token) {
+        writeJSON(StorageKey.pendingPin, undefined)
+        await this.didLogin(token)
+        return
+      }
+      notYetSince ??= Date.now()
+      if (Date.now() - notYetSince >= 90_000) break
+      await pause(1000)
     }
+    if (!current()) return
+    writeJSON(StorageKey.pendingPin, undefined)
+    this.set({ phase: { kind: 'login', error: 'Вход не подтверждён. Попробуйте ещё раз.' } })
   }
 
   cancelLogin() {
@@ -260,31 +302,44 @@ export class AppModel {
   /**
    * The spare way to sign in: a short PIN the user types at plex.tv/link on any device (handy when
    * Plex is signed in elsewhere, or the sign-in page can't come back here). Polled every 2 s and
-   * renewed when it expires, until signed in or another way is chosen.
+   * renewed when it expires, until signed in or another way is chosen. A failed check (the page
+   * in the background, the network cut while the code is typed elsewhere) isn't shown: the same
+   * code is asked again, at once when the page is back. Only no code at all is an error, and the
+   * code still comes by itself when plex.tv answers again.
    */
   async beginCodeLogin() {
     const run = ++this.codeLoginRun
     const current = () => run === this.codeLoginRun
     this.set({ phase: { kind: 'login', byCode: true } })
-    try {
-      while (current()) {
-        const pin = await this.account.createPin(false)
+    while (current()) {
+      let pin: PlexPin
+      try {
+        pin = await this.account.createPin(false)
+      } catch {
         if (!current()) return
-        this.set({ phase: { kind: 'login', byCode: true, code: pin.code } })
-        const deadline = Date.now() + Math.max(30, (pin.expiresIn ?? 900) - 10) * 1000
-        while (Date.now() < deadline) {
-          await new Promise((r) => setTimeout(r, 2000))
-          if (!current()) return
-          const checked = await this.account.checkPin(pin)
-          if (!current()) return
-          if (checked.authToken) {
-            await this.didLogin(checked.authToken)
-            return
-          }
+        this.set({ phase: { kind: 'login', byCode: true, error: NO_PLEX_TV } })
+        await pause(5000)
+        continue
+      }
+      if (!current()) return
+      this.set({ phase: { kind: 'login', byCode: true, code: pin.code } })
+      const deadline = Date.now() + Math.max(30, (pin.expiresIn ?? 900) - 10) * 1000
+      while (Date.now() < deadline) {
+        await pause(2000)
+        if (!current()) return
+        let token: string | undefined
+        try {
+          token = (await this.account.checkPin(pin)).authToken
+        } catch (error) {
+          // Gone: a new code, without a word. Anything else: the same code, asked again.
+          if (pinGone(error)) break
+        }
+        if (!current()) return
+        if (token) {
+          await this.didLogin(token)
+          return
         }
       }
-    } catch (error) {
-      if (current()) this.set({ phase: { kind: 'login', byCode: true, error: `Не удалось связаться с plex.tv: ${errorText(error)}` } })
     }
   }
 

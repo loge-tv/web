@@ -1847,6 +1847,47 @@ await step('sign-in by code: a short PIN typed at plex.tv/link on another device
   await fresh.close()
 })
 
+await step('sign-in without plex.tv for a while: no code → said so, then it comes by itself; failed checks unseen, the same code and the sign-in page still sign in', async () => {
+  const fresh = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'ru-RU' })
+  recordHosts(fresh)
+  const p = await fresh.newPage()
+  p.on('pageerror', (e) => pageErrors.push(`no plex.tv: ${e}`))
+  const since = Date.now()
+  try {
+    fake.state.pinCreateDrop = 1
+    await p.goto(`${app}/`)
+    await p.getByRole('button', { name: 'Войти по коду' }).click()
+    await p.getByText('Нет связи с plex.tv. Проверьте интернет.').waitFor()
+    const code = p.locator('.login-code-value')
+    await until(async () => /^[A-Z0-9]{4}$/.test((await code.textContent()).trim()), { timeout: 15000, message: 'the code by itself' })
+    assert.equal(await p.locator('.error-text').count(), 0, 'the error gone with the code')
+    const shown = (await code.textContent()).trim()
+    // The page in the background and its network cut while the code is typed on a phone.
+    fake.state.pinCheckDrop = 3
+    await until(() => fake.state.pinCheckDrop === 0, { timeout: 15000, message: 'checks dropped' })
+    assert.equal(await p.locator('.error-text').count(), 0, 'failed checks not shown')
+    assert.equal((await code.textContent()).trim(), shown, 'the same code')
+    assert.equal((await fetch(`${fake.urls.plextv}/link?code=${shown}`)).status, 200)
+    // Back in front: checked at once.
+    await p.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
+    await p.locator('.topbar').waitFor({ timeout: 15000 })
+    const codes = find((r) => r.server === 'plextv' && r.method === 'POST' && r.path === '/api/v2/pins' && r.status === 201 && r.at > since)
+    assert.equal(codes.length, 1, 'one code for the whole sign-in')
+
+    // The sign-in page: back from it with no network for a few checks, signed in all the same.
+    await p.evaluate(() => localStorage.clear())
+    fake.state.pinCheckDrop = 3
+    await p.goto(`${app}/`)
+    await p.getByRole('button', { name: 'Войти через Plex' }).click()
+    await p.locator('.topbar').waitFor({ timeout: 20000 })
+    assert.equal(fake.state.pinCheckDrop, 0)
+  } finally {
+    fake.state.pinCreateDrop = 0
+    fake.state.pinCheckDrop = 0
+    await fresh.close()
+  }
+})
+
 await step('a Plex server without Sepia Server: the step finds it on Plex’s host, «Подключить» keeps it', async () => {
   const fresh = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'ru-RU' })
   recordHosts(fresh)

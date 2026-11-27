@@ -588,6 +588,9 @@ export async function startFake(options = {}) {
     sepiaInfo: 'ok',
     /** Sepia Server refuses the token as having no access to its Plex server (401 token_rejected). */
     sepiaRejectToken: false,
+    /** Drop this many PIN creations / PIN checks on plex.tv, like a phone with no network. */
+    pinCreateDrop: 0,
+    pinCheckDrop: 0,
     sepiaServerDelayMs: 0,
     metadataDelayMs: 0,
     /** Catalog seasons' episodes come this much later (the show's seasons do not). */
@@ -652,6 +655,11 @@ export async function startFake(options = {}) {
     log('plextv', req, url, undefined, res)
     const p = url.pathname
     if (req.method === 'POST' && p === '/api/v2/pins') {
+      // plex.tv out of reach: the connection dropped, as with no network.
+      if (state.pinCreateDrop > 0) {
+        state.pinCreateDrop -= 1
+        return req.socket.destroy()
+      }
       if (!url.searchParams.get('X-Plex-Client-Identifier')) return json(res, { error: 'no client id' }, 400)
       const id = pins.size + 1000
       // Not strong: a short code for plex.tv/link, as plex.tv gives (4 characters, 15 minutes).
@@ -663,6 +671,11 @@ export async function startFake(options = {}) {
     }
     const pinMatch = /^\/api\/v2\/pins\/(\d+)$/.exec(p)
     if (req.method === 'GET' && pinMatch) {
+      // A phone cut the background page's network while the code was typed elsewhere.
+      if (state.pinCheckDrop > 0) {
+        state.pinCheckDrop -= 1
+        return req.socket.destroy()
+      }
       const pin = pins.get(Number(pinMatch[1]))
       if (!pin || pin.code !== url.searchParams.get('code')) return json(res, { error: 'not found' }, 404)
       return json(res, { id: pin.id, code: pin.code, authToken: pin.approved ? USER_TOKEN : null, expiresIn: 1700 })

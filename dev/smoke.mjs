@@ -222,14 +222,14 @@ await step('BIF thumbnail while hovering the seek bar', async () => {
   await page.mouse.move(700, 300)
 })
 
-await step('per-show correction in the tracks panel is pushed to the detector', async () => {
+await step('per-show correction in the tracks panel is pushed to Sepia Server', async () => {
   await page.getByRole('button', { name: 'Дорожки и разметка' }).click()
   await page.getByText('Разметка сериала').waitFor()
   assert.match((await page.getByTestId('segments-summary').textContent()) ?? '', /Заставка 0:05–0:15 · Титры 1:10–1:30/)
   await page.getByRole('button', { name: 'Начало заставки позже' }).click()
   assert.equal(await page.getByTestId('offset-introStart').textContent(), '+1 с')
   assert.match((await page.getByTestId('segments-summary').textContent()) ?? '', /Заставка 0:06–0:15/)
-  const put = await until(() => find((r) => r.server === 'detector' && r.method === 'PUT' && r.path === '/v1/preferences/100')[0], {
+  const put = await until(() => find((r) => r.server === 'sepiaServer' && r.method === 'PUT' && r.path === '/v1/preferences/100')[0], {
     timeout: 5000,
     message: 'PUT /v1/preferences/100',
   })
@@ -369,7 +369,7 @@ await step('seeking back before the transcode offset restarts the transcode ther
   }, { timeout: 15000, message: 'playing from ~0:2x' })
 })
 
-await step('another dub: transcode restarts with it, remembered for the show on the detector', async () => {
+await step('another dub: transcode restarts with it, remembered for the show on Sepia Server', async () => {
   const startsBefore = pms('/video/:/transcode/universal/start.m3u8').length
   await page.mouse.move(700, 400)
   await page.getByRole('button', { name: 'Дорожки и разметка' }).click()
@@ -379,7 +379,7 @@ await step('another dub: transcode restarts with it, remembered for the show on 
   })
   assert.ok(put)
   await until(() => pms('/video/:/transcode/universal/start.m3u8').length > startsBefore, { message: 'transcode restart' })
-  const saved = await until(() => fake.state.preferences.get('100')?.audio, { timeout: 5000, message: 'audio preference on the detector' })
+  const saved = await until(() => fake.state.preferences.get('100')?.audio, { timeout: 5000, message: 'audio preference on Sepia Server' })
   assert.equal(saved.language, 'eng')
   assert.equal(saved.indexInLanguage, 0)
   await until(async () => {
@@ -445,7 +445,7 @@ await step('movie: ▶ plays from where it was left (no dialog), mark watched, l
 
 const settingsPages = () => page.getByRole('navigation', { name: 'Разделы настроек' }).getByRole('link')
 
-await step('settings: a list of four pages, Back returns to it; detector reachable, skip mode persists', async () => {
+await step('settings: a list of four pages, Back returns to it; Sepia Server reachable, skip mode persists', async () => {
   await page.getByRole('link', { name: 'Настройки' }).click()
   await page.waitForURL(/#\/settings$/)
   await settingsPages().first().waitFor()
@@ -459,7 +459,7 @@ await step('settings: a list of four pages, Back returns to it; detector reachab
   await settledShot('settings')
   // Browser Back from a page lands on the list.
   await settingsPages().filter({ hasText: 'Sepia Server' }).click()
-  await page.waitForURL(/#\/settings\/detector$/)
+  await page.waitForURL(/#\/settings\/sepia-server$/)
   await page.getByText('Подключён · Фейковый сервер · 0.7.0-fake').waitFor({ timeout: 8000 })
   await page.getByText('Адрес вашего Sepia Server: с ним заставки и титры находятся точнее. Без него они берутся из глав файла и TheIntroDB.').waitFor()
   await page.goBack()
@@ -533,10 +533,10 @@ await step('«Титры» on the "Следующая серия" card: the cred
   assert.equal(stop.query.time, '90000')
 })
 
-await step('detector down: the episode still plays, without segments', async () => {
-  fake.state.detectorDown = true
+await step('Sepia Server down: the episode still plays, without segments', async () => {
+  fake.state.sepiaServerDown = true
   await page.goto(`${app}/#/play/112`)
-  await until(async () => ((await video())?.time ?? 0) > 1, { timeout: 15000, message: 'playback without detector' })
+  await until(async () => ((await video())?.time ?? 0) > 1, { timeout: 15000, message: 'playback without Sepia Server' })
   await page.getByRole('button', { name: 'Дорожки и разметка' }).click()
   // The fake files have no chapters; the fake TheIntroDB is asked by the show's TVDB id and knows nothing.
   await page.getByText('Sepia Server недоступен, а в главах файла и TheIntroDB разметки нет').waitFor()
@@ -544,7 +544,7 @@ await step('detector down: the episode still plays, without segments', async () 
   assert.ok(introDB.length > 0, 'TheIntroDB asked by the show\'s TVDB id')
   assert.equal(introDB.at(-1).headers['x-plex-token'], undefined, 'no Plex token to TheIntroDB')
   await page.keyboard.press('Escape')
-  fake.state.detectorDown = false
+  fake.state.sepiaServerDown = false
 })
 
 await step('keyboard: Space pauses (paused timeline) and resumes, F toggles fullscreen', async () => {
@@ -565,7 +565,7 @@ await step('keyboard: Space pauses (paused timeline) and resumes, F toggles full
 })
 
 await step('leaving the player while it still loads starts no media and no transcode', async () => {
-  // A fresh page: the app remembers for 5 minutes that the detector was down and wouldn't ask it.
+  // A fresh page: the app remembers for 5 minutes that Sepia Server was down and wouldn't ask it.
   await page.goto(`${app}/#/`)
   await page.reload()
   await page.getByRole('heading', { name: 'Продолжить просмотр' }).waitFor({ timeout: 15000 })
@@ -839,8 +839,8 @@ await step('«Трейлер»: TMDB trailers through the proxy in the preferred
   assert.deepEqual(videos(since).map((r) => [r.query.item, r.query.language, ...proxyHeaders(r)]), [['tv:1100', 'ru', CLIENT_TOKEN, undefined]])
   await dialog().waitFor()
   // The Russian one plays first; the broken key is dropped; the English one is in the list.
-  const detector = fake.urls.detector
-  assert.ok((await frame().getAttribute('src'))?.startsWith(`${detector}/embed/ruTrailer01?`), await frame().getAttribute('src'))
+  const sepiaServer = fake.urls.sepiaServer
+  assert.ok((await frame().getAttribute('src'))?.startsWith(`${sepiaServer}/embed/ruTrailer01?`), await frame().getAttribute('src'))
   assert.match((await frame().getAttribute('src')) ?? '', /hl=ru/)
   const list = dialog().getByRole('list', { name: 'Другие видео' }).getByRole('button')
   assert.deepEqual(await list.allTextContents(), ['Тестовый сериал — трейлерРусский', 'Official TrailerАнглийский'])
@@ -897,7 +897,7 @@ await step('«Трейлер»: TMDB trailers through the proxy in the preferred
   await page.reload()
   await page.getByRole('button', { name: 'Трейлер' }).waitFor({ timeout: 10000 })
   // Sepia Server never asked about TMDB.
-  assert.equal(find((r) => r.server === 'detector' && /^\/v1\/(videos|recommendations|titles)/.test(r.path)).length, 0)
+  assert.equal(find((r) => r.server === 'sepiaServer' && /^\/v1\/(videos|recommendations|titles)/.test(r.path)).length, 0)
 })
 
 await step('a catalog title Plex has only in English: its Russian name from the proxy, kept', async () => {
@@ -1558,10 +1558,10 @@ await step('phone layout: no horizontal scrolling on home, show and player', asy
   await p.getByRole('navigation', { name: 'Разделы настроек' }).waitFor({ timeout: 8000 })
   assert.ok((await overflow()) <= 0, `settings overflow by ${await overflow()} px`)
   await p.screenshot({ path: join(screens, 'phone-settings.png'), fullPage: true })
-  for (const id of ['playback', 'home', 'detector', 'server']) {
+  for (const id of ['playback', 'home', 'sepia-server', 'server']) {
     await p.goto(`${app}/#/settings/${id}`)
     await p.getByRole('button', { name: 'Настройки' }).waitFor({ timeout: 8000 })
-    if (id === 'detector') await p.getByText('Подключён · Фейковый сервер · 0.7.0-fake').waitFor({ timeout: 8000 })
+    if (id === 'sepia-server') await p.getByText('Подключён · Фейковый сервер · 0.7.0-fake').waitFor({ timeout: 8000 })
     assert.ok((await overflow()) <= 0, `settings/${id} overflows by ${await overflow()} px`)
     await p.screenshot({ path: join(screens, `phone-settings-${id}.png`), fullPage: true })
   }
@@ -1764,7 +1764,7 @@ await step('without Sepia Server: trailers and recommendations still come from t
   await p.goto(`${app}/#/`)
   await p.evaluate(() => {
     const settings = JSON.parse(localStorage.getItem('settings') ?? '{}')
-    localStorage.setItem('settings', JSON.stringify({ ...settings, detectorURL: '' }))
+    localStorage.setItem('settings', JSON.stringify({ ...settings, sepiaServerURL: '' }))
   })
   const since = Date.now()
   await p.reload()
@@ -1772,7 +1772,7 @@ await step('without Sepia Server: trailers and recommendations still come from t
   await p.goto(`${app}/#/show/100`)
   await p.getByRole('button', { name: 'Трейлер' }).waitFor({ timeout: 10000 })
   assert.ok(tmdb('/v1/recommendations', (r) => r.at > since).length > 0 && tmdb('/v1/videos', (r) => r.at > since).length > 0)
-  assert.equal(find((r) => r.server === 'detector' && r.path !== '/healthz' && r.at > since).length, 0, 'Sepia Server not asked')
+  assert.equal(find((r) => r.server === 'sepiaServer' && r.path !== '/healthz' && r.at > since).length, 0, 'Sepia Server not asked')
   await fresh.close()
 })
 
@@ -1852,7 +1852,7 @@ await step('a Plex server without Sepia Server: the step finds it on Plex’s ho
   recordHosts(fresh)
   // No address yet (not the fake build's default).
   await fresh.addInitScript(() => {
-    if (!localStorage.getItem('settings')) localStorage.setItem('settings', JSON.stringify({ detectorURL: '' }))
+    if (!localStorage.getItem('settings')) localStorage.setItem('settings', JSON.stringify({ sepiaServerURL: '' }))
   })
   const p = await fresh.newPage()
   p.on('pageerror', (e) => pageErrors.push(`sepia step: ${e}`))
@@ -1861,14 +1861,14 @@ await step('a Plex server without Sepia Server: the step finds it on Plex’s ho
   await p.getByRole('button', { name: 'Войти через Plex' }).click()
   await p.getByRole('heading', { name: 'Подключите Sepia Server' }).waitFor({ timeout: 30000 })
   await p.getByText('Найден Sepia Server для «Фейковый сервер»').waitFor({ timeout: 15000 })
-  assert.equal(await p.locator('.sepia-found .sepia-address').textContent(), fake.urls.detector)
+  assert.equal(await p.locator('.sepia-found .sepia-address').textContent(), fake.urls.sepiaServer)
   await p.screenshot({ path: join(screens, 'sepia-step-found.png') })
   // Found by /v1/info alone: no token went anywhere yet.
-  assert.equal(find((r) => r.server === 'detector' && r.path === '/v1/stats' && r.at > since).length, 0)
+  assert.equal(find((r) => r.server === 'sepiaServer' && r.path === '/v1/stats' && r.at > since).length, 0)
   await p.getByRole('button', { name: 'Подключить' }).click()
   await p.locator('.topbar').waitFor({ timeout: 15000 })
-  const kept = await p.evaluate(() => [JSON.parse(localStorage.getItem('sepiaServers')), JSON.parse(localStorage.getItem('settings')).detectorURL])
-  assert.deepEqual(kept, [{ 'fake-server': fake.urls.detector }, fake.urls.detector])
+  const kept = await p.evaluate(() => [JSON.parse(localStorage.getItem('sepiaServers')), JSON.parse(localStorage.getItem('settings')).sepiaServerURL])
+  assert.deepEqual(kept, [{ 'fake-server': fake.urls.sepiaServer }, fake.urls.sepiaServer])
   // Kept for this Plex server: no step next time.
   await p.reload()
   await p.locator('.topbar').waitFor({ timeout: 15000 })
@@ -1879,7 +1879,7 @@ await step('the step: nothing found → by hand (another server’s, not yet, a 
   const fresh = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'ru-RU' })
   recordHosts(fresh)
   await fresh.addInitScript(() => {
-    if (!localStorage.getItem('settings')) localStorage.setItem('settings', JSON.stringify({ detectorURL: '' }))
+    if (!localStorage.getItem('settings')) localStorage.setItem('settings', JSON.stringify({ sepiaServerURL: '' }))
   })
   const p = await fresh.newPage()
   p.on('pageerror', (e) => pageErrors.push(`sepia by hand: ${e}`))
@@ -1892,7 +1892,7 @@ await step('the step: nothing found → by hand (another server’s, not yet, a 
     const field = p.getByRole('textbox', { name: 'Адрес Sepia Server' })
     const connect = p.locator('.sepia-form form').getByRole('button', { name: 'Подключить' })
     fake.state.sepiaInfo = 'foreign'
-    await field.fill(fake.urls.detector)
+    await field.fill(fake.urls.sepiaServer)
     await connect.click()
     await p.getByText('Этот Sepia Server работает с другим сервером Plex.').waitFor()
     fake.state.sepiaInfo = 'pending'
@@ -1904,13 +1904,13 @@ await step('the step: nothing found → by hand (another server’s, not yet, a 
     await p.getByText('У этого аккаунта Plex нет доступа к серверу, с которым работает Sepia Server.').waitFor()
     fake.state.sepiaRejectToken = false
     // An external name over http (mapped to the fake): asked before the token goes there.
-    const external = `http://sepia.fake.example:${new URL(fake.urls.detector).port}`
+    const external = `http://sepia.fake.example:${new URL(fake.urls.sepiaServer).port}`
     const since = Date.now()
     await field.fill(external)
     await connect.click()
     await p.getByText('Адрес не из домашней сети и без https: токен Plex пойдёт по сети открытым текстом. Всё равно подключить?').waitFor()
     await p.screenshot({ path: join(screens, 'sepia-step-consent.png') })
-    assert.equal(find((r) => r.server === 'detector' && r.path === '/v1/stats' && r.at > since).length, 0, 'no token before the consent')
+    assert.equal(find((r) => r.server === 'sepiaServer' && r.path === '/v1/stats' && r.at > since).length, 0, 'no token before the consent')
     await p.getByRole('button', { name: 'Отмена' }).click()
     await p.getByRole('button', { name: 'Пропустить' }).click()
     await p.locator('.topbar').waitFor({ timeout: 15000 })
@@ -1919,33 +1919,33 @@ await step('the step: nothing found → by hand (another server’s, not yet, a 
     await p.locator('.topbar').waitFor({ timeout: 15000 })
 
     // The settings: the same form; the consent keeps the external address.
-    await p.goto(`${app}/#/settings/detector`)
+    await p.goto(`${app}/#/settings/sepia-server`)
     await field.fill(external)
     await connect.click()
     await p.locator('.sepia-consent').getByRole('button', { name: 'Подключить' }).click()
     await p.getByText('Подключён · Фейковый сервер · 0.7.0-fake').waitFor({ timeout: 15000 })
-    assert.ok(find((r) => r.server === 'detector' && r.path === '/v1/stats' && r.at > since).length > 0)
+    assert.ok(find((r) => r.server === 'sepiaServer' && r.path === '/v1/stats' && r.at > since).length > 0)
     assert.deepEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('sepiaServers'))), { 'fake-server': external })
     // «Найти» finds the one on Plex's host.
     await p.getByRole('button', { name: 'Найти' }).click()
     await p.getByText('Найден Sepia Server для «Фейковый сервер»').waitFor({ timeout: 15000 })
     await p.screenshot({ path: join(screens, 'settings-sepia-server.png') })
     await p.locator('.sepia-found').getByRole('button', { name: 'Подключить' }).click()
-    await until(async () => (await p.evaluate(() => JSON.parse(localStorage.getItem('sepiaServers'))['fake-server'])) === fake.urls.detector, { message: 'the found address kept' })
+    await until(async () => (await p.evaluate(() => JSON.parse(localStorage.getItem('sepiaServers'))['fake-server'])) === fake.urls.sepiaServer, { message: 'the found address kept' })
     // The new address is checked at once: another Plex server's now.
     fake.state.sepiaInfo = 'foreign'
-    await field.fill('http://127.0.0.1:' + new URL(fake.urls.detector).port + '/')
+    await field.fill('http://127.0.0.1:' + new URL(fake.urls.sepiaServer).port + '/')
     await connect.click()
     await p.getByText('Этот Sepia Server работает с другим сервером Plex.').waitFor()
     fake.state.sepiaInfo = 'ok'
     await p.getByText('Подключён · Фейковый сервер · 0.7.0-fake').waitFor()
     // «Проверить снова» asks again: Sepia Server down now, then back.
-    fake.state.detectorDown = true
+    fake.state.sepiaServerDown = true
     // Connected: no «Проверить снова». Opened again while Sepia Server is down: it is.
     assert.equal(await p.getByRole('button', { name: 'Проверить снова' }).count(), 0)
     await p.reload()
     await p.getByText('Не отвечает', { exact: true }).waitFor({ timeout: 15000 })
-    fake.state.detectorDown = false
+    fake.state.sepiaServerDown = false
     await p.getByRole('button', { name: 'Проверить снова' }).click()
     await p.getByText('Подключён · Фейковый сервер · 0.7.0-fake').waitFor({ timeout: 15000 })
     // Connected: nothing to check again.
@@ -1955,7 +1955,7 @@ await step('the step: nothing found → by hand (another server’s, not yet, a 
     assert.deepEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('sepiaServers'))), { 'fake-server': '' })
     // A server before 0.7.0 typed by hand: taken by its token; the state shows no version.
     fake.state.sepiaInfo = 'old'
-    await field.fill(fake.urls.detector)
+    await field.fill(fake.urls.sepiaServer)
     await connect.click()
     await p.getByText('Подключён · Фейковый сервер', { exact: true }).waitFor({ timeout: 15000 })
     await p.screenshot({ path: join(screens, 'settings-sepia-server-old.png') })
@@ -1969,7 +1969,7 @@ await step('the step: nothing found → by hand (another server’s, not yet, a 
 await step('the browser asked only the fakes (plus the never-answering fake plex.direct)', async () => {
   // Also Sepia Server looked for on the fake Plex's never-answering remote address, and the fake
   // Sepia Server under an external-looking name (both on 127.0.0.1 or nowhere).
-  const sepiaPort = new URL(fake.urls.detector).port
+  const sepiaPort = new URL(fake.urls.sepiaServer).port
   const outside = [...requestedHosts].filter(
     (h) => !h.startsWith('127.0.0.1:') && !h.endsWith('.fake.plex.direct:32400') && h !== `10.255.255.1:${sepiaPort}` && h !== `sepia.fake.example:${sepiaPort}`,
   )
@@ -1984,11 +1984,11 @@ const failures = fake.requests.filter(
   (r) =>
     r.status >= 400 &&
     r.server !== 'theintrodb' &&
-    !(r.server === 'detector' && fake.state.detectorDown) &&
+    !(r.server === 'sepiaServer' && fake.state.sepiaServerDown) &&
     // The proxy's refusals the smoke asks for.
     !(r.server === 'tmdb' && [404, 429].includes(r.status)) &&
     // Sepia Server before 0.7.0 and the refused token the smoke asks for.
-    !(r.server === 'detector' && ((r.path === '/v1/info' && r.status === 404) || r.status === 401)),
+    !(r.server === 'sepiaServer' && ((r.path === '/v1/info' && r.status === 404) || r.status === 401)),
 )
 if (failures.length) console.log(`non-2xx responses:\n  ${failures.map((r) => `${r.status} ${r.server} ${r.method} ${r.path}`).join('\n  ')}`)
 if (consoleErrors.length) console.log(`console errors (${consoleErrors.length}):\n  ${[...new Set(consoleErrors)].slice(0, 10).join('\n  ')}`)

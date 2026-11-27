@@ -414,7 +414,7 @@ export function dynamicRangeBadge(media: PlexMedia): string | undefined {
 const inProgress = (item: PlexItem) => (item.viewOffset ?? 0) > 0
 
 /**
- * "Continue watching" (port of SkipTVKit HomeOrdering) as one list by recency, most recent
+ * "Continue watching" (port of the Apple app's HomeOrdering) as one list by recency, most recent
  * first: an item in progress counts from when it was last watched, the next episode of a
  * started show from when the show was last watched (`showLastViewed`, the shows'
  * `lastViewedAt`: the next episode itself was never played; without it the item's own

@@ -4,7 +4,7 @@ import { parseItem, type PlexItem } from '../plexModels'
 import { catalogEpisodeCaption, entryID, entryItem, entryWatched, isDownloaded, mergeShowCatalog } from '../showCatalog'
 import { MockFetch, testClient } from './support'
 
-// Port of SkipTVKit's ShowCatalogTests.swift.
+// Port of the Apple app's ShowCatalogTests.swift.
 
 const item = (raw: object): PlexItem => parseItem(raw)!
 const season = (key: string, index: number, leaves: number, viewed = 0) =>

@@ -1,4 +1,4 @@
-// Port of SkipTVKit's ShelfOrder.swift.
+// Port of the Apple app's ShelfOrder.swift.
 
 /**
  * The order of the home shelves the user set in settings, as shelf ids. Which shelves exist

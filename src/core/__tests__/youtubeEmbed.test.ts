@@ -5,7 +5,7 @@ const video = { key: 'dQw4w9WgXcQ', name: '', type: 'Trailer', language: 'ru', o
 
 describe('YouTube embed', () => {
   it('the player URL asks for its messages, to the page’s origin', () => {
-    const url = new URL(youTubeEmbedURL('https://www.youtube.com', video, 'en', 'https://loge.example'))
+    const url = new URL(youTubeEmbedURL('https://www.youtube.com', video, 'en', 'https://sepiatv.example'))
     expect(url.origin + url.pathname).toBe('https://www.youtube.com/embed/dQw4w9WgXcQ')
     expect(Object.fromEntries(url.searchParams)).toEqual({
       autoplay: '1',
@@ -14,7 +14,7 @@ describe('YouTube embed', () => {
       hl: 'en',
       cc_lang_pref: 'en',
       enablejsapi: '1',
-      origin: 'https://loge.example',
+      origin: 'https://sepiatv.example',
     })
     // A language that isn't an id-like word doesn't go into the URL.
     expect(new URL(youTubeEmbedURL('https://www.youtube.com', video, 'x&y=1', 'o')).searchParams.get('hl')).toBe('ru')

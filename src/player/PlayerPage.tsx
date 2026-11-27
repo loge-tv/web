@@ -53,7 +53,7 @@ export function PlayerPage() {
     const s = new PlayerSession(
       {
         api,
-        detector: () => appModel.detector(),
+        sepiaServer: () => appModel.sepiaServer(),
         settings: () => settingsStore.get(),
         preferences: appModel.preferences,
         preferencesSync: appModel.preferencesSync,

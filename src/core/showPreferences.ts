@@ -56,7 +56,7 @@ export function decodeAudioPreference(raw: unknown): AudioPreference | undefined
   return result
 }
 
-/** Lenient: the detector keeps whatever another app version wrote. */
+/** Lenient: Sepia Server keeps whatever another app version wrote. */
 export function decodePreferences(raw: unknown): ShowPreferences {
   const r = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {}
   const result: ShowPreferences = { correction: decodeCorrection(r.correction) }
@@ -87,7 +87,7 @@ export function encodePreferences(p: ShowPreferences): Record<string, unknown> {
   return out
 }
 
-/** Body of a PUT: `{}` deletes the detector's copy. */
+/** Body of a PUT: `{}` deletes Sepia Server's copy. */
 export function preferencesBody(p: ShowPreferences): string {
   return isEmptyPreferences(p) ? '{}' : JSON.stringify(encodePreferences(p))
 }
@@ -212,7 +212,7 @@ export function preferencesKey(item: PlexItem): string {
 
 /**
  * Per-show preferences, cached locally (one JSON string keyed by show).
- * The detector holds the shared copy (see `ShowPreferencesSync`): local changes are
+ * Sepia Server holds the shared copy (see `ShowPreferencesSync`): local changes are
  * marked dirty until saved there, and a dirty entry is never overwritten by the server.
  */
 export class ShowPreferencesStore {
@@ -222,7 +222,7 @@ export class ShowPreferencesStore {
   private listeners = new Set<() => void>()
 
   constructor(private readonly storage: KeyValueStorage) {
-    // Entries saved before the detector kept them exist only here: upload, don't drop.
+    // Entries saved before Sepia Server kept them exist only here: upload, don't drop.
     const version = Number(storage.getItem(ShowPreferencesStore.syncVersionKey) ?? '0')
     if (!(version >= 1)) {
       this.setDirty(new Set([...this.dirtyKeys, ...Object.keys(this.all())]))
@@ -246,7 +246,7 @@ export class ShowPreferencesStore {
     this.setDirty(new Set([...this.dirtyKeys, key]))
   }
 
-  /** The detector's copy (null: it has none). Ignored while a local change is unsent. */
+  /** Sepia Server's copy (null: it has none). Ignored while a local change is unsent. */
   replace(key: string, remote: ShowPreferences | null) {
     if (this.dirtyKeys.has(key)) return
     this.write(key, remote ?? emptyPreferences())
@@ -304,14 +304,14 @@ export class ShowPreferencesStore {
   }
 }
 
-/** What the sync needs from the detector. */
+/** What the sync needs from Sepia Server. */
 export interface PreferencesRemote {
   fetchPreferences(key: string): Promise<ShowPreferences | null>
   savePreferences(p: ShowPreferences, key: string): Promise<void>
 }
 
 /**
- * Keeps the local cache and the detector in step: `pull` before playing a show,
+ * Keeps the local cache and Sepia Server in step: `pull` before playing a show,
  * `schedulePush` after a change. Offline, everything keeps working from the cache.
  */
 export class ShowPreferencesSync {
@@ -325,7 +325,7 @@ export class ShowPreferencesSync {
     private readonly client: () => PreferencesRemote | null,
   ) {}
 
-  /** Takes the detector's copy of one show (unless a local change is unsent). */
+  /** Takes Sepia Server's copy of one show (unless a local change is unsent). */
   async pull(key: string): Promise<void> {
     const client = this.client()
     if (!client) return
@@ -333,7 +333,7 @@ export class ShowPreferencesSync {
       const remote = await client.fetchPreferences(key)
       this.store.replace(key, remote)
     } catch {
-      // Detector down or too old: the cache stays.
+      // Sepia Server down or too old: the cache stays.
     }
   }
 

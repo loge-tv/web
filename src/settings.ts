@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { DEFAULT_DETECTOR } from './config'
+import { DEFAULT_SEPIA_SERVER } from './config'
 import type { WatchlistShelves } from './core/catalogMatch'
 import { Language } from './core/mediaTrack'
 import { catalogHubs, type CatalogHub } from './core/plexDiscover'
@@ -20,7 +20,7 @@ export interface Settings {
   /** → step, seconds. */
   seekForward: number
   /** Sepia Server base URL; empty: none (segments from the file's chapters and TheIntroDB). */
-  detectorURL: string
+  sepiaServerURL: string
   /** Preferred server connection URL (empty: automatic). */
   preferredConnection: string
   /** Always use the Plex transcoder (if direct play misbehaves in this browser). */
@@ -109,7 +109,7 @@ export const countdownOptions = [5, 10, 15]
 export const seekBackOptions = [5, 10, 15, 30]
 export const seekForwardOptions = [5, 10, 15, 30, 60]
 
-export const defaultDetectorURL = DEFAULT_DETECTOR ?? ''
+export const defaultSepiaServerURL = DEFAULT_SEPIA_SERVER ?? ''
 
 const defaults: Settings = {
   skipMode: 'countdown',
@@ -117,7 +117,7 @@ const defaults: Settings = {
   nextEpisodeCountdown: 5,
   seekBack: 5,
   seekForward: 5,
-  detectorURL: defaultDetectorURL,
+  sepiaServerURL: defaultSepiaServerURL,
   preferredConnection: '',
   forceTranscode: false,
   hiddenShelves: [],
@@ -128,15 +128,22 @@ const defaults: Settings = {
   preferredLanguage: 'ru',
 }
 
+/** The key Sepia Server's address had in the stored settings before the rename. */
+const LEGACY_SEPIA_SERVER_URL = 'detectorURL'
+
 /** Stored settings over the defaults; values that make no sense fall back to the default. */
 export function parseSettings(raw: unknown): Settings {
-  const stored = typeof raw === 'object' && raw !== null ? (raw as Partial<Settings>) : {}
+  const stored: Partial<Settings> & Record<string, unknown> = typeof raw === 'object' && raw !== null ? { ...(raw as Partial<Settings>) } : {}
+  // Sepia Server's address was kept under its old name until 2026-11-27: carried over, so a
+  // browser that had one keeps it.
+  if (typeof stored.sepiaServerURL !== 'string' && typeof stored[LEGACY_SEPIA_SERVER_URL] === 'string') stored.sepiaServerURL = stored[LEGACY_SEPIA_SERVER_URL] as string
+  delete stored[LEGACY_SEPIA_SERVER_URL]
   const s = { ...defaults, ...stored }
   if (!skipModes.includes(s.skipMode)) s.skipMode = defaults.skipMode
   if (!(s.nextEpisodeCountdown > 0)) s.nextEpisodeCountdown = defaults.nextEpisodeCountdown
   if (!(s.seekBack > 0)) s.seekBack = defaults.seekBack
   if (!(s.seekForward > 0)) s.seekForward = defaults.seekForward
-  if (typeof s.detectorURL !== 'string') s.detectorURL = defaults.detectorURL
+  if (typeof s.sepiaServerURL !== 'string') s.sepiaServerURL = defaults.sepiaServerURL
   s.hiddenShelves = Array.isArray(s.hiddenShelves) ? canonical(s.hiddenShelves.filter(isShelfID)) : []
   s.shelfOrder = Array.isArray(s.shelfOrder) ? [...new Set(s.shelfOrder.filter(isShelfID))] : []
   s.hiddenHubs = Array.isArray(s.hiddenHubs) ? catalogHubs.map((h) => h.id).filter((id) => s.hiddenHubs.includes(id)) : []

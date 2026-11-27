@@ -59,7 +59,7 @@ const prefixNames: [SegmentType, string[]][] = [
 /**
  * Skip segments from the file's own chapters, when they are named like "Intro", "Credits",
  * "Recap" or "Preview" (WEB-DL and Blu-ray releases often have "Credits"; anime has
- * "Opening"/"Ending"). Used only without Sepia Server. Port of SkipTVKit ChapterSegments.
+ * "Opening"/"Ending"). Used only without Sepia Server. Port of the Apple app's ChapterSegments.
  */
 export const ChapterSegments = {
   /**

@@ -1,6 +1,6 @@
 # Credits for the snapshot baselines
 
-The pictures in `baseline/` show Loge Web running a test library of open movies by the Blender
+The pictures in `baseline/` show Sepia TV web running a test library of open movies by the Blender
 Foundation / Blender Institute / Blender Studio. Their posters, backdrops and stills come from the
 sources below, under the licences those sources state. Changes made: the pictures were cropped and
 scaled.

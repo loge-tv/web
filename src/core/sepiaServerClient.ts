@@ -14,19 +14,19 @@ function parseSegmentsResponse(raw: unknown): SegmentsResponse | null {
   return {
     ratingKey: lossyString(raw.ratingKey) ?? '',
     analyzed: raw.analyzed === true,
-    // Unknown segment types from a newer detector are dropped, not fatal.
+    // Unknown segment types from a newer Sepia Server are dropped, not fatal.
     segments: Array.isArray(raw.segments) ? raw.segments.map(parseSegment).filter((s): s is Segment => s !== null) : [],
   }
 }
 
 /**
- * Client of Sepia Server (the detector): segments, files and show preferences. TMDB (titles,
+ * Client of Sepia Server: segments, files and show preferences. TMDB (titles,
  * trailers, recommendations) is the proxy's, `TMDBClient`, Sepia Server or not. Segment lookups
- * never throw: when the detector is down (or blocks the browser by CORS) or knows nothing about
+ * never throw: when Sepia Server is down (or blocks the browser by CORS) or knows nothing about
  * the item, playback simply has no segments. Requests carry only `X-Plex-Token`, `Accept` and
  * `Content-Type`.
  */
-export class DetectorClient implements PreferencesRemote {
+export class SepiaServerClient implements PreferencesRemote {
   constructor(
     readonly baseURL: string,
     readonly token: string,
@@ -42,10 +42,10 @@ export class DetectorClient implements PreferencesRemote {
   }
 
   /**
-   * The original file of a part, served by the detector from its own mount of the library.
+   * The original file of a part, served by Sepia Server from its own mount of the library.
    * Outside the home network Plex without Plex Pass refuses the file itself (403
-   * "Downloading requires a Remote Watch Pass or Plex Pass"), the detector doesn't. A
-   * `<video src>` can't send headers, so the token goes in the query (the detector takes it
+   * "Downloading requires a Remote Watch Pass or Plex Pass"), Sepia Server doesn't. A
+   * `<video src>` can't send headers, so the token goes in the query (Sepia Server takes it
    * there for files only). The file name only gives the extension.
    */
   fileURL(ratingKey: string, part: PlexPart): string | undefined {
@@ -76,7 +76,7 @@ export class DetectorClient implements PreferencesRemote {
     }
   }
 
-  /** `{"items":[...]}` (what the detector serves) or a bare array. */
+  /** `{"items":[...]}` (what Sepia Server serves) or a bare array. */
   async segmentsBatch(ratingKeys: string[]): Promise<Record<string, Segment[]>> {
     if (ratingKeys.length === 0) return {}
     try {
@@ -98,8 +98,8 @@ export class DetectorClient implements PreferencesRemote {
   // MARK: Per-show preferences
 
   /**
-   * The detector's copy of one show's preferences; null when it has none.
-   * Throws when the detector can't be asked (down, or too old for this endpoint).
+   * Sepia Server's copy of one show's preferences; null when it has none.
+   * Throws when Sepia Server can't be asked (down, or too old for this endpoint).
    */
   async fetchPreferences(key: string): Promise<ShowPreferences | null> {
     const url = joinURL(this.baseURL, `/v1/preferences/${strictEncode(key)}`)
@@ -110,7 +110,7 @@ export class DetectorClient implements PreferencesRemote {
     return decodePreferences(preferences)
   }
 
-  /** Saves one show's preferences; empty ones delete the detector's copy. */
+  /** Saves one show's preferences; empty ones delete Sepia Server's copy. */
   async savePreferences(preferences: ShowPreferences, key: string): Promise<void> {
     const url = joinURL(this.baseURL, `/v1/preferences/${strictEncode(key)}`)
     await fetchChecked(
@@ -141,7 +141,7 @@ export class DetectorClient implements PreferencesRemote {
  * A usable Sepia Server base URL from user input; empty when there is none. Sepia Server is the
  * person's own server, so there is no default address.
  */
-export function normalizeDetectorURL(input: string): string {
+export function normalizeSepiaServerURL(input: string): string {
   const trimmed = input.trim()
   try {
     const url = new URL(trimmed)

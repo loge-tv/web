@@ -4,7 +4,7 @@ import { appModel } from '../app/appModel'
 import { useApp } from '../app/hooks'
 import tmdbLogo from '../assets/tmdb-logo.svg'
 import { APP_NAME, APP_VERSION } from '../config'
-import { normalizeDetectorURL } from '../core/detectorClient'
+import { normalizeSepiaServerURL } from '../core/sepiaServerClient'
 import { statusText, type Verdict } from '../core/sepiaServer'
 import { skipModes, skipModeTitle, type SkipMode } from '../core/skipPolicy'
 import { Language } from '../core/mediaTrack'
@@ -31,7 +31,7 @@ const settingsPages: { id: string; title: string; icon: ComponentType<{ size?: n
   { id: 'playback', title: 'Плеер', icon: PlayIcon, content: PlaybackSettings },
   // «Главная» and «Обзор» share a page, a section each.
   { id: 'home', title: 'Главная и Обзор', icon: HomeIcon, content: HomeSettings },
-  { id: 'detector', title: 'Sepia Server', icon: ForwardEndIcon, content: DetectorSettings },
+  { id: 'sepia-server', title: 'Sepia Server', icon: ForwardEndIcon, content: SepiaServerSettings },
   { id: 'server', title: 'Сервер и аккаунт', icon: ServerIcon, content: ServerSettings },
 ]
 
@@ -124,7 +124,7 @@ function Toggle({ label, detail, checked, onChange }: { label: string; detail?: 
 function SepiaServerStatus({ url }: { url: string }) {
   const { api, server } = useApp()
   const [round, setRound] = useState(0)
-  const base = normalizeDetectorURL(url)
+  const base = normalizeSepiaServerURL(url)
   // A new address (or «Проверить снова») drops the old state at once and is checked right away;
   // a late answer about an earlier check is thrown away.
   const [checked, setChecked] = useState<{ url: string; round: number; verdict: Verdict } | undefined>()
@@ -459,23 +459,23 @@ function MovableRow({
   )
 }
 
-function DetectorSettings() {
+function SepiaServerSettings() {
   const settings = useSettings()
   const [finding, setFinding] = useState(0)
   return (
     <Section footer="Адрес вашего Sepia Server: с ним заставки и титры находятся точнее. Без него они берутся из глав файла и TheIntroDB.">
       <div className="settings-row">
-        <span className="grow sepia-address">{settings.detectorURL || 'Sepia Server'}</span>
-        <SepiaServerStatus url={settings.detectorURL} />
+        <span className="grow sepia-address">{settings.sepiaServerURL || 'Sepia Server'}</span>
+        <SepiaServerStatus url={settings.sepiaServerURL} />
       </div>
       <div className="settings-row sepia-settings">
         {finding > 0 && <SepiaServerFinder key={finding} />}
-        <SepiaServerAddressForm key={settings.detectorURL} initial={settings.detectorURL} />
+        <SepiaServerAddressForm key={settings.sepiaServerURL} initial={settings.sepiaServerURL} />
         <div className="row gap wrap">
           <button className="btn btn-secondary" onClick={() => setFinding((n) => n + 1)}>
             Найти
           </button>
-          {settings.detectorURL && (
+          {settings.sepiaServerURL && (
             <button className="link-button" onClick={() => appModel.setSepiaServer('')}>
               Убрать адрес Sepia Server
             </button>

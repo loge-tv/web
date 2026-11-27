@@ -2,7 +2,7 @@ import type { DiscoverUserState } from './plexDiscover'
 import { russianDate } from './plexDiscover'
 import { isWatched, makeItem, type PlexItem } from './plexModels'
 
-// Port of SkipTVKit's ShowCatalog.swift.
+// Port of the Apple app's ShowCatalog.swift.
 
 /**
  * A season or an episode on a show page: on the server (playable, deletable), only in the Plex

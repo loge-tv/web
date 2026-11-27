@@ -44,7 +44,7 @@ npm run screens:update   # write new baselines after an intended change
 ```
 
 They need the landing checkout next to this one, with its rig at
-`../landing/shots-raw/harness` (`shots-raw` is not in git; `LOGE_SHOTS_RIG=<dir>` points elsewhere),
+`../landing/shots-raw/harness` (`shots-raw` is not in git; `SEPIA_SHOTS_RIG=<dir>` points elsewhere),
 and Google Chrome (`CHROME_PATH` for another path). Without the rig they are skipped. They run
 locally only and are not part of `npm test` or CI.
 
@@ -60,11 +60,11 @@ locally only and are not part of `npm test` or CI.
    `ONLY=home,show node tools/web/shots.mjs <this checkout> tools/.web-cache/dist <out>`.
    The steps are listed in the table above; sign-in always runs. The trailer comes from
    `tools/web/trailer.mjs <this checkout> <build> <out> 6.6`, which needs a build with the real YouTube.
-   Its header explains how to run it. YouTube walls off an address that plays the trailer too often, so ask the other Loge sessions
+   Its header explains how to run it. YouTube walls off an address that plays the trailer too often, so ask the other Sepia sessions
    before playing it.
 4. Put the PNGs into `../landing/shots-raw/<date>/web-v2/<file>.png` and send their paths to the
-   site's session (Landing loge), saying what changed. The site's `.jpg` files are made by it.
+   site's session (sepia-landing), saying what changed. The site's `.jpg` files are made by it.
 
 Use only the approved state of the rig: the frames and titles the user picked. Leave the rig's
 `fake.mjs` and `media/art` as they are, because the Apple and Android apps' rigs copy them; ask
-Landing loge first.
+sepia-landing first.

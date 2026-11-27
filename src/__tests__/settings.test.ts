@@ -157,15 +157,3 @@ describe('every home shelf in settings: off, order, «Обзор»', () => {
     expect(hasDefaultHubOrder(settingsStore.get())).toBe(true)
   })
 })
-
-describe('Sepia Server address in settings', () => {
-  it('the old key is carried over and dropped', () => {
-    const s = parseSettings({ detectorURL: 'http://192.168.1.5:32420', skipMode: 'auto' })
-    expect(s.sepiaServerURL).toBe('http://192.168.1.5:32420')
-    expect('detectorURL' in s).toBe(false)
-  })
-
-  it('the new key wins over the old one', () => {
-    expect(parseSettings({ detectorURL: 'http://old', sepiaServerURL: 'http://new' }).sepiaServerURL).toBe('http://new')
-  })
-})

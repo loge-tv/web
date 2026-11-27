@@ -128,16 +128,9 @@ const defaults: Settings = {
   preferredLanguage: 'ru',
 }
 
-/** The key Sepia Server's address had in the stored settings before the rename. */
-const LEGACY_SEPIA_SERVER_URL = 'detectorURL'
-
 /** Stored settings over the defaults; values that make no sense fall back to the default. */
 export function parseSettings(raw: unknown): Settings {
-  const stored: Partial<Settings> & Record<string, unknown> = typeof raw === 'object' && raw !== null ? { ...(raw as Partial<Settings>) } : {}
-  // Sepia Server's address was kept under its old name until 2026-11-27: carried over, so a
-  // browser that had one keeps it.
-  if (typeof stored.sepiaServerURL !== 'string' && typeof stored[LEGACY_SEPIA_SERVER_URL] === 'string') stored.sepiaServerURL = stored[LEGACY_SEPIA_SERVER_URL] as string
-  delete stored[LEGACY_SEPIA_SERVER_URL]
+  const stored = typeof raw === 'object' && raw !== null ? (raw as Partial<Settings>) : {}
   const s = { ...defaults, ...stored }
   if (!skipModes.includes(s.skipMode)) s.skipMode = defaults.skipMode
   if (!(s.nextEpisodeCountdown > 0)) s.nextEpisodeCountdown = defaults.nextEpisodeCountdown

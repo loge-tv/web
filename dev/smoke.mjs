@@ -1939,6 +1939,17 @@ await step('the step: nothing found → by hand (another server’s, not yet, a 
     await p.getByText('Этот Sepia Server работает с другим сервером Plex.').waitFor()
     fake.state.sepiaInfo = 'ok'
     await p.getByText('Подключён · Фейковый сервер · 0.7.0-fake').waitFor()
+    // «Проверить снова» asks again: Sepia Server down now, then back.
+    fake.state.detectorDown = true
+    // Connected: no «Проверить снова». Opened again while Sepia Server is down: it is.
+    assert.equal(await p.getByRole('button', { name: 'Проверить снова' }).count(), 0)
+    await p.reload()
+    await p.getByText('Не отвечает', { exact: true }).waitFor({ timeout: 15000 })
+    fake.state.detectorDown = false
+    await p.getByRole('button', { name: 'Проверить снова' }).click()
+    await p.getByText('Подключён · Фейковый сервер · 0.7.0-fake').waitFor({ timeout: 15000 })
+    // Connected: nothing to check again.
+    assert.equal(await p.getByRole('button', { name: 'Проверить снова' }).count(), 0)
     await p.getByRole('button', { name: 'Убрать адрес Sepia Server' }).click()
     await p.getByText('Не задан').waitFor()
     assert.deepEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('sepiaServers'))), { 'fake-server': '' })

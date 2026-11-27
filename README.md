@@ -186,8 +186,9 @@ The interface is in Russian for now; the labels in quotes below are English tran
     Apple apps' iCloud, nothing syncs them;
   - **Sepia Server** — the address and its connection state ("Проверяем…", "Подключён · {Plex
     server} · {version}", "Нет доступа: этот Sepia Server от другого сервера Plex", "Не отвечает",
-    "Нужен https-адрес"; a new address is checked at once), "Найти" (on Plex's hosts), an address
-    typed by hand, "Убрать адрес Sepia Server";
+    "Нужен https-адрес", and the step's texts for "not reached Plex yet" and the two 401s; a new
+    address is checked at once), "Проверить снова", "Найти" (on Plex's hosts), an address typed by
+    hand, "Убрать адрес Sepia Server";
   - **Server and account** — server and connection address, reconnecting, switching servers, sign out.
 - **Connecting Sepia Server** (contract of sepiatv/server v1/v1.1, server 0.7.0). After a Plex
   server is connected for the first time, the step "Подключите Sepia Server" looks for it on the

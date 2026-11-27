@@ -116,6 +116,8 @@ describe('Sepia Server', () => {
       '192.168.1.9:32420/v1/stats': [401, '{"error":"X-Plex-Token header is required","code":"token_missing"}'],
       '192.168.1.10:8080/v1/info': [404, ''],
       '192.168.1.10:8080/v1/stats': [401, '{"error":"X-Plex-Token header is required"}'],
+      '192.168.1.12:8080/v1/info': [404, ''],
+      '192.168.1.12:8080/v1/stats': [401, '{"error":"unauthorized"}'],
     })
     const check = (url: string) => checkAddress(url, server, 'tok', { pageIsHTTPS: false, fetchFn, timeoutMs: 20 })
     expect(await check('http://192.168.1.5:8080')).toEqual({ kind: 'ok', version: undefined, old: true })
@@ -124,6 +126,8 @@ describe('Sepia Server', () => {
     expect(await check('http://192.168.1.8:32420')).toEqual({ kind: 'tokenRejected' })
     expect(await check('http://192.168.1.9:32420')).toEqual({ kind: 'tokenMissing' })
     expect(await check('http://192.168.1.10:8080')).toEqual({ kind: 'tokenMissing' })
+    // Before 0.7.0 a refused token has no code: reads as another Plex server's.
+    expect(await check('http://192.168.1.12:8080')).toEqual({ kind: 'foreign' })
     expect(await check('http://192.168.1.11:32420')).toEqual({ kind: 'down' })
     expect(verdictText({ kind: 'foreign' })).toBe('Этот Sepia Server работает с другим сервером Plex.')
   })

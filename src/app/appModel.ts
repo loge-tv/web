@@ -6,7 +6,7 @@ import { PlexAccountAPI, usableCandidateURLs, type PlexClientInfo, type PlexServ
 import { PlexDiscoverAPI } from '../core/plexDiscover'
 import { sectionKind, type PlexItem, type PlexLibrarySection } from '../core/plexModels'
 import { PlexServerAPI } from '../core/plexServerAPI'
-import { blockedOnPage, checkAddress, discover, fetchInfo, identityOf, type Discovery, type Verdict } from '../core/sepiaServer'
+import { blockedOnPage, checkAddress, discover, fetchInfo, identityOf, needsConsent, type Discovery, type Verdict } from '../core/sepiaServer'
 import { ShowPreferencesStore, ShowPreferencesSync } from '../core/showPreferences'
 import { TMDBClient } from '../core/tmdbClient'
 import { makeClientInfo } from '../platform'
@@ -157,7 +157,8 @@ export class AppModel {
     const byDefault = normalizeDetectorURL(DEFAULT_DETECTOR ?? '')
     let url: string
     if (known !== undefined) url = normalizeDetectorURL(known)
-    else if (current && (Object.keys(kept).length === 0 || current === byDefault)) url = current
+    // An earlier address over plain http outside the home network had no consent: asked again.
+    else if (current && (current === byDefault || (Object.keys(kept).length === 0 && !needsConsent(current)))) url = current
     else {
       // Not this Plex server's: unused while the step is open.
       if (current) settingsStore.update({ detectorURL: '' })

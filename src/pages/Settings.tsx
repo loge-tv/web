@@ -123,28 +123,37 @@ function Toggle({ label, detail, checked, onChange }: { label: string; detail?: 
 /** Whether the kept Sepia Server answers for this Plex server and takes its token. */
 function SepiaServerStatus({ url }: { url: string }) {
   const { api, server } = useApp()
+  const [round, setRound] = useState(0)
   const base = normalizeDetectorURL(url)
-  // A new address drops the old state at once and is checked right away; a late answer about an
-  // address that is no longer kept is thrown away.
-  const [checked, setChecked] = useState<{ url: string; verdict: Verdict } | undefined>()
+  // A new address (or «Проверить снова») drops the old state at once and is checked right away;
+  // a late answer about an earlier check is thrown away.
+  const [checked, setChecked] = useState<{ url: string; round: number; verdict: Verdict } | undefined>()
   useEffect(() => {
     if (!base || !api || !server) return
     let cancelled = false
     // Kept already: the user agreed to this address.
     void appModel.checkSepiaServer(base, true).then((verdict) => {
-      if (!cancelled) setChecked({ url: base, verdict })
+      if (!cancelled) setChecked({ url: base, round, verdict })
     })
     return () => {
       cancelled = true
     }
-  }, [base, api, server])
+  }, [base, api, server, round])
   if (!base) return <span className="status">Не задан</span>
-  const verdict = checked?.url === base ? checked.verdict : undefined
+  const verdict = checked?.url === base && checked.round === round ? checked.verdict : undefined
   const state = !verdict ? 'checking' : verdict.kind === 'ok' ? 'ok' : 'down'
   return (
-    <span className={`status status-${state}`} role="status">
-      {statusText(verdict, server?.name ?? '')}
-    </span>
+    <>
+      <span className={`status status-${state}`} role="status">
+        {statusText(verdict, server?.name ?? '')}
+      </span>
+      {/* Not when connected, and not for an address the browser won't ask (agreed with Apple). */}
+      {verdict && verdict.kind !== 'ok' && verdict.kind !== 'blocked' && (
+        <button className="btn btn-secondary" onClick={() => setRound((n) => n + 1)}>
+          Проверить снова
+        </button>
+      )}
+    </>
   )
 }
 

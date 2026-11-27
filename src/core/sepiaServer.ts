@@ -214,9 +214,12 @@ export async function checkAddress(
     } catch {
       // no body
     }
-    // Before 0.7.0 there is no code, only the error text.
-    if (code === 'token_missing' || (!code && /required/i.test(error ?? ''))) return { kind: 'tokenMissing' }
-    return { kind: 'tokenRejected' }
+    if (code === 'token_missing') return { kind: 'tokenMissing' }
+    if (code === 'token_rejected') return { kind: 'tokenRejected' }
+    // Before 0.7.0 there is no code, only the error text; a refused token there reads as another
+    // Plex server's (agreed with Apple and Android, 2026-11-26).
+    if (/required/i.test(error ?? '')) return { kind: 'tokenMissing' }
+    return { kind: 'foreign' }
   }
   return { kind: 'down' }
 }
